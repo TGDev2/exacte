@@ -178,7 +178,9 @@ public class CalculatorFrame extends JFrame {
         resultValueLabel.setFont(resultValueLabel.getFont().deriveFont(Font.BOLD, 24f));
         statusLabel.setForeground(INFO_COLOR);
 
-        JLabel helper = new JLabel("Apres un calcul valide, le resultat revient dans le premier champ pour enchainer plus vite.");
+        JLabel helper = new JLabel(
+                "<html>Le resultat affiche est exactement celui qui sera reutilise et enregistre.<br>"
+                        + "Les decimaux non terminants sont arrondis a 12 decimales.</html>");
         helper.setForeground(INFO_COLOR);
 
         panel.add(resultValueLabel, BorderLayout.CENTER);

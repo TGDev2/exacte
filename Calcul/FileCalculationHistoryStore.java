@@ -1,6 +1,7 @@
 package Calcul;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -77,10 +78,26 @@ public class FileCalculationHistoryStore implements CalculationHistoryStore {
 
         try {
             Operation operation = Operation.valueOf(columns[0]);
-            double resultValue = Double.parseDouble(columns[3]);
+            BigDecimal resultValue = restoreResult(operation, columns[1], columns[2], columns[3]);
             return new CalculationRecord(operation, columns[1], columns[2], resultValue);
         } catch (IllegalArgumentException exception) {
             throw new CalculationHistoryException("Une entree d'historique est invalide.", exception);
+        }
+    }
+
+    private BigDecimal restoreResult(
+            Operation operation,
+            String firstValue,
+            String secondValue,
+            String serializedResult) throws CalculationHistoryException {
+        try {
+            return new CalculatorEngine().calculate(operation, firstValue, secondValue).getResultValue();
+        } catch (CalculationException exception) {
+            try {
+                return DecimalPolicy.restorePersistedValue(serializedResult);
+            } catch (NumberFormatException parseException) {
+                throw new CalculationHistoryException("Une entree d'historique est invalide.", parseException);
+            }
         }
     }
 
@@ -91,6 +108,6 @@ public class FileCalculationHistoryStore implements CalculationHistoryStore {
                 + "\t"
                 + record.getSecondValue()
                 + "\t"
-                + Double.toString(record.getResultValue());
+                + NumberFormatter.serialize(record.getResultValue());
     }
 }

@@ -12,11 +12,14 @@ public class CalculatorEngineTest {
         CalculatorEngine engine = new CalculatorEngine();
 
         testAdditionSupportsCommaAndPoint(engine);
+        testDecimalAdditionAvoidsFloatingArtifacts(engine);
         testRootUsesOnlyFirstOperand(engine);
         testDivisionByZeroFailsClearly(engine);
         testNegativeRootFailsClearly(engine);
         testMissingSecondOperandFailsClearly(engine);
         testInvalidFirstOperandFailsClearly(engine);
+        testFractionalPowerFailsClearly(engine);
+        testDivisionRoundingIsStableForReuse(engine);
         testPowerCalculationIsFormattedForReuse(engine);
 
         System.out.println("All tests passed (" + assertions + " assertions).");
@@ -32,6 +35,12 @@ public class CalculatorEngineTest {
         CalculationRecord record = engine.calculate(Operation.ROOT, "9", "");
         assertEquals("3", record.getFormattedResult(), "Root should only use the first operand.");
         assertEquals("\u221A(9) = 3", record.toString(), "Unary operations should be explicit in history.");
+    }
+
+    private static void testDecimalAdditionAvoidsFloatingArtifacts(CalculatorEngine engine) throws Exception {
+        CalculationRecord record = engine.calculate(Operation.ADDITION, "0,1", "0,2");
+        assertEquals("0,3", record.getFormattedResult(), "Decimal additions should stay exact for common chained values.");
+        assertEquals("0,1 + 0,2 = 0,3", record.toString(), "History should not expose binary floating-point artifacts.");
     }
 
     private static void testDivisionByZeroFailsClearly(CalculatorEngine engine) {
@@ -60,6 +69,19 @@ public class CalculatorEngineTest {
                 "Le premier nombre est invalide. Utilisez des chiffres, un signe et une virgule ou un point.",
                 () -> engine.calculate(Operation.ADDITION, "abc", "2"),
                 "Invalid first operand should be reported with a correction hint.");
+    }
+
+    private static void testFractionalPowerFailsClearly(CalculatorEngine engine) {
+        assertThrows(
+                "L'exposant doit etre un entier.",
+                () -> engine.calculate(Operation.POWER, "9", "0,5"),
+                "Fractional powers should be rejected explicitly to keep the supported scope predictable.");
+    }
+
+    private static void testDivisionRoundingIsStableForReuse(CalculatorEngine engine) throws Exception {
+        CalculationRecord record = engine.calculate(Operation.DIVISION, "1", "3");
+        assertEquals("0,333333333333", record.getFormattedResult(), "Non-terminating divisions should use the shared rounding policy.");
+        assertEquals("0,333333333333", record.getReusableValue(), "Reused values should match the displayed rounded result exactly.");
     }
 
     private static void testPowerCalculationIsFormattedForReuse(CalculatorEngine engine) throws Exception {

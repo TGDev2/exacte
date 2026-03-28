@@ -13,9 +13,11 @@ public class CalculatorPresenterTest {
 
     public static void main(String[] args) {
         testBinaryCalculationFeedsNextWorkflow();
+        testChainedDecimalWorkflowKeepsVisiblePrecisionStable();
         testUnaryCalculationDisablesSecondOperandAndKeepsResultReusable();
         testInvalidInputReturnsActionableErrorState();
         testDivisionByZeroKeepsHistorySafe();
+        testPowerHintExplainsSupportedScope();
         testHistoryReuseSupportsSelectionAndLatestResultShortcut();
 
         System.out.println("All presenter tests passed (" + assertions + " assertions).");
@@ -51,6 +53,18 @@ public class CalculatorPresenterTest {
         assertEquals("\u221A(9) = 3", resultView.getHistoryEntries().get(0).toString(), "Unary history entries should remain explicit.");
     }
 
+    private static void testChainedDecimalWorkflowKeepsVisiblePrecisionStable() {
+        CalculatorPresenter presenter = new CalculatorPresenter(new CalculatorEngine());
+
+        CalculatorViewModel firstView = presenter.onCalculate("0,1", "0,2");
+        CalculatorViewModel secondView = presenter.onCalculate(firstView.getFirstInput(), "0,3");
+
+        assertEquals("0,3", firstView.getResultValue(), "The first rounded result should stay readable.");
+        assertEquals("0,3", firstView.getFirstInput(), "The prepared operand should match the visible result exactly.");
+        assertEquals("0,6", secondView.getResultValue(), "Chained calculations should reuse the same decimal value without drift.");
+        assertEquals("0,3 + 0,3 = 0,6", secondView.getHistoryEntries().get(1).toString(), "History should reflect the same value that was reused.");
+    }
+
     private static void testInvalidInputReturnsActionableErrorState() {
         CalculatorPresenter presenter = new CalculatorPresenter(new CalculatorEngine());
 
@@ -75,6 +89,17 @@ public class CalculatorPresenterTest {
         assertEquals(StatusTone.ERROR, viewModel.getStatusTone(), "Division by zero should surface as an error.");
         assertEquals(0, viewModel.getHistoryEntries().size(), "Division by zero should not mutate history.");
         assertEquals(FocusTarget.SECOND_NUMBER, viewModel.getFocusTarget(), "Second-operand errors should return focus to the second operand.");
+    }
+
+    private static void testPowerHintExplainsSupportedScope() {
+        CalculatorPresenter presenter = new CalculatorPresenter(new CalculatorEngine());
+
+        CalculatorViewModel viewModel = presenter.onOperationChanged(Operation.POWER, "2", "3");
+
+        assertEquals(
+                "L'exposant doit etre entier entre -999 et 999.",
+                viewModel.getInputHint(),
+                "The UI model should explain the supported exponent range.");
     }
 
     private static void testHistoryReuseSupportsSelectionAndLatestResultShortcut() {

@@ -90,6 +90,7 @@ public class CalculatorFrameTest {
             JTextField firstNumberField = findComponent(rootPane, "firstNumberField", JTextField.class);
             JTextField secondNumberField = findComponent(rootPane, "secondNumberField", JTextField.class);
             JLabel secondNumberLabel = findComponent(rootPane, "secondNumberLabel", JLabel.class);
+            JLabel inputHintLabel = findComponent(rootPane, "inputHintLabel", JLabel.class);
             JLabel statusLabel = findComponent(rootPane, "statusLabel", JLabel.class);
             AbstractButton calculateButton = findComponent(rootPane, "calculateButton", AbstractButton.class);
             AbstractButton reuseAsSecondButton = findComponent(rootPane, "reuseAsSecondButton", AbstractButton.class);
@@ -100,6 +101,10 @@ public class CalculatorFrameTest {
             assertFalse(secondNumberField.isEnabled(), "Unary operations should disable the second operand field in the UI.");
             assertEquals("Second nombre (non utilise)", secondNumberLabel.getText(), "Unary operations should explain that the second operand is unused.");
             assertFalse(reuseAsSecondButton.isEnabled(), "Reusing into the second operand should stay disabled while the operation is unary.");
+            assertEquals(
+                    "Les racines non exactes sont arrondies a 12 decimales.",
+                    inputHintLabel.getText(),
+                    "The UI should surface the explicit precision rule for roots.");
 
             runOnEdt(() -> firstNumberField.setText("9"));
             clickButton(calculateButton);

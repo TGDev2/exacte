@@ -19,6 +19,7 @@ Ce projet ne cherche pas a impressionner par un catalogue d'operations. Il cherc
 - Historique reutilisable
 - Historique persistant entre les sessions
 - Enchainement rapide des calculs : apres un succes, le resultat revient dans le premier champ pour preparer le calcul suivant
+- Politique de precision explicite : le resultat affiche est celui qui sera reutilise et persiste
 - Raccourcis utiles :
   - `Entree` : calculer
   - `Echap` : effacer les champs
@@ -44,9 +45,11 @@ Le projet fournit des tests automatiques couvrant :
 - erreurs de saisie ciblees
 - division par zero
 - formatage et reutilisation du resultat
+- cas decimaux sensibles (`0,1 + 0,2`, `1 / 3`, chainage apres arrondi)
 - reutilisation d'un resultat d'historique
 - comportement du workflow apres un calcul reussi
 - restauration de l'historique apres relance
+- normalisation d'un historique numerique provenant d'une ancienne precision flottante
 - degradation non bloquante si l'historique persistant est invalide
 - verification Swing des raccourcis, du changement unaire/binaire et de la reutilisation depuis l'UI
 
@@ -91,6 +94,18 @@ L'historique est stocke localement sur le poste utilisateur :
 
 Si ce fichier est absent ou invalide, l'application reste utilisable et le statut explique ce qui a ete restaure ou non.
 
+## Precision numerique
+
+La calculatrice applique une regle unique de bout en bout :
+
+- un resultat reussi est formate, reutilise pour le calcul suivant et persiste avec la meme valeur
+- additions, soustractions et multiplications restent exactes sur les decimaux saisis
+- divisions non terminantes et racines carrees non exactes sont arrondies a 12 decimales avec `HALF_UP`
+- les puissances acceptent uniquement un exposant entier compris entre `-999` et `999`
+- la saisie attend un decimal simple avec virgule ou point ; la notation scientifique n'est pas prise en charge
+
+Cette politique evite qu'un nombre soit affiche d'une facon, reutilise avec une autre valeur, puis restaure differemment apres relance.
+
 ## Pourquoi ce projet va au-dela d'un exercice basique
 
 - Le moteur de calcul est deja isole de l'interface.
@@ -103,6 +118,6 @@ Si ce fichier est absent ou invalide, l'application reste utilisable et le statu
 ## Limites connues
 
 - L'application reste un outil desktop local, avec une persistance d'historique limitee au poste utilisateur.
-- Le perimetre mathematique reste volontairement restreint aux operations de base et a deux usages unaires/binaires simples.
+- Le perimetre mathematique reste volontairement restreint aux operations de base, a la racine carree et aux puissances a exposant entier.
 - Les tests UI couvrent les parcours critiques, pas un rendu graphique pixel par pixel.
 - Le packaging produit une application portable Windows, pas encore un installeur signe ou une release automatisee.
