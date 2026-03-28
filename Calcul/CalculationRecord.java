@@ -21,6 +21,18 @@ public class CalculationRecord {
         return formattedResult;
     }
 
+    public Operation getOperation() {
+        return operation;
+    }
+
+    public String getFirstValue() {
+        return firstValue;
+    }
+
+    public String getSecondValue() {
+        return secondValue;
+    }
+
     public String getReusableValue() {
         return formattedResult;
     }

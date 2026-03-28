@@ -24,7 +24,16 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-& java -cp $outputDirectory Tests.CalculatorEngineTest
-if ($LASTEXITCODE -ne 0) {
-    exit $LASTEXITCODE
+$testFiles = Get-ChildItem -Path (Join-Path $projectRoot "Tests") -Filter *Test.java | Sort-Object Name
+
+if ($testFiles.Count -eq 0) {
+    throw "Aucun test Java trouve."
+}
+
+foreach ($testFile in $testFiles) {
+    $testClassName = "Tests." + [System.IO.Path]::GetFileNameWithoutExtension($testFile.Name)
+    & java -cp $outputDirectory $testClassName
+    if ($LASTEXITCODE -ne 0) {
+        exit $LASTEXITCODE
+    }
 }
