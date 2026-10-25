@@ -6,7 +6,8 @@ import java.math.RoundingMode;
 import java.util.regex.Pattern;
 
 final class DecimalPolicy {
-    static final int APPROXIMATION_SCALE = 12;
+    static final int MIN_APPROXIMATION_DECIMALS = 12;
+    static final int MIN_SIGNIFICANT_DIGITS = 12;
     static final int MAX_ABSOLUTE_INTEGER_EXPONENT = 999;
     static final int MAX_DISPLAY_DIGITS = 1000;
     static final int MAX_INPUT_LENGTH = 1005;
@@ -41,14 +42,23 @@ final class DecimalPolicy {
         try {
             return normalize(dividend.divide(divisor));
         } catch (ArithmeticException exception) {
-            return roundApproximation(dividend.divide(divisor, APPROXIMATION_SCALE, ROUNDING_MODE));
+            // Truncate one digit beyond the final scale (the quotient's first digit is at most
+            // at maxExponent): a truncated value rounds HALF_UP exactly like the true quotient.
+            int maxExponent = firstDigitExponent(dividend) - firstDigitExponent(divisor);
+            int precision = approximationScale(maxExponent) + maxExponent + 2;
+            return roundApproximation(dividend.divide(divisor, new MathContext(precision, RoundingMode.DOWN)));
         }
     }
 
     static BigDecimal sqrt(BigDecimal value) {
-        int precision = Math.max(value.precision(), 1) + APPROXIMATION_SCALE + 4;
-        MathContext mathContext = new MathContext(precision, ROUNDING_MODE);
-        return roundApproximation(value.sqrt(mathContext));
+        // With p + 2 * 12 + 4 correctly rounded digits, the root of a normalized p-digit value
+        // can never reach a rounding midpoint of the final scale, so rounding it again is exact.
+        int precision = value.precision() + 2 * MIN_SIGNIFICANT_DIGITS + 4;
+        BigDecimal root = value.sqrt(new MathContext(precision, ROUNDING_MODE));
+        if (root.multiply(root).compareTo(value) == 0) {
+            return normalize(root);
+        }
+        return roundApproximation(root);
     }
 
     static BigDecimal pow(BigDecimal base, int exponent) {
@@ -71,7 +81,15 @@ final class DecimalPolicy {
     }
 
     static BigDecimal roundApproximation(BigDecimal value) {
-        return normalize(value.setScale(APPROXIMATION_SCALE, ROUNDING_MODE));
+        return normalize(value.setScale(approximationScale(firstDigitExponent(value)), ROUNDING_MODE));
+    }
+
+    private static int approximationScale(int firstDigitExponent) {
+        return Math.max(MIN_APPROXIMATION_DECIMALS, MIN_SIGNIFICANT_DIGITS - 1 - firstDigitExponent);
+    }
+
+    private static int firstDigitExponent(BigDecimal value) {
+        return value.precision() - value.scale() - 1;
     }
 
     static String serialize(BigDecimal value) {
