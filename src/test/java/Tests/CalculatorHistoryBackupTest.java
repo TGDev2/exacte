@@ -58,7 +58,12 @@ public class CalculatorHistoryBackupTest {
 
         assertEquals(StatusTone.SUCCESS, view.getStatusTone(), "The calculation after a partial restore must be saved.");
         assertEquals(
-                List.of("ADDITION\t1\t2\t3", "SUBTRACTION\t5\t2\t3", "MULTIPLICATION\t2\t3\t6", "ADDITION\t10\t5\t15"),
+                List.of(
+                        "#calc-history v1",
+                        "ADDITION\t1\t2\t3",
+                        "SUBTRACTION\t5\t2\t3",
+                        "MULTIPLICATION\t2\t3\t6",
+                        "ADDITION\t10\t5\t15"),
                 Files.readAllLines(historyFile, StandardCharsets.UTF_8),
                 "The old valid entries and the new one must all be present.");
         assertArrayEquals(originalBytes, Files.readAllBytes(tempDirectory.resolve(BACKUP_NAME)), "The copy must stay intact.");
@@ -79,7 +84,9 @@ public class CalculatorHistoryBackupTest {
         presenter.onCalculate("1", "1");
 
         assertArrayEquals(originalBytes, Files.readAllBytes(tempDirectory.resolve(BACKUP_NAME)), "The calculation must not touch the copy.");
-        assertEquals(List.of("ADDITION\t1\t1\t2"), Files.readAllLines(historyFile, StandardCharsets.UTF_8));
+        assertEquals(
+                List.of("#calc-history v1", "ADDITION\t1\t1\t2"),
+                Files.readAllLines(historyFile, StandardCharsets.UTF_8));
     }
 
     @Test
