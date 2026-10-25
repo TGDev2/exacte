@@ -3,22 +3,26 @@ package Calcul;
 import java.math.BigDecimal;
 
 public class CalculatorEngine {
+    private static final BigDecimal MAX_ABSOLUTE_EXPONENT = BigDecimal.valueOf(DecimalPolicy.MAX_ABSOLUTE_INTEGER_EXPONENT);
+
     public CalculationRecord calculate(Operation operation, String firstInput, String secondInput) throws CalculationException {
         if (operation == null) {
-            throw new CalculationException("Choisissez une operation.");
+            throw new CalculationException("Choisissez une operation.", InputField.NONE);
         }
 
         BigDecimal firstValue = parseNumber(
                 firstInput,
                 "Saisissez le premier nombre.",
-                "Le premier nombre est invalide. Utilisez des chiffres, un signe et une virgule ou un point.");
+                "Le premier nombre est invalide. Utilisez des chiffres, un signe et une virgule ou un point.",
+                InputField.FIRST);
 
         BigDecimal secondValue = BigDecimal.ZERO;
         if (operation.requiresSecondOperand()) {
             secondValue = parseNumber(
                     secondInput,
                     "Saisissez le second nombre.",
-                    "Le second nombre est invalide. Utilisez des chiffres, un signe et une virgule ou un point.");
+                    "Le second nombre est invalide. Utilisez des chiffres, un signe et une virgule ou un point.",
+                    InputField.SECOND);
         }
 
         BigDecimal resultValue = apply(operation, firstValue, secondValue);
@@ -37,59 +41,57 @@ public class CalculatorEngine {
                 return DecimalPolicy.normalize(firstValue.multiply(secondValue));
             case DIVISION:
                 if (secondValue.compareTo(BigDecimal.ZERO) == 0) {
-                    throw new CalculationException("Le second nombre doit etre different de 0 pour une division.");
+                    throw new CalculationException("Le second nombre doit etre different de 0 pour une division.", InputField.SECOND);
                 }
                 return DecimalPolicy.divide(firstValue, secondValue);
             case POWER:
                 return applyPower(firstValue, secondValue);
             case ROOT:
                 if (firstValue.signum() < 0) {
-                    throw new CalculationException("La racine carree d'un nombre negatif n'est pas definie en reel.");
+                    throw new CalculationException("La racine carree d'un nombre negatif n'est pas definie en reel.", InputField.FIRST);
                 }
                 return DecimalPolicy.sqrt(firstValue);
             default:
-                throw new CalculationException("Operation non prise en charge.");
+                throw new CalculationException("Operation non prise en charge.", InputField.NONE);
         }
     }
 
     private BigDecimal applyPower(BigDecimal firstValue, BigDecimal secondValue) throws CalculationException {
         if (!DecimalPolicy.isIntegerValue(secondValue)) {
-            throw new CalculationException("L'exposant doit etre un entier.");
+            throw new CalculationException("L'exposant doit etre un entier.", InputField.SECOND);
+        }
+        if (secondValue.abs().compareTo(MAX_ABSOLUTE_EXPONENT) > 0) {
+            throw new CalculationException(
+                    "L'exposant doit etre un entier compris entre -"
+                            + DecimalPolicy.MAX_ABSOLUTE_INTEGER_EXPONENT
+                            + " et "
+                            + DecimalPolicy.MAX_ABSOLUTE_INTEGER_EXPONENT
+                            + ".",
+                    InputField.SECOND);
         }
 
-        try {
-            int exponent = secondValue.intValueExact();
-            if (!DecimalPolicy.isSupportedExponent(exponent)) {
-                throw new CalculationException(
-                        "L'exposant doit etre un entier compris entre -"
-                                + DecimalPolicy.MAX_ABSOLUTE_INTEGER_EXPONENT
-                                + " et "
-                                + DecimalPolicy.MAX_ABSOLUTE_INTEGER_EXPONENT
-                                + ".");
-            }
-            if (firstValue.compareTo(BigDecimal.ZERO) == 0 && exponent < 0) {
-                throw new CalculationException("0 ne peut pas etre eleve a une puissance negative.");
-            }
-            return DecimalPolicy.pow(firstValue, exponent);
-        } catch (ArithmeticException exception) {
-            throw new CalculationException("L'exposant doit etre un entier.");
+        int exponent = secondValue.intValueExact();
+        if (firstValue.compareTo(BigDecimal.ZERO) == 0 && exponent < 0) {
+            throw new CalculationException("0 ne peut pas etre eleve a une puissance negative.", InputField.FIRST);
         }
+        return DecimalPolicy.pow(firstValue, exponent);
     }
 
-    private BigDecimal parseNumber(String input, String missingMessage, String invalidMessage) throws CalculationException {
+    private BigDecimal parseNumber(String input, String missingMessage, String invalidMessage, InputField field)
+            throws CalculationException {
         if (input == null || input.trim().isEmpty()) {
-            throw new CalculationException(missingMessage);
+            throw new CalculationException(missingMessage, field);
         }
 
         String normalizedInput = input.trim().replace(',', '.');
         if (!DecimalPolicy.isSupportedInput(normalizedInput)) {
-            throw new CalculationException(invalidMessage);
+            throw new CalculationException(invalidMessage, field);
         }
 
         try {
             return DecimalPolicy.parseNormalizedInput(normalizedInput);
         } catch (NumberFormatException exception) {
-            throw new CalculationException(invalidMessage);
+            throw new CalculationException(invalidMessage, field);
         }
     }
 }
