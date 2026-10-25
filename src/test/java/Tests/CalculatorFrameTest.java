@@ -108,7 +108,7 @@ public class CalculatorFrameTest {
             assertEquals("Second nombre (non utilise)", secondNumberLabel.getText(), "Unary operations should explain that the second operand is unused.");
             assertFalse(reuseAsSecondButton.isEnabled(), "Reusing into the second operand should stay disabled while the operation is unary.");
             assertEquals(
-                    "Les racines non exactes sont arrondies a 12 decimales.",
+                    "Racine non exacte : arrondie a 12 decimales et 12 chiffres significatifs minimum.",
                     inputHintLabel.getText(),
                     "The UI should surface the explicit precision rule for roots.");
 

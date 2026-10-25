@@ -180,7 +180,8 @@ public class CalculatorFrame extends JFrame {
 
         JLabel helper = new JLabel(
                 "<html>Le resultat affiche est exactement celui qui sera reutilise et enregistre.<br>"
-                        + "Les decimaux non terminants sont arrondis a 12 decimales.</html>");
+                        + "Un resultat exact n'est jamais arrondi ; les autres sont arrondis<br>"
+                        + "a 12 decimales et 12 chiffres significatifs minimum.</html>");
         helper.setForeground(INFO_COLOR);
 
         panel.add(resultValueLabel, BorderLayout.CENTER);

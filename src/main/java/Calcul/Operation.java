@@ -4,7 +4,11 @@ public enum Operation {
     ADDITION("Addition (+)", "+", true, "Utilisez des decimaux avec virgule ou point. Pas de notation scientifique."),
     SUBTRACTION("Soustraction (-)", "-", true, "Utilisez des decimaux avec virgule ou point. Pas de notation scientifique."),
     MULTIPLICATION("Multiplication (*)", "*", true, "Utilisez des decimaux avec virgule ou point. Pas de notation scientifique."),
-    DIVISION("Division (/)", "/", true, "Les divisions non terminantes sont arrondies a 12 decimales."),
+    DIVISION(
+            "Division (/)",
+            "/",
+            true,
+            "Division non terminante : arrondie a 12 decimales et 12 chiffres significatifs minimum."),
     POWER(
             "Puissance (^)",
             "^",
@@ -14,7 +18,11 @@ public enum Operation {
                     + " et "
                     + DecimalPolicy.MAX_ABSOLUTE_INTEGER_EXPONENT
                     + "."),
-    ROOT("Racine carree (\u221A)", "\u221A", false, "Les racines non exactes sont arrondies a 12 decimales.");
+    ROOT(
+            "Racine carree (\u221A)",
+            "\u221A",
+            false,
+            "Racine non exacte : arrondie a 12 decimales et 12 chiffres significatifs minimum.");
 
     private final String displayName;
     private final String historySymbol;
