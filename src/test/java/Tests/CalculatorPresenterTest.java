@@ -1,6 +1,9 @@
 package Tests;
 
+import Calcul.CalculationException;
+import Calcul.CalculationRecord;
 import Calcul.CalculatorEngine;
+import Calcul.InputField;
 import Calcul.Operation;
 import Graphique.CalculatorPresenter;
 import Graphique.CalculatorViewModel;
@@ -8,6 +11,8 @@ import Graphique.FocusTarget;
 import Graphique.ReuseTarget;
 import Graphique.StatusTone;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -121,5 +126,74 @@ public class CalculatorPresenterTest {
         assertEquals("9", latestReuse.getFirstInput(), "The quick latest-result action should restore the newest result.");
         assertEquals("", latestReuse.getSecondInput(), "The latest-result action should prepare a fresh second operand.");
         assertEquals(1, latestReuse.getSelectedHistoryIndex(), "The latest-result action should select the latest history entry.");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"1,5", "5000", "99999999999"})
+    void testInvalidExponentFocusesSecondOperand(String exponent) {
+        CalculatorPresenter presenter = new CalculatorPresenter(new CalculatorEngine());
+        presenter.onOperationChanged(Operation.POWER, "2", exponent);
+
+        CalculatorViewModel viewModel = presenter.onCalculate("2", exponent);
+
+        assertEquals(StatusTone.ERROR, viewModel.getStatusTone(), "An invalid exponent should surface as an error.");
+        assertEquals(FocusTarget.SECOND_NUMBER, viewModel.getFocusTarget(), "Exponent errors concern the second operand.");
+    }
+
+    @Test
+    void testOutOfRangeIntegerExponentReportsTheRange() {
+        CalculatorPresenter presenter = new CalculatorPresenter(new CalculatorEngine());
+        presenter.onOperationChanged(Operation.POWER, "2", "99999999999");
+
+        CalculatorViewModel viewModel = presenter.onCalculate("2", "99999999999");
+
+        assertEquals(
+                "L'exposant doit etre un entier compris entre -999 et 999.",
+                viewModel.getStatusMessage(),
+                "A huge integer exponent is out of range, not non-integer.");
+    }
+
+    @Test
+    void testZeroToNegativePowerFocusesFirstOperand() {
+        CalculatorPresenter presenter = new CalculatorPresenter(new CalculatorEngine());
+        presenter.onOperationChanged(Operation.POWER, "0", "-1");
+
+        CalculatorViewModel viewModel = presenter.onCalculate("0", "-1");
+
+        assertEquals(StatusTone.ERROR, viewModel.getStatusTone(), "0 ^ -1 should surface as an error.");
+        assertEquals(FocusTarget.FIRST_NUMBER, viewModel.getFocusTarget(), "The base is the faulty operand for 0 ^ -1.");
+    }
+
+    @Test
+    void testFocusFollowsTheTypedFieldNotTheMessageText() {
+        CalculatorEngine engine = new CalculatorEngine() {
+            @Override
+            public CalculationRecord calculate(Operation operation, String firstInput, String secondInput)
+                    throws CalculationException {
+                throw new CalculationException("texte quelconque", InputField.SECOND);
+            }
+        };
+        CalculatorPresenter presenter = new CalculatorPresenter(engine);
+
+        CalculatorViewModel viewModel = presenter.onCalculate("1", "2");
+
+        assertEquals("texte quelconque", viewModel.getStatusMessage(), "The message is displayed untouched.");
+        assertEquals(FocusTarget.SECOND_NUMBER, viewModel.getFocusTarget(), "Focus must not depend on the message text.");
+    }
+
+    @Test
+    void testErrorWithoutFieldFocusesFirstOperand() {
+        CalculatorEngine engine = new CalculatorEngine() {
+            @Override
+            public CalculationRecord calculate(Operation operation, String firstInput, String secondInput)
+                    throws CalculationException {
+                throw new CalculationException("texte quelconque", InputField.NONE);
+            }
+        };
+        CalculatorPresenter presenter = new CalculatorPresenter(engine);
+
+        CalculatorViewModel viewModel = presenter.onCalculate("1", "2");
+
+        assertEquals(FocusTarget.FIRST_NUMBER, viewModel.getFocusTarget(), "A NONE error falls back to the first operand.");
     }
 }

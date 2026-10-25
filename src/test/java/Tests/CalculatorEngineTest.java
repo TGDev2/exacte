@@ -3,6 +3,7 @@ package Tests;
 import Calcul.CalculationException;
 import Calcul.CalculationRecord;
 import Calcul.CalculatorEngine;
+import Calcul.InputField;
 import Calcul.Operation;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -105,4 +106,46 @@ public class CalculatorEngineTest {
         assertEquals("8", record.getReusableValue(), "Reusable result should match the formatted result.");
     }
 
+
+    @Test
+    void testMissingOperationHasNoField() {
+        CalculationException exception = assertThrows(
+                CalculationException.class,
+                () -> engine.calculate(null, "1", "2"),
+                "A missing operation should be rejected.");
+        assertEquals(InputField.NONE, exception.getField(), "A missing operation belongs to no input field.");
+    }
+
+    @Test
+    void testErrorsCarryTheFaultyField() {
+        assertFieldOnError(InputField.FIRST, Operation.ADDITION, "", "2");
+        assertFieldOnError(InputField.FIRST, Operation.ADDITION, "abc", "2");
+        assertFieldOnError(InputField.SECOND, Operation.ADDITION, "1", "");
+        assertFieldOnError(InputField.SECOND, Operation.ADDITION, "1", "abc");
+        assertFieldOnError(InputField.SECOND, Operation.DIVISION, "1", "0");
+        assertFieldOnError(InputField.FIRST, Operation.ROOT, "-4", "");
+        assertFieldOnError(InputField.SECOND, Operation.POWER, "2", "1,5");
+        assertFieldOnError(InputField.SECOND, Operation.POWER, "2", "5000");
+        assertFieldOnError(InputField.FIRST, Operation.POWER, "0", "-1");
+    }
+
+    @Test
+    void testHugeIntegerExponentReportsTheRangeNotTheInteger() {
+        CalculationException exception = assertThrows(
+                CalculationException.class,
+                () -> engine.calculate(Operation.POWER, "2", "99999999999"),
+                "An out-of-range integer exponent should be rejected.");
+        assertEquals(
+                "L'exposant doit etre un entier compris entre -999 et 999.",
+                exception.getMessage(),
+                "An integer exponent beyond the range must not be reported as non-integer.");
+    }
+
+    private void assertFieldOnError(InputField expected, Operation operation, String first, String second) {
+        CalculationException exception = assertThrows(
+                CalculationException.class,
+                () -> engine.calculate(operation, first, second),
+                operation + " " + first + " " + second + " should be rejected.");
+        assertEquals(expected, exception.getField(), operation + " " + first + " " + second + " should blame " + expected + ".");
+    }
 }
