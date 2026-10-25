@@ -22,22 +22,27 @@ import javax.swing.JRootPane;
 import javax.swing.JTextField;
 import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 public class CalculatorFrameTest {
-    private static int assertions;
-
-    public static void main(String[] args) throws Exception {
-        if (GraphicsEnvironment.isHeadless()) {
-            throw new AssertionError("UI tests require a graphical environment.");
+    @BeforeEach
+    void requireGraphicalEnvironment() {
+        boolean headless = GraphicsEnvironment.isHeadless();
+        if (headless && Boolean.getBoolean("calc.ui.required")) {
+            fail("UI tests require a graphical environment (calc.ui.required=true).");
         }
-
-        testKeyboardShortcutsAndDefaultCalculationWorkflow();
-        testUnaryModeAndHistoryReuseFlow();
-
-        System.out.println("All frame tests passed (" + assertions + " assertions).");
+        assumeFalse(headless, "UI tests require a graphical environment.");
     }
 
-    private static void testKeyboardShortcutsAndDefaultCalculationWorkflow() throws Exception {
+    @Test
+    void testKeyboardShortcutsAndDefaultCalculationWorkflow() throws Exception {
         CalculatorFrame frame = createFrame();
         try {
             JRootPane rootPane = frame.getRootPane();
@@ -82,7 +87,8 @@ public class CalculatorFrameTest {
         }
     }
 
-    private static void testUnaryModeAndHistoryReuseFlow() throws Exception {
+    @Test
+    void testUnaryModeAndHistoryReuseFlow() throws Exception {
         CalculatorFrame frame = createFrame();
         try {
             JRootPane rootPane = frame.getRootPane();
@@ -168,10 +174,7 @@ public class CalculatorFrameTest {
     private static void assertShortcut(JRootPane rootPane, KeyStroke keyStroke, String expectedActionKey) {
         Object actionKey = rootPane.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).get(keyStroke);
         assertEquals(expectedActionKey, actionKey, "The expected keyboard shortcut should be registered on the root pane.");
-        assertions++;
-        if (rootPane.getActionMap().get(actionKey) == null) {
-            throw new AssertionError("The keyboard shortcut action should exist in the action map.");
-        }
+        assertNotNull(rootPane.getActionMap().get(actionKey), "The keyboard shortcut action should exist in the action map.");
     }
 
     private static void runOnEdt(Runnable runnable) throws InterruptedException, InvocationTargetException {
@@ -209,26 +212,5 @@ public class CalculatorFrameTest {
         }
 
         return null;
-    }
-
-    private static void assertEquals(Object expected, Object actual, String message) {
-        assertions++;
-        if (!expected.equals(actual)) {
-            throw new AssertionError(message + " Expected: " + expected + ", actual: " + actual);
-        }
-    }
-
-    private static void assertFalse(boolean condition, String message) {
-        assertions++;
-        if (condition) {
-            throw new AssertionError(message);
-        }
-    }
-
-    private static void assertTrue(boolean condition, String message) {
-        assertions++;
-        if (!condition) {
-            throw new AssertionError(message);
-        }
     }
 }

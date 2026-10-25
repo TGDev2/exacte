@@ -7,23 +7,14 @@ import Graphique.CalculatorViewModel;
 import Graphique.FocusTarget;
 import Graphique.ReuseTarget;
 import Graphique.StatusTone;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class CalculatorPresenterTest {
-    private static int assertions;
-
-    public static void main(String[] args) {
-        testBinaryCalculationFeedsNextWorkflow();
-        testChainedDecimalWorkflowKeepsVisiblePrecisionStable();
-        testUnaryCalculationDisablesSecondOperandAndKeepsResultReusable();
-        testInvalidInputReturnsActionableErrorState();
-        testDivisionByZeroKeepsHistorySafe();
-        testPowerHintExplainsSupportedScope();
-        testHistoryReuseSupportsSelectionAndLatestResultShortcut();
-
-        System.out.println("All presenter tests passed (" + assertions + " assertions).");
-    }
-
-    private static void testBinaryCalculationFeedsNextWorkflow() {
+    @Test
+    void testBinaryCalculationFeedsNextWorkflow() {
         CalculatorPresenter presenter = new CalculatorPresenter(new CalculatorEngine());
 
         CalculatorViewModel viewModel = presenter.onCalculate("1,5", "2.5");
@@ -38,7 +29,8 @@ public class CalculatorPresenterTest {
         assertTrue(viewModel.isReuseLastResultEnabled(), "A result should enable the quick reuse action.");
     }
 
-    private static void testUnaryCalculationDisablesSecondOperandAndKeepsResultReusable() {
+    @Test
+    void testUnaryCalculationDisablesSecondOperandAndKeepsResultReusable() {
         CalculatorPresenter presenter = new CalculatorPresenter(new CalculatorEngine());
 
         CalculatorViewModel operationView = presenter.onOperationChanged(Operation.ROOT, "9", "12");
@@ -53,7 +45,8 @@ public class CalculatorPresenterTest {
         assertEquals("\u221A(9) = 3", resultView.getHistoryEntries().get(0).toString(), "Unary history entries should remain explicit.");
     }
 
-    private static void testChainedDecimalWorkflowKeepsVisiblePrecisionStable() {
+    @Test
+    void testChainedDecimalWorkflowKeepsVisiblePrecisionStable() {
         CalculatorPresenter presenter = new CalculatorPresenter(new CalculatorEngine());
 
         CalculatorViewModel firstView = presenter.onCalculate("0,1", "0,2");
@@ -65,7 +58,8 @@ public class CalculatorPresenterTest {
         assertEquals("0,3 + 0,3 = 0,6", secondView.getHistoryEntries().get(1).toString(), "History should reflect the same value that was reused.");
     }
 
-    private static void testInvalidInputReturnsActionableErrorState() {
+    @Test
+    void testInvalidInputReturnsActionableErrorState() {
         CalculatorPresenter presenter = new CalculatorPresenter(new CalculatorEngine());
 
         CalculatorViewModel viewModel = presenter.onCalculate("abc", "2");
@@ -80,7 +74,8 @@ public class CalculatorPresenterTest {
         assertEquals(FocusTarget.FIRST_NUMBER, viewModel.getFocusTarget(), "First-operand errors should bring focus back to the first operand.");
     }
 
-    private static void testDivisionByZeroKeepsHistorySafe() {
+    @Test
+    void testDivisionByZeroKeepsHistorySafe() {
         CalculatorPresenter presenter = new CalculatorPresenter(new CalculatorEngine());
         presenter.onOperationChanged(Operation.DIVISION, "8", "0");
 
@@ -91,7 +86,8 @@ public class CalculatorPresenterTest {
         assertEquals(FocusTarget.SECOND_NUMBER, viewModel.getFocusTarget(), "Second-operand errors should return focus to the second operand.");
     }
 
-    private static void testPowerHintExplainsSupportedScope() {
+    @Test
+    void testPowerHintExplainsSupportedScope() {
         CalculatorPresenter presenter = new CalculatorPresenter(new CalculatorEngine());
 
         CalculatorViewModel viewModel = presenter.onOperationChanged(Operation.POWER, "2", "3");
@@ -102,7 +98,8 @@ public class CalculatorPresenterTest {
                 "The UI model should explain the supported exponent range.");
     }
 
-    private static void testHistoryReuseSupportsSelectionAndLatestResultShortcut() {
+    @Test
+    void testHistoryReuseSupportsSelectionAndLatestResultShortcut() {
         CalculatorPresenter presenter = new CalculatorPresenter(new CalculatorEngine());
 
         presenter.onCalculate("2", "3");
@@ -124,26 +121,5 @@ public class CalculatorPresenterTest {
         assertEquals("9", latestReuse.getFirstInput(), "The quick latest-result action should restore the newest result.");
         assertEquals("", latestReuse.getSecondInput(), "The latest-result action should prepare a fresh second operand.");
         assertEquals(1, latestReuse.getSelectedHistoryIndex(), "The latest-result action should select the latest history entry.");
-    }
-
-    private static void assertEquals(Object expected, Object actual, String message) {
-        assertions++;
-        if (!expected.equals(actual)) {
-            throw new AssertionError(message + " Expected: " + expected + ", actual: " + actual);
-        }
-    }
-
-    private static void assertFalse(boolean condition, String message) {
-        assertions++;
-        if (condition) {
-            throw new AssertionError(message);
-        }
-    }
-
-    private static void assertTrue(boolean condition, String message) {
-        assertions++;
-        if (!condition) {
-            throw new AssertionError(message);
-        }
     }
 }
