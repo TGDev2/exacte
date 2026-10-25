@@ -61,6 +61,16 @@ public class CalculatorRoundingPolicyTest {
     }
 
     @Test
+    void testRootsJustBelowARoundingMidpointAreRoundedOnce() throws Exception {
+        // True roots: 20000.0000000000004999... and 300000000000000.0000000000004999...
+        // A guard below p + 26 digits rounds them to ...5 first, then up again.
+        assertEquals("20000", engine.calculate(Operation.ROOT, "400000000,00000002", "").getFormattedResult(),
+                "A root just below a midpoint must round down.");
+        assertEquals("300000000000000", engine.calculate(Operation.ROOT, "90000000000000000000000000300", "").getFormattedResult(),
+                "A root just below a midpoint must round down.");
+    }
+
+    @Test
     void testSeededDivisionsAreNeverZeroAndStayWithinTheRelativeError() throws Exception {
         Random random = new Random(20261025L);
         int approximated = 0;

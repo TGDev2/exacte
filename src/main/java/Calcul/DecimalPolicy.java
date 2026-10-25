@@ -53,6 +53,7 @@ final class DecimalPolicy {
     static BigDecimal sqrt(BigDecimal value) {
         // With p + 2 * 12 + 4 correctly rounded digits, the root of a normalized p-digit value
         // can never reach a rounding midpoint of the final scale, so rounding it again is exact.
+        // Do not go below p + 26: p + 16 already double-rounds sqrt(400000000.00000002).
         int precision = value.precision() + 2 * MIN_SIGNIFICANT_DIGITS + 4;
         BigDecimal root = value.sqrt(new MathContext(precision, ROUNDING_MODE));
         if (root.multiply(root).compareTo(value) == 0) {
