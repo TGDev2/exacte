@@ -8,6 +8,8 @@ import java.util.regex.Pattern;
 final class DecimalPolicy {
     static final int APPROXIMATION_SCALE = 12;
     static final int MAX_ABSOLUTE_INTEGER_EXPONENT = 999;
+    static final int MAX_DISPLAY_DIGITS = 1000;
+    static final int MAX_INPUT_LENGTH = 1005;
     static final RoundingMode ROUNDING_MODE = RoundingMode.HALF_UP;
 
     private static final Pattern SUPPORTED_DECIMAL_INPUT = Pattern.compile("[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)");
@@ -54,6 +56,10 @@ final class DecimalPolicy {
             return normalize(base.pow(exponent));
         }
         return divide(BigDecimal.ONE, base.pow(-exponent));
+    }
+
+    static boolean exceedsDisplayDigits(BigDecimal value) {
+        return Math.max(value.precision(), value.scale()) > MAX_DISPLAY_DIGITS;
     }
 
     static boolean isIntegerValue(BigDecimal value) {

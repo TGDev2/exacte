@@ -4,6 +4,12 @@ import java.math.BigDecimal;
 
 public class CalculatorEngine {
     private static final BigDecimal MAX_ABSOLUTE_EXPONENT = BigDecimal.valueOf(DecimalPolicy.MAX_ABSOLUTE_INTEGER_EXPONENT);
+    private static final String TOO_MANY_DIGITS_MESSAGE =
+            "Le resultat depasse " + DecimalPolicy.MAX_DISPLAY_DIGITS + " chiffres (reduisez les nombres saisis).";
+    private static final String TOO_MANY_DIGITS_POWER_MESSAGE =
+            "Le resultat depasse " + DecimalPolicy.MAX_DISPLAY_DIGITS + " chiffres (reduisez l'exposant ou la base).";
+    private static final String UNEXPECTED_ARITHMETIC_MESSAGE =
+            "Le calcul n'a pas pu etre effectue sur des nombres de cette taille.";
 
     public CalculationRecord calculate(Operation operation, String firstInput, String secondInput) throws CalculationException {
         if (operation == null) {
@@ -14,6 +20,7 @@ public class CalculatorEngine {
                 firstInput,
                 "Saisissez le premier nombre.",
                 "Le premier nombre est invalide. Utilisez des chiffres, un signe et une virgule ou un point.",
+                "Le premier nombre est trop long (" + DecimalPolicy.MAX_INPUT_LENGTH + " caracteres maximum).",
                 InputField.FIRST);
 
         BigDecimal secondValue = BigDecimal.ZERO;
@@ -22,6 +29,7 @@ public class CalculatorEngine {
                     secondInput,
                     "Saisissez le second nombre.",
                     "Le second nombre est invalide. Utilisez des chiffres, un signe et une virgule ou un point.",
+                    "Le second nombre est trop long (" + DecimalPolicy.MAX_INPUT_LENGTH + " caracteres maximum).",
                     InputField.SECOND);
         }
 
@@ -32,6 +40,19 @@ public class CalculatorEngine {
     }
 
     private BigDecimal apply(Operation operation, BigDecimal firstValue, BigDecimal secondValue) throws CalculationException {
+        BigDecimal result;
+        try {
+            result = compute(operation, firstValue, secondValue);
+        } catch (ArithmeticException exception) {
+            throw new CalculationException(UNEXPECTED_ARITHMETIC_MESSAGE, InputField.NONE);
+        }
+        if (DecimalPolicy.exceedsDisplayDigits(result)) {
+            throw new CalculationException(TOO_MANY_DIGITS_MESSAGE, InputField.NONE);
+        }
+        return result;
+    }
+
+    private BigDecimal compute(Operation operation, BigDecimal firstValue, BigDecimal secondValue) throws CalculationException {
         switch (operation) {
             case ADDITION:
                 return DecimalPolicy.normalize(firstValue.add(secondValue));
@@ -71,19 +92,29 @@ public class CalculatorEngine {
         }
 
         int exponent = secondValue.intValueExact();
-        if (firstValue.compareTo(BigDecimal.ZERO) == 0 && exponent < 0) {
+        BigDecimal base = DecimalPolicy.normalize(firstValue);
+        if (base.signum() == 0 && exponent < 0) {
             throw new CalculationException("0 ne peut pas etre eleve a une puissance negative.", InputField.FIRST);
         }
-        return DecimalPolicy.pow(firstValue, exponent);
+        long estimatedDigits = (long) Math.max(base.precision(), base.scale()) * Math.abs(exponent);
+        if (estimatedDigits > DecimalPolicy.MAX_DISPLAY_DIGITS) {
+            throw new CalculationException(TOO_MANY_DIGITS_POWER_MESSAGE, InputField.SECOND);
+        }
+        return DecimalPolicy.pow(base, exponent);
     }
 
-    private BigDecimal parseNumber(String input, String missingMessage, String invalidMessage, InputField field)
+    private BigDecimal parseNumber(String input, String missingMessage, String invalidMessage, String tooLongMessage, InputField field)
             throws CalculationException {
         if (input == null || input.trim().isEmpty()) {
             throw new CalculationException(missingMessage, field);
         }
 
-        String normalizedInput = input.trim().replace(',', '.');
+        String trimmedInput = input.trim();
+        if (trimmedInput.length() > DecimalPolicy.MAX_INPUT_LENGTH) {
+            throw new CalculationException(tooLongMessage, field);
+        }
+
+        String normalizedInput = trimmedInput.replace(',', '.');
         if (!DecimalPolicy.isSupportedInput(normalizedInput)) {
             throw new CalculationException(invalidMessage, field);
         }
