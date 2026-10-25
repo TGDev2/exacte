@@ -11,8 +11,11 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class FileCalculationHistoryStore implements CalculationHistoryStore {
+    private static final Logger LOGGER = Logger.getLogger(FileCalculationHistoryStore.class.getName());
     private static final String FILE_NAME = "history.tsv";
     private static final char BYTE_ORDER_MARK = '\uFEFF';
     private static final int COLUMN_COUNT = 4;
@@ -56,6 +59,7 @@ public class FileCalculationHistoryStore implements CalculationHistoryStore {
         try {
             lines = Files.readAllLines(historyFile, StandardCharsets.UTF_8);
         } catch (IOException exception) {
+            LOGGER.log(Level.WARNING, "Cannot read history file " + historyFile + ", writes are now refused", exception);
             writeProtected = true;
             throw new CalculationHistoryException(
                     "Impossible de lire l'historique : " + historyFile,
@@ -78,6 +82,7 @@ public class FileCalculationHistoryStore implements CalculationHistoryStore {
                 history.add(parseLine(engine, line));
             } catch (IllegalArgumentException | ArithmeticException | CalculationException exception) {
                 skippedLines++;
+                LOGGER.warning("Skipped line " + (index + 1) + " of " + historyFile + ": " + exception.getMessage());
             }
         }
         Path backupFile = skippedLines > 0 ? backupOriginalFile() : null;
@@ -87,6 +92,7 @@ public class FileCalculationHistoryStore implements CalculationHistoryStore {
     @Override
     public void saveHistory(List<CalculationRecord> history) throws CalculationHistoryException {
         if (writeProtected) {
+            LOGGER.warning("Refused to write " + historyFile + ": the original file is protected");
             throw new CalculationHistoryException(
                     "Ecriture refusee pour proteger le fichier d'origine : " + historyFile);
         }
@@ -108,6 +114,7 @@ public class FileCalculationHistoryStore implements CalculationHistoryStore {
             }
             Files.write(historyFile, serializedHistory, StandardCharsets.UTF_8);
         } catch (IOException exception) {
+            LOGGER.log(Level.WARNING, "Cannot write history file " + historyFile, exception);
             throw new CalculationHistoryException("Impossible d'enregistrer l'historique : " + historyFile, exception);
         }
     }
@@ -116,6 +123,7 @@ public class FileCalculationHistoryStore implements CalculationHistoryStore {
         try {
             return copyToBackup();
         } catch (IOException exception) {
+            LOGGER.log(Level.WARNING, "Cannot back up " + historyFile + ", writes are now refused", exception);
             writeProtected = true;
             return null;
         }

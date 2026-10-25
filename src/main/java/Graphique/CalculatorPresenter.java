@@ -11,8 +11,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class CalculatorPresenter {
+    private static final Logger LOGGER = Logger.getLogger(CalculatorPresenter.class.getName());
     private static final String EMPTY_HISTORY_STATUS = "Historique vide. Saisissez un calcul puis appuyez sur Entree ou cliquez sur Calculer.";
     private static final String RESTORED_HISTORY_STATUS = "Historique restaure. Vous pouvez reutiliser un resultat precedent ou lancer un nouveau calcul.";
     private static final String UNAVAILABLE_HISTORY_STATUS = "L'historique precedent n'a pas pu etre restaure. Vous pouvez continuer sans blocage.";
@@ -307,6 +310,7 @@ public class CalculatorPresenter {
             historyStore.saveHistory(history);
             return true;
         } catch (CalculationHistoryException exception) {
+            LOGGER.log(Level.WARNING, "Cannot persist history", exception);
             return false;
         }
     }
