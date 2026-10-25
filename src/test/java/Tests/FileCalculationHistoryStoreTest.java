@@ -32,7 +32,7 @@ public class FileCalculationHistoryStoreTest {
     @Test
     void testLeadingUtf8ByteOrderMarkIsIgnored(@TempDir Path tempDirectory) throws Exception {
         Path historyFile = tempDirectory.resolve("history.tsv");
-        Files.writeString(historyFile, "﻿" + VALID_ADDITION + "\n" + VALID_SUBTRACTION + "\n", StandardCharsets.UTF_8);
+        Files.writeString(historyFile, "\uFEFF" + VALID_ADDITION + "\n" + VALID_SUBTRACTION + "\n", StandardCharsets.UTF_8);
 
         HistoryLoadResult result = new FileCalculationHistoryStore(historyFile).loadHistory();
 

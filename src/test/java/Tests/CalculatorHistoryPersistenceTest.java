@@ -64,7 +64,8 @@ public class CalculatorHistoryPersistenceTest {
         assertEquals(0, viewModel.getHistoryEntries().size(), "Invalid persisted history should be ignored at startup.");
         assertEquals(StatusTone.ERROR, viewModel.getStatusTone(), "Invalid persisted history should surface as a non-blocking error.");
         assertEquals(
-                "L'historique precedent n'a pas pu etre restaure. Vous pouvez continuer sans blocage.",
+                "L'historique precedent n'a pas pu etre restaure. Vous pouvez continuer sans blocage."
+                        + " Une copie du fichier d'origine a ete conservee.",
                 viewModel.getStatusMessage(),
                 "The startup message should explain that the user can continue without the previous history.");
     }

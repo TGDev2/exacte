@@ -2,21 +2,40 @@ package Calcul;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Clock;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
 public class FileCalculationHistoryStore implements CalculationHistoryStore {
     private static final String FILE_NAME = "history.tsv";
-    private static final char BYTE_ORDER_MARK = '﻿';
+    private static final char BYTE_ORDER_MARK = '\uFEFF';
     private static final int COLUMN_COUNT = 4;
+    private static final DateTimeFormatter BACKUP_TIMESTAMP = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss");
+
+    @FunctionalInterface
+    public interface FileCopier {
+        void copy(Path source, Path target) throws IOException;
+    }
 
     private final Path historyFile;
+    private final Clock clock;
+    private final FileCopier copier;
+    private boolean writeProtected;
 
     public FileCalculationHistoryStore(Path historyFile) {
+        this(historyFile, Clock.systemDefaultZone(), Files::copy);
+    }
+
+    public FileCalculationHistoryStore(Path historyFile, Clock clock, FileCopier copier) {
         this.historyFile = Objects.requireNonNull(historyFile);
+        this.clock = Objects.requireNonNull(clock);
+        this.copier = Objects.requireNonNull(copier);
     }
 
     public static FileCalculationHistoryStore forCurrentUser() {
@@ -37,7 +56,11 @@ public class FileCalculationHistoryStore implements CalculationHistoryStore {
         try {
             lines = Files.readAllLines(historyFile, StandardCharsets.UTF_8);
         } catch (IOException exception) {
-            throw new CalculationHistoryException("Impossible de lire l'historique : " + historyFile, exception);
+            writeProtected = true;
+            throw new CalculationHistoryException(
+                    "Impossible de lire l'historique : " + historyFile,
+                    exception,
+                    backupOriginalFile());
         }
 
         CalculatorEngine engine = new CalculatorEngine();
@@ -57,11 +80,17 @@ public class FileCalculationHistoryStore implements CalculationHistoryStore {
                 skippedLines++;
             }
         }
-        return new HistoryLoadResult(history, skippedLines, null);
+        Path backupFile = skippedLines > 0 ? backupOriginalFile() : null;
+        return new HistoryLoadResult(history, skippedLines, backupFile);
     }
 
     @Override
     public void saveHistory(List<CalculationRecord> history) throws CalculationHistoryException {
+        if (writeProtected) {
+            throw new CalculationHistoryException(
+                    "Ecriture refusee pour proteger le fichier d'origine : " + historyFile);
+        }
+
         try {
             if (history.isEmpty()) {
                 Files.deleteIfExists(historyFile);
@@ -80,6 +109,29 @@ public class FileCalculationHistoryStore implements CalculationHistoryStore {
             Files.write(historyFile, serializedHistory, StandardCharsets.UTF_8);
         } catch (IOException exception) {
             throw new CalculationHistoryException("Impossible d'enregistrer l'historique : " + historyFile, exception);
+        }
+    }
+
+    private Path backupOriginalFile() {
+        try {
+            return copyToBackup();
+        } catch (IOException exception) {
+            writeProtected = true;
+            return null;
+        }
+    }
+
+    private Path copyToBackup() throws IOException {
+        String baseName = historyFile.getFileName() + "." + LocalDateTime.now(clock).format(BACKUP_TIMESTAMP);
+        for (int attempt = 0; ; attempt++) {
+            String suffix = attempt == 0 ? "" : "-" + attempt;
+            Path backupFile = historyFile.resolveSibling(baseName + suffix + ".bak");
+            try {
+                copier.copy(historyFile, backupFile);
+                return backupFile;
+            } catch (FileAlreadyExistsException exception) {
+                // never overwrite an existing copy: try the next numbered name
+            }
         }
     }
 
