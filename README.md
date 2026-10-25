@@ -118,7 +118,8 @@ La calculatrice applique une regle unique de bout en bout :
 
 - un resultat reussi est formate, reutilise pour le calcul suivant et persiste avec la meme valeur
 - additions, soustractions et multiplications restent exactes sur les decimaux saisis
-- divisions non terminantes et racines carrees non exactes sont arrondies a 12 decimales avec `HALF_UP`
+- un resultat exact n'est jamais arrondi : division terminante (meme au-dela de 12 decimales, `1 / 1048576 = 0,00000095367431640625`), racine carree exacte, puissance exacte
+- un resultat approche (division non terminante, racine carree non exacte, puissance negative non terminante) est arrondi une seule fois avec `HALF_UP` a au moins 12 decimales et au moins 12 chiffres significatifs : `1 / 3 = 0,333333333333`, `1 / 3000000000000 = 0,000000000000333333333333` ; un resultat non nul n'est donc jamais affiche `0`
 - les puissances acceptent uniquement un exposant entier compris entre `-999` et `999`
 - la saisie attend un decimal simple avec virgule ou point ; la notation scientifique n'est pas prise en charge
 
