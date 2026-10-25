@@ -1,7 +1,6 @@
 package Calcul;
 
 import java.io.IOException;
-import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -11,6 +10,8 @@ import java.util.Objects;
 
 public class FileCalculationHistoryStore implements CalculationHistoryStore {
     private static final String FILE_NAME = "history.tsv";
+    private static final char BYTE_ORDER_MARK = '﻿';
+    private static final int COLUMN_COUNT = 4;
 
     private final Path historyFile;
 
@@ -27,24 +28,36 @@ public class FileCalculationHistoryStore implements CalculationHistoryStore {
     }
 
     @Override
-    public List<CalculationRecord> loadHistory() throws CalculationHistoryException {
+    public HistoryLoadResult loadHistory() throws CalculationHistoryException {
         if (!Files.exists(historyFile)) {
-            return List.of();
+            return new HistoryLoadResult(List.of(), 0, null);
         }
 
+        List<String> lines;
         try {
-            List<String> lines = Files.readAllLines(historyFile, StandardCharsets.UTF_8);
-            List<CalculationRecord> history = new ArrayList<>();
-            for (String line : lines) {
-                if (line == null || line.isBlank()) {
-                    continue;
-                }
-                history.add(parseLine(line));
-            }
-            return history;
+            lines = Files.readAllLines(historyFile, StandardCharsets.UTF_8);
         } catch (IOException exception) {
-            throw new CalculationHistoryException("Impossible de lire l'historique.", exception);
+            throw new CalculationHistoryException("Impossible de lire l'historique : " + historyFile, exception);
         }
+
+        CalculatorEngine engine = new CalculatorEngine();
+        List<CalculationRecord> history = new ArrayList<>();
+        int skippedLines = 0;
+        for (int index = 0; index < lines.size(); index++) {
+            String line = lines.get(index);
+            if (index == 0 && line.startsWith(String.valueOf(BYTE_ORDER_MARK))) {
+                line = line.substring(1);
+            }
+            if (line.isBlank()) {
+                continue;
+            }
+            try {
+                history.add(parseLine(engine, line));
+            } catch (IllegalArgumentException | ArithmeticException | CalculationException exception) {
+                skippedLines++;
+            }
+        }
+        return new HistoryLoadResult(history, skippedLines, null);
     }
 
     @Override
@@ -66,39 +79,22 @@ public class FileCalculationHistoryStore implements CalculationHistoryStore {
             }
             Files.write(historyFile, serializedHistory, StandardCharsets.UTF_8);
         } catch (IOException exception) {
-            throw new CalculationHistoryException("Impossible d'enregistrer l'historique.", exception);
+            throw new CalculationHistoryException("Impossible d'enregistrer l'historique : " + historyFile, exception);
         }
     }
 
-    private CalculationRecord parseLine(String line) throws CalculationHistoryException {
+    private CalculationRecord parseLine(CalculatorEngine engine, String line) throws CalculationException {
         String[] columns = line.split("\t", -1);
-        if (columns.length != 4) {
-            throw new CalculationHistoryException("Format d'historique invalide.");
+        if (columns.length != COLUMN_COUNT) {
+            throw new IllegalArgumentException("expected " + COLUMN_COUNT + " columns but found " + columns.length);
         }
 
-        try {
-            Operation operation = Operation.valueOf(columns[0]);
-            BigDecimal resultValue = restoreResult(operation, columns[1], columns[2], columns[3]);
-            return new CalculationRecord(operation, columns[1], columns[2], resultValue);
-        } catch (IllegalArgumentException exception) {
-            throw new CalculationHistoryException("Une entree d'historique est invalide.", exception);
-        }
-    }
-
-    private BigDecimal restoreResult(
-            Operation operation,
-            String firstValue,
-            String secondValue,
-            String serializedResult) throws CalculationHistoryException {
-        try {
-            return new CalculatorEngine().calculate(operation, firstValue, secondValue).getResultValue();
-        } catch (CalculationException exception) {
-            try {
-                return DecimalPolicy.restorePersistedValue(serializedResult);
-            } catch (NumberFormatException parseException) {
-                throw new CalculationHistoryException("Une entree d'historique est invalide.", parseException);
-            }
-        }
+        Operation operation = Operation.valueOf(columns[0]);
+        return new CalculationRecord(
+                operation,
+                columns[1],
+                columns[2],
+                engine.calculate(operation, columns[1], columns[2]).getResultValue());
     }
 
     private String serialize(CalculationRecord record) {

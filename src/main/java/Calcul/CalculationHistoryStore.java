@@ -3,15 +3,15 @@ package Calcul;
 import java.util.List;
 
 public interface CalculationHistoryStore {
-    List<CalculationRecord> loadHistory() throws CalculationHistoryException;
+    HistoryLoadResult loadHistory() throws CalculationHistoryException;
 
     void saveHistory(List<CalculationRecord> history) throws CalculationHistoryException;
 
     static CalculationHistoryStore noop() {
         return new CalculationHistoryStore() {
             @Override
-            public List<CalculationRecord> loadHistory() {
-                return List.of();
+            public HistoryLoadResult loadHistory() {
+                return new HistoryLoadResult(List.of(), 0, null);
             }
 
             @Override

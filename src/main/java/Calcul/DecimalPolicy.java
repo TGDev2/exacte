@@ -68,14 +68,6 @@ final class DecimalPolicy {
         return normalize(value.setScale(APPROXIMATION_SCALE, ROUNDING_MODE));
     }
 
-    static BigDecimal restorePersistedValue(String serializedValue) {
-        BigDecimal parsedValue = normalize(new BigDecimal(serializedValue));
-        if (parsedValue.scale() > APPROXIMATION_SCALE) {
-            return roundApproximation(parsedValue);
-        }
-        return parsedValue;
-    }
-
     static String serialize(BigDecimal value) {
         return normalize(value).toPlainString();
     }

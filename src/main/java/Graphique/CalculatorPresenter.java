@@ -5,6 +5,7 @@ import Calcul.CalculationHistoryException;
 import Calcul.CalculationHistoryStore;
 import Calcul.CalculationRecord;
 import Calcul.CalculatorEngine;
+import Calcul.HistoryLoadResult;
 import Calcul.Operation;
 import java.util.ArrayList;
 import java.util.List;
@@ -15,6 +16,7 @@ public class CalculatorPresenter {
     private static final String EMPTY_HISTORY_STATUS = "Historique vide. Saisissez un calcul puis appuyez sur Entree ou cliquez sur Calculer.";
     private static final String RESTORED_HISTORY_STATUS = "Historique restaure. Vous pouvez reutiliser un resultat precedent ou lancer un nouveau calcul.";
     private static final String UNAVAILABLE_HISTORY_STATUS = "L'historique precedent n'a pas pu etre restaure. Vous pouvez continuer sans blocage.";
+    private static final String BACKUP_KEPT_STATUS = "Une copie du fichier d'origine a ete conservee.";
 
     private final CalculatorEngine engine;
     private final CalculationHistoryStore historyStore;
@@ -270,18 +272,34 @@ public class CalculatorPresenter {
 
     private void restoreHistory() {
         try {
-            history.addAll(historyStore.loadHistory());
-            if (history.isEmpty()) {
-                statusMessage = EMPTY_HISTORY_STATUS;
-                statusTone = StatusTone.INFO;
-            } else {
-                statusMessage = RESTORED_HISTORY_STATUS;
-                statusTone = StatusTone.SUCCESS;
-            }
+            HistoryLoadResult loadResult = historyStore.loadHistory();
+            history.addAll(loadResult.records());
+            applyRestoreStatus(loadResult);
         } catch (CalculationHistoryException exception) {
-            statusMessage = UNAVAILABLE_HISTORY_STATUS;
+            statusMessage = withBackupNotice(UNAVAILABLE_HISTORY_STATUS, exception.getBackupFile() != null);
             statusTone = StatusTone.ERROR;
         }
+    }
+
+    private void applyRestoreStatus(HistoryLoadResult loadResult) {
+        int skippedLines = loadResult.skippedLines();
+        boolean backupKept = loadResult.backupFile() != null;
+        if (skippedLines == 0) {
+            boolean restored = !loadResult.records().isEmpty();
+            statusMessage = restored ? RESTORED_HISTORY_STATUS : EMPTY_HISTORY_STATUS;
+            statusTone = restored ? StatusTone.SUCCESS : StatusTone.INFO;
+        } else if (loadResult.records().isEmpty()) {
+            statusMessage = withBackupNotice(UNAVAILABLE_HISTORY_STATUS, backupKept);
+            statusTone = StatusTone.ERROR;
+        } else {
+            String skipped = skippedLines == 1 ? "1 entree ignoree" : skippedLines + " entrees ignorees";
+            statusMessage = withBackupNotice("Historique restaure partiellement : " + skipped + ".", backupKept);
+            statusTone = StatusTone.ERROR;
+        }
+    }
+
+    private static String withBackupNotice(String message, boolean backupKept) {
+        return backupKept ? message + " " + BACKUP_KEPT_STATUS : message;
     }
 
     private boolean persistHistory() {
