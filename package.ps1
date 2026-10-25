@@ -1,20 +1,20 @@
 $ErrorActionPreference = "Stop"
 
 $projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$outputDirectory = Join-Path $projectRoot "out"
+$builtJarPath = Join-Path $projectRoot "target\calc.jar"
 $distributionDirectory = Join-Path $projectRoot "dist"
 $packageInputDirectory = Join-Path $distributionDirectory "input"
-$jarPath = Join-Path $packageInputDirectory "Calc.jar"
+$jarPath = Join-Path $packageInputDirectory "calc.jar"
 $appImageDirectory = Join-Path $distributionDirectory "Calc"
 $portableArchivePath = Join-Path $distributionDirectory "Calc-portable.zip"
 
-foreach ($tool in @("jar", "jpackage")) {
+foreach ($tool in @("java", "jpackage")) {
     if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) {
         throw "L'outil requis '$tool' est introuvable dans le PATH."
     }
 }
 
-& powershell -ExecutionPolicy Bypass -File (Join-Path $projectRoot "check.ps1")
+& (Join-Path $projectRoot "mvnw.cmd") -B verify
 if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
@@ -31,17 +31,14 @@ if (Test-Path -LiteralPath $distributionDirectory) {
 
 New-Item -ItemType Directory -Path $packageInputDirectory -Force | Out-Null
 
-& jar --create --file $jarPath --main-class Main -C $outputDirectory .
-if ($LASTEXITCODE -ne 0) {
-    exit $LASTEXITCODE
-}
+Copy-Item -LiteralPath $builtJarPath -Destination $jarPath
 
 & jpackage `
     --type app-image `
     --name Calc `
     --dest $distributionDirectory `
     --input $packageInputDirectory `
-    --main-jar Calc.jar `
+    --main-jar calc.jar `
     --main-class Main `
     --app-version 1.0.0 `
     --vendor "Calc" `
