@@ -1,7 +1,14 @@
 package Calcul;
 
 public class CalculationException extends Exception {
-    public CalculationException(String message) {
+    private final InputField field;
+
+    public CalculationException(String message, InputField field) {
         super(message);
+        this.field = field;
+    }
+
+    public InputField getField() {
+        return field;
     }
 }

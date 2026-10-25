@@ -6,10 +6,10 @@ import Calcul.CalculationHistoryStore;
 import Calcul.CalculationRecord;
 import Calcul.CalculatorEngine;
 import Calcul.HistoryLoadResult;
+import Calcul.InputField;
 import Calcul.Operation;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -101,7 +101,7 @@ public class CalculatorPresenter {
             resultValue = "--";
             statusMessage = exception.getMessage();
             statusTone = StatusTone.ERROR;
-            focusTarget = resolveFocusTargetForError(exception.getMessage());
+            focusTarget = resolveFocusTargetForError(exception);
             selectFocusedFieldText = true;
             return buildViewModel();
         }
@@ -231,14 +231,9 @@ public class CalculatorPresenter {
         return history.get(history.size() - 1);
     }
 
-    private FocusTarget resolveFocusTargetForError(String message) {
-        if (message == null) {
-            return FocusTarget.FIRST_NUMBER;
-        }
-
-        String lowerMessage = message.toLowerCase(Locale.ROOT);
-        if (lowerMessage.contains("second")) {
-            return selectedOperation.requiresSecondOperand() ? FocusTarget.SECOND_NUMBER : FocusTarget.FIRST_NUMBER;
+    private FocusTarget resolveFocusTargetForError(CalculationException exception) {
+        if (exception.getField() == InputField.SECOND && selectedOperation.requiresSecondOperand()) {
+            return FocusTarget.SECOND_NUMBER;
         }
         return FocusTarget.FIRST_NUMBER;
     }
