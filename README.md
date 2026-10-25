@@ -36,6 +36,22 @@ Le projet est volontairement compact, mais les responsabilites sont separees :
 
 Cette separation permet de tester les parcours d'usage critiques sans dependre d'une verification manuelle de l'UI.
 
+## Prerequis
+
+- JDK 17 minimum (le projet est compile avec `--release 17`).
+- Maven n'est pas a installer : le Maven Wrapper est fourni (`mvnw.cmd` sous Windows, `./mvnw` sous Linux et macOS).
+- `jpackage` (inclus dans le JDK) n'est necessaire que pour le packaging Windows.
+
+Commandes principales :
+
+```powershell
+.\mvnw.cmd -B verify                 # compile, execute les tests, produit target\calc.jar
+.\mvnw.cmd -B verify "-Dcalc.ui.required=true"   # echoue si les tests d'interface ne peuvent pas s'executer (CI)
+java -jar target\calc.jar            # lance l'application apres verify
+```
+
+Sans affichage graphique, les tests d'interface sont ignores (signales comme `skipped`), sauf si `calc.ui.required=true` est positionne.
+
 ## Verification
 
 Le projet fournit des tests automatiques couvrant :
@@ -56,8 +72,10 @@ Le projet fournit des tests automatiques couvrant :
 Commande :
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\check.ps1
+.\mvnw.cmd -B verify
 ```
+
+Le script `check.ps1` est une enveloppe de cette commande.
 
 ## Packaging recommande pour une evaluation
 
@@ -69,7 +87,7 @@ powershell -ExecutionPolicy Bypass -File .\package.ps1
 
 Le script :
 
-- verifie le projet
+- verifie le projet (`mvnw.cmd -B verify`)
 - cree une application Windows portable dans `dist\Calc\Calc.exe`
 - cree une archive de distribution dans `dist\Calc-portable.zip`
 
@@ -83,7 +101,7 @@ Commande :
 powershell -ExecutionPolicy Bypass -File .\run.ps1
 ```
 
-Le script compile le projet puis lance l'application, sans dependre d'un IDE.
+Le script construit le projet sans les tests (`target\calc.jar`) puis lance l'application, sans dependre d'un IDE.
 
 ## Historique persistant
 
