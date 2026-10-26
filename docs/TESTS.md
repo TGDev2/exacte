@@ -243,6 +243,26 @@ Mesures (Windows 11, JDK 21, `gradlew cleanTest check`) : 597 tests, 0 échec, 0
 
 Générateur : `JsonHistoryGenerators` écrit le JSON à la main, avec sa propre table d'identifiants, indépendamment du code de production
 (c'est un deuxième énoncé du format).
+## Interface : modes, exactitude visible, textes et accessibilité (E08)
+
+Pas de propriété ici : des exemples, tous rapides.
+
+- `CalculatorDisplayModeTest` (présentateur, sans fenêtre) : changer de mode reformate le résultat et l'historique sans
+  recalculer (les entrées sont les mêmes objets, aucune sauvegarde de l'historique), le mode est mémorisé, `√2` est
+  approché avec sa borne, `1 ÷ 4` exact sans fraction, `1 ÷ 3` exact avec sa fraction secondaire, un magasin de
+  préférences qui échoue donne le mode Auto.
+- `PreferencesDisplayModeStoreTest` : lecture et écriture sur un nœud de préférences isolé (nom aléatoire, supprimé après
+  chaque test), valeur inconnue, absence de nœud, nœud dont tous les accès sont refusés.
+- `widget/WidgetsTest`, `widget/HistoryLineTest` : composants réutilisables seuls (sélecteur, badge, rendu de ligne).
+- `widget/PaletteContrastTest` : rapport de contraste WCAG de chaque couleur de texte sur son fond (≥ 4,5:1) ; la sortie
+  du test donne les rapports.
+- `VisibleTextsTest` : les littéraux des sources qui portent des textes affichés ne contiennent aucune forme sans accent
+  connue ; vérifié en retirant un accent à la main (le test échoue).
+- `CalculatorFrameTest` (tag `ui`) : sélecteur, badge, fraction secondaire, rendu de l'historique, `Ctrl+M` (et absence de
+  liaison identique dans les tables d'entrées des composants), mode mémorisé, noms accessibles, ordre de tabulation. Les
+  tests `ui` ont aussi été lancés avec l'apparence Windows (`-Dswing.defaultlaf=...WindowsLookAndFeel` dans
+  `JAVA_TOOL_OPTIONS`) : même résultat.
+
 ## Défauts trouvés par les propriétés
 
 1. **Une entrée valide était perdue au rechargement** (corrigé). Repéré d'abord par un exemple visant le piège noté en E4,
