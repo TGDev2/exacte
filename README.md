@@ -65,19 +65,17 @@ Commandes principales (PowerShell, à la racine du dépôt) :
 
 Sous Linux et macOS, les mêmes commandes s'écrivent `./gradlew check`, `./gradlew run` et `./gradlew jar`.
 
-Les tests portant le tag JUnit `ui` pilotent la vraie fenêtre Swing et nécessitent un affichage. Sans affichage graphique, ils sont ignorés (signalés comme `skipped`), sauf si `calc.ui.required=true` est positionné : ils échouent alors. Pour forcer le mode sans affichage, `gradlew check -Djava.awt.headless=true` convient : le build transmet explicitement cette propriété à la JVM de test, ce que Gradle ne fait pas de lui-même.
+Les tests portant le tag JUnit `ui` pilotent la vraie fenêtre Swing et nécessitent un affichage. Sans affichage graphique, ils sont ignorés (signalés comme `skipped`), sauf si `-PrequireUiTests=true` est donné à Gradle : ils échouent alors avec un message explicite. Pour forcer le mode sans affichage, `gradlew check -Djava.awt.headless=true` convient : le build transmet explicitement cette propriété à la JVM de test, ce que Gradle ne fait pas de lui-même.
 
 Les scripts PowerShell sont de simples délégations vers Gradle et propagent son code de sortie. Si la politique d'exécution PowerShell bloque les scripts, les lancer avec `powershell -ExecutionPolicy Bypass -File .\run.ps1`.
 
 ## Intégration continue
 
-Le workflow `.github/workflows/ci.yml` s'exécute à chaque `push` et pull request vers `main` :
+[![CI](https://github.com/TGDev2/Calculatrice/actions/workflows/ci.yml/badge.svg)](https://github.com/TGDev2/Calculatrice/actions/workflows/ci.yml)
 
-- Linux (Ubuntu) avec JDK 17 et JDK 21 pour lancer Gradle (le code est toujours compilé avec la toolchain Java 21), sous `xvfb-run` pour disposer d'un affichage virtuel
-- Windows avec JDK 17 pour lancer Gradle
+Le workflow `.github/workflows/ci.yml` lance `gradlew check -PrequireUiTests=true` sur Windows, macOS et Linux (JDK 21 Temurin) à chaque `push` sur `main`, à chaque pull request et à la demande. Sous Linux, la commande passe par `xvfb-run` pour disposer d'un affichage virtuel. Grâce à `-PrequireUiTests=true`, aucun test d'interface ne peut être ignoré silencieusement. Les rapports de test sont publiés comme artefacts, et Dependabot met à jour chaque semaine les dépendances Gradle et les actions GitHub.
 
-Chaque job lance `gradlew check -Dcalc.ui.required=true` : aucun test d'interface ne peut y être ignoré silencieusement.
-
+Détails, reproduction en local et lecture des artefacts : [docs/CI.md](docs/CI.md).
 ## Vérification
 
 Le projet fournit 187 tests JUnit 5 (`src/test/java/calc/engine` et `calc/ui`) couvrant notamment :

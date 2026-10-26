@@ -4,34 +4,60 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
-  linux:
-    runs-on: ubuntu-latest
+  check:
+    name: check (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        java: [17, 21]
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    defaults:
+      run:
+        shell: bash
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: ${{ matrix.java }}
-          cache: gradle
-      - name: Build and test
-        run: xvfb-run -a ./gradlew check -Dcalc.ui.required=true
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-  windows:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - name: Set up Java 21
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: temurin
-          java-version: 17
-          cache: gradle
-      - name: Build and test
-        shell: cmd
-        run: gradlew.bat check -Dcalc.ui.required=true
+          java-version: '21'
+
+      # Also validates the checksum of every Gradle wrapper jar (validate-wrappers defaults to true).
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          validate-wrappers: true
+
+      # Linux runners have no display: xvfb (preinstalled on ubuntu-latest) provides one.
+      # requireUiTests makes the ui tests fail, instead of being skipped, when no display is available.
+      - name: Check (Linux, virtual display)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a ./gradlew check -PrequireUiTests=true --console=plain
+
+      - name: Check (Windows, macOS)
+        if: runner.os != 'Linux'
+        run: ./gradlew check -PrequireUiTests=true --console=plain
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: test-reports-${{ matrix.os }}
+          path: |
+            build/reports/tests
+            build/test-results
+          if-no-files-found: warn
+          retention-days: 7

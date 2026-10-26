@@ -42,7 +42,7 @@ public class CalculatorFrameTest {
     void requireGraphicalEnvironment() {
         boolean headless = GraphicsEnvironment.isHeadless();
         if (headless && Boolean.getBoolean("calc.ui.required")) {
-            fail("UI tests require a graphical environment (calc.ui.required=true).");
+            fail("UI tests require a graphical environment (-PrequireUiTests=true): no display is available, so the ui tests cannot run.");
         }
         assumeFalse(headless, "UI tests require a graphical environment.");
     }
