@@ -31,7 +31,8 @@ internal library with its own tests; E06 integrates it into the engine.
 2. **`Rational` is implemented in the project** (package `calc.number`, about 350 lines with comments). It is
    immutable and always canonical: denominator `> 0`, `gcd(|p|, q) = 1`, zero is `0/1`, so `equals`, `hashCode` and
    `compareTo` agree. Its arithmetic (`add`, `subtract`, `multiply` with cross reduction, `divide`, `negate`, `abs`,
-   `reciprocal`) is exact and not bounded: cost and result are at most about twice the operands. The two operations
+   `reciprocal`) is exact and not bounded: a result is at most about twice the size of the operands, and its cost
+   (dominated by a `gcd`, quadratic in that size) is therefore bounded by them. The two operations
    whose cost is not bounded by their operands check the limits **before** computing: `pow(int)` (a `b`-bit component
    raised to `n` has at least `(b - 1) * n + 1` bits: refused at once when that is already too many, otherwise computed
    and checked exactly, so no representable power is refused) and `parse(String)`. Other services: `isInteger`,
@@ -39,11 +40,13 @@ internal library with its own tests; E06 integrates it into the engine.
    with the smallest scale), `toString` (`p` or `p/q`, read back by `parse`).
 3. **Literal grammar** of `Rational.parse`, without spaces: `[+-]? digits? ([.,] digits?)? ([eE] [+-]? digits)?` with at
    least one digit in the mantissa, ASCII digits only, or two such decimals separated by `/` (`-1,5/4e2`). The checks
-   come in this order: length, grammar, scientific exponent, size (a digit count that already proves the size is
+   come in this order, each one on both members of a fraction before the next: length, grammar, scientific exponent,
+   size (a digit count that already proves the size is
    refused before any power of ten is built; `significant / 10^s` with no trailing zero has a denominator of at least
    `2^s`), zero denominator. Spaces, thousands separators and other user conveniences stay in the engine (E06).
 4. **Outward rounding.** The component limit applies to every bound of a `CertifiedValue`. Each bound of an
-   approximate result is a binary number `m * 2^k` with `|m| < 2^128` (`BOUND_SIGNIFICANT_BITS`, about 38 decimal
+   approximate result of `+ - * /`, of a power and of a root is a binary number `m * 2^k` with `|m| < 2^128`
+   (`BOUND_SIGNIFICANT_BITS`, about 38 decimal
    digits). An operation computes its candidate bounds exactly, then rounds the lower one **down** and the upper one
    **up** to the grid of step `2^(e + 1 - 128)`, where `2^e <= |bound| < 2^(e + 1)`: the step is relative to the
    magnitude, each rounding widens a bound by less than `2^-127` of its magnitude, and the inclusion property is kept.
@@ -168,8 +171,9 @@ warm-up, below 10 ms).
 - Interval arithmetic overestimates when a value appears twice: `X - X` is `[-2r, 2r]`, not 0, and widths grow along a
   chain. The guarantee holds; the width is the honest price, and E06 may recompute with more precision when a result
   is too wide to show.
-- An approximate value built with `between` keeps its bounds as given; the first operation puts them on the binary
-  grid, so `X + 0` may differ from `X` in its representation (never in its guarantee).
+- An approximate value built with `between` keeps its bounds as given, and so does its `negate()`; the first
+  arithmetic operation puts them on the binary grid, so `X + 0` may differ from `X` in its representation (never in its
+  guarantee).
 - `midpoint()` and `radius()` are not checked against the limit (at most twice it, plus two bits).
 - Each unit operation is bounded (table above), not a whole calculation: the bounds of E09 (expression depth) and E10
   (document size) will bound the number of operations.

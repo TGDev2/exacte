@@ -19,9 +19,8 @@ public final class NumericLimits {
 
     /**
      * Longest literal accepted by {@link Rational#parse(String)}, in characters, checked before anything else. The
-     * longest text the core writes for a value within the limits is the exact decimal of a rational whose denominator
-     * is a power of two of 4095 bits, with its sign: 4099 characters. Every text written by the core can therefore be
-     * read back.
+     * longest text the core writes for a value within the limits is the exact decimal of {@code -(2^4096 - 1) / 2^4095}:
+     * the sign, 4096 digits and the point, 4098 characters. Every text written by the core can therefore be read back.
      */
     public static final int MAX_LITERAL_LENGTH = MAX_COMPONENT_BITS + 4;
 
