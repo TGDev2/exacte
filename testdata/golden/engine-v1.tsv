@@ -1,0 +1,71 @@
+operation	first	second	outcome	display	reusable
+ADDITION	0,1	0,2	OK	0,3	0,3
+ADDITION	0.1	0.2	OK	0,3	0,3
+ADDITION	1,5	2,25	OK	3,75	3,75
+ADDITION	-1	1	OK	0	0
+ADDITION	-0	-0	OK	0	0
+ADDITION	0,000	0	OK	0	0
+ADDITION	+5	-3	OK	2	2
+ADDITION	.5	5.	OK	5,5	5,5
+ADDITION	1000000000000000000000	1	OK	1000000000000000000001	1000000000000000000001
+ADDITION	0,000000000001	0,000000000001	OK	0,000000000002	0,000000000002
+SUBTRACTION	5	7,5	OK	-2,5	-2,5
+SUBTRACTION	0,3	0,1	OK	0,2	0,2
+SUBTRACTION	-0	0	OK	0	0
+SUBTRACTION	123456789012345678901234567890	1	OK	123456789012345678901234567889	123456789012345678901234567889
+MULTIPLICATION	0,1	3	OK	0,3	0,3
+MULTIPLICATION	-2	-3	OK	6	6
+MULTIPLICATION	0	-5	OK	0	0
+MULTIPLICATION	123456789,123456789	987654321,987654321	OK	121932631356500531,347203169112635269	121932631356500531,347203169112635269
+MULTIPLICATION	0,000001	0,000001	OK	0,000000000001	0,000000000001
+MULTIPLICATION	1<rep:999:0>	10	ERROR	Le résultat dépasse 1000 chiffres (réduisez les nombres saisis).	
+DIVISION	1	3	OK	0,333333333333	0,333333333333
+DIVISION	2	3	OK	0,666666666667	0,666666666667
+DIVISION	-2	3	OK	-0,666666666667	-0,666666666667
+DIVISION	1	3000000000000	OK	0,000000000000333333333333	0,000000000000333333333333
+DIVISION	6	3	OK	2	2
+DIVISION	1	8	OK	0,125	0,125
+DIVISION	0	5	OK	0	0
+DIVISION	8	0	ERROR	Le second nombre doit être différent de 0 pour une division.	
+DIVISION	8	0,000	ERROR	Le second nombre doit être différent de 0 pour une division.	
+DIVISION	1	-7	OK	-0,142857142857	-0,142857142857
+POWER	2	10	OK	1024	1024
+POWER	2	-2	OK	0,25	0,25
+POWER	-2	3	OK	-8	-8
+POWER	-2	3,0	OK	-8	-8
+POWER	1,5	2	OK	2,25	2,25
+POWER	3	-30	OK	0,00000000000000485693574962	0,00000000000000485693574962
+POWER	10	-13	OK	0,0000000000001	0,0000000000001
+POWER	0	0	OK	1	1
+POWER	0	-1	ERROR	0 ne peut pas être élevé à une puissance négative.	
+POWER	2	1000	ERROR	L'exposant doit être un entier compris entre -999 et 999.	
+POWER	2	999	OK	len=301 sha256=f937617f3ed86829b625271158c4e7fbb108445fc5780cc993a63bc2cfe47b6a	len=301 sha256=f937617f3ed86829b625271158c4e7fbb108445fc5780cc993a63bc2cfe47b6a
+POWER	2	-999	OK	len=1001 sha256=b05db82022593700efffdf9e80cec8a61dbd8bbdc61771707c9ccb3d8a8e26e0	len=1001 sha256=b05db82022593700efffdf9e80cec8a61dbd8bbdc61771707c9ccb3d8a8e26e0
+POWER	10	999	ERROR	Le résultat dépasse 1000 chiffres (réduisez l'exposant ou la base).	
+POWER	10	1000	ERROR	L'exposant doit être un entier compris entre -999 et 999.	
+POWER	2	-1000	ERROR	L'exposant doit être un entier compris entre -999 et 999.	
+POWER	2	1,5	ERROR	L'exposant doit être un entier.	
+POWER	2	99999999999	ERROR	L'exposant doit être un entier compris entre -999 et 999.	
+POWER	12345678901	100	ERROR	Le résultat dépasse 1000 chiffres (réduisez l'exposant ou la base).	
+ROOT	2		OK	1,414213562373	1,414213562373
+ROOT	0,00000000000000000000000001		OK	0,0000000000001	0,0000000000001
+ROOT	-4		ERROR	La racine carrée d'un nombre négatif n'est pas définie en réel.	
+ROOT	0		OK	0	0
+ROOT	16		OK	4	4
+ROOT	0,25		OK	0,5	0,5
+ROOT	1000000	abc	OK	1000	1000
+ADDITION	abc	1	ERROR	Le premier nombre est invalide. Utilisez des chiffres, un signe et une virgule ou un point.	
+ADDITION	1	abc	ERROR	Le second nombre est invalide. Utilisez des chiffres, un signe et une virgule ou un point.	
+ADDITION	1e3	1	ERROR	Le premier nombre est invalide. Utilisez des chiffres, un signe et une virgule ou un point.	
+ADDITION	1 000	1	OK	1001	1001
+ADDITION	1<U+00A0>000	1	OK	1001	1001
+ADDITION	1,000.5	1	ERROR	Le premier nombre est invalide. Utilisez des chiffres, un signe et une virgule ou un point.	
+ADDITION	1<U+202F>000<U+202F>000,5	0	OK	1000000,5	1000000,5
+ADDITION	<U+00A0>7<U+00A0>	1	OK	8	8
+ADDITION		1	ERROR	Saisissez le premier nombre.	
+ADDITION	   	1	ERROR	Saisissez le premier nombre.	
+ADDITION	1		ERROR	Saisissez le second nombre.	
+ADDITION	<rep:1006:1>	1	ERROR	Le premier nombre est trop long (1005 caractères maximum).	
+ADDITION	1	<rep:1006:1>	ERROR	Le second nombre est trop long (1005 caractères maximum).	
+ROOT			ERROR	Saisissez le premier nombre.	
+(none)	1	1	ERROR	Choisissez une opération.	
