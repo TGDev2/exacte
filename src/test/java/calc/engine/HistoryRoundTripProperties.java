@@ -1,9 +1,11 @@
 package calc.engine;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import calc.testing.DecimalGenerators;
 import calc.testing.HistoryFileGenerators;
 import calc.testing.RecordGenerators;
 import calc.testing.TempDirectories;
@@ -85,13 +87,13 @@ class HistoryRoundTripProperties {
     }
 
     /**
-     * The longest operand without integer part that the calculator accepts. Its canonical text gains the "0" of "0,xxx"
-     * and is exactly at the bound: it must be restored from the file it was saved in. (One character more used to be
-     * accepted, saved, then refused as too long on reload: see ErrorProperties.)
+     * The operand without integer part with the most decimals the core accepts: its canonical text gains the "0" of
+     * "0,xxx" and must still be restored from the file it was saved in (a 1005-character operand of this shape used to
+     * be saved, then refused as too long on reload: see ErrorProperties).
      */
     @Example
-    void anOperandOfTheMaximumLengthWithoutIntegerPartReloads() throws Exception {
-        String longFraction = "," + "7".repeat(CalculationLimits.MAX_INPUT_LENGTH - 2);
+    void anOperandWithTheMostDecimalsWithoutIntegerPartReloads() throws Exception {
+        String longFraction = "," + "7".repeat(DecimalGenerators.MAX_DIGITS);
         CalculationRecord record = new CalculatorEngine().calculate(Operation.ROOT, longFraction, "");
         TempDirectories.with(directory -> {
             Path file = directory.resolve("history.tsv");
@@ -105,12 +107,39 @@ class HistoryRoundTripProperties {
         });
     }
 
+    /**
+     * Version 1 cannot store an interval: an entry calculated from a remembered approximate value (a root reused, then
+     * squared) is written with the canonical point of that value as operand. It is restored without rejection, as the
+     * exact result of that operand, which lies in the interval that was shown (docs/adr/0004-regles-affichage.md, section 9).
+     */
+    @Example
+    void anEntryCalculatedFromARememberedRootReloadsAsItsExactRecalculation() throws Exception {
+        CalculatorEngine engine = new CalculatorEngine();
+        CalculationRecord root = engine.calculate(Operation.ROOT, "2", "");
+        CalculationRecord square = engine.calculate(Operation.POWER, Operand.known(root.getResult()), Operand.typed("2"));
+        assertFalse(square.isExact(), "The square of a remembered root is approximate.");
+        TempDirectories.with(directory -> {
+            Path file = directory.resolve("history.tsv");
+            new FileCalculationHistoryStore(file).saveHistory(List.of(root, square));
+
+            HistoryLoadResult loaded = new FileCalculationHistoryStore(file).loadHistory();
+
+            assertTrue(loaded.rejections().isEmpty(), () -> "Nothing may be rejected, got " + loaded.rejections());
+            assertSameEntry(root, loaded.records().get(0));
+            CalculationRecord restored = loaded.records().get(1);
+            assertEquals(square.getFirstValue(), restored.getFirstValue());
+            assertTrue(restored.isExact(), "The recalculation from the stored operand is exact.");
+            assertTrue(square.getResult().contains(restored.getResult().lower()), "It lies in the interval that was shown.");
+        });
+    }
+
     private static void assertSameEntry(CalculationRecord expected, CalculationRecord actual) {
         assertEquals(expected.getOperation(), actual.getOperation());
-        assertEquals(expected.getFirstValue(), actual.getFirstValue(), "First operand display");
-        assertEquals(expected.getSecondValue(), actual.getSecondValue(), "Second operand display");
+        assertEquals(expected.getFirstValue(), actual.getFirstValue(), "First operand");
+        assertEquals(expected.getSecondValue(), actual.getSecondValue(), "Second operand");
         assertEquals(expected.getFormattedResult(), actual.getFormattedResult(), "Result display");
-        assertEquals(0, expected.getResultValue().compareTo(actual.getResultValue()), "Reusable value of " + expected);
+        assertEquals(expected.getResult(), actual.getResult(), "Value of " + expected);
+        assertEquals(expected.getReusableValue(), actual.getReusableValue(), "Reusable value of " + expected);
         assertEquals(expected.toString(), actual.toString(), "History line");
     }
 

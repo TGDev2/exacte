@@ -4,6 +4,7 @@ import calc.engine.CalculationException;
 import calc.engine.CalculationRecord;
 import calc.engine.CalculatorEngine;
 import calc.engine.InputField;
+import calc.engine.Operand;
 import calc.engine.Operation;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -12,7 +13,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class CalculatorErrorFocusTest {
-    private static final String BIG = "9".repeat(600);
+    // 1000 digits: an operand within the core limits whose square (2000 digits) is not.
+    private static final String BIG = "9".repeat(1000);
 
     @ParameterizedTest(name = "{0} [{1}] [{2}] -> {3}")
     @CsvSource(delimiter = '|', value = {
@@ -20,14 +22,14 @@ public class CalculatorErrorFocusTest {
         "ADDITION       | 1      | ''     | SECOND_NUMBER",
         "ADDITION       | abc    | 1      | FIRST_NUMBER",
         "ADDITION       | 1      | abc    | SECOND_NUMBER",
-        "SUBTRACTION    | 1e3    | 1      | FIRST_NUMBER",
+        "SUBTRACTION    | 1e     | 1      | FIRST_NUMBER",
         "MULTIPLICATION | 1      | 1,5,5  | SECOND_NUMBER",
         "DIVISION       | 8      | 0      | SECOND_NUMBER",
         "ROOT           | -4     | ''     | FIRST_NUMBER",
         "ROOT           | abc    | ''     | FIRST_NUMBER",
         "POWER          | 2      | 1,5    | SECOND_NUMBER",
-        "POWER          | 2      | 1000   | SECOND_NUMBER",
-        "POWER          | 2      | -1000  | SECOND_NUMBER",
+        "POWER          | 2      | 5000   | SECOND_NUMBER",
+        "POWER          | 2      | -5000  | SECOND_NUMBER",
         "POWER          | 2      | 99999999999 | SECOND_NUMBER",
         "POWER          | 0      | -1     | FIRST_NUMBER",
         "POWER          | 99     | 999    | SECOND_NUMBER",
@@ -70,7 +72,7 @@ public class CalculatorErrorFocusTest {
     void testFocusDoesNotDependOnTheWordsOfTheMessage() {
         CalculatorEngine misleadingEngine = new CalculatorEngine() {
             @Override
-            public CalculationRecord calculate(Operation operation, String first, String second) throws CalculationException {
+            public CalculationRecord calculate(Operation operation, Operand first, Operand second) throws CalculationException {
                 throw new CalculationException("Le second nombre second second", InputField.FIRST);
             }
         };
@@ -86,7 +88,7 @@ public class CalculatorErrorFocusTest {
     void testSecondFieldErrorIsIgnoredForAnOperationWithoutSecondOperand() {
         CalculatorEngine misleadingEngine = new CalculatorEngine() {
             @Override
-            public CalculationRecord calculate(Operation operation, String first, String second) throws CalculationException {
+            public CalculationRecord calculate(Operation operation, Operand first, Operand second) throws CalculationException {
                 throw new CalculationException("anything", InputField.SECOND);
             }
         };

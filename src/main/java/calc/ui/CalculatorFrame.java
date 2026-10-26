@@ -43,6 +43,7 @@ public final class CalculatorFrame extends JFrame {
     private static final Color ERROR_COLOR = new Color(163, 44, 44);
     private static final Color INFO_COLOR = new Color(60, 60, 60);
     private static final String NO_RESULT = "--";
+    private static final String RESULT_DESCRIPTION = "Résultat du dernier calcul";
     private static final int RESULT_MAX_PREFERRED_WIDTH = 360;
     private static final int TOOLTIP_LINE_LENGTH = 60;
 
@@ -81,7 +82,7 @@ public final class CalculatorFrame extends JFrame {
         operationSelector.setRenderer(new OperationRenderer());
         inputHintLabel = new JLabel();
         resultValueLabel = new JLabel(NO_RESULT, SwingConstants.RIGHT) {
-            // A result can hold up to 1000 digits: let the layout shrink the label (ellipsis)
+            // A result text can be long (Décimal mode, error messages): let the layout shrink the label (ellipsis)
             // instead of letting the text widen the window.
             @Override
             public Dimension getMinimumSize() {
@@ -207,9 +208,9 @@ public final class CalculatorFrame extends JFrame {
         statusLabel.setForeground(INFO_COLOR);
 
         JLabel helper = new JLabel(
-                "<html>Le résultat affiché est exactement celui qui sera réutilisé et enregistré.<br>"
-                        + "Un résultat exact n'est jamais arrondi ; les autres sont arrondis<br>"
-                        + "à 12 décimales et 12 chiffres significatifs minimum.</html>");
+                "<html>Le résultat est réutilisé et enregistré sans perte, même si l'affichage est abrégé.<br>"
+                        + "12 chiffres significatifs ; « … » : chiffres omis ; « ≈ » : valeur approchée<br>"
+                        + "garantie (borne d'erreur dans l'infobulle).</html>");
         helper.setForeground(INFO_COLOR);
 
         panel.add(resultValueLabel, BorderLayout.CENTER);
@@ -308,7 +309,7 @@ public final class CalculatorFrame extends JFrame {
             secondNumberField.getAccessibleContext().setAccessibleName(viewModel.secondInputLabel());
             secondNumberField.setToolTipText(viewModel.secondInputTooltip());
             inputHintLabel.setText(viewModel.inputHint());
-            showResult(viewModel.resultValue());
+            showResult(viewModel.resultValue(), viewModel.resultExact(), viewModel.resultDetail());
             setStatusMessage(viewModel.statusMessage(), resolveStatusColor(viewModel.statusTone()));
 
             historyModel.clear();
@@ -373,24 +374,36 @@ public final class CalculatorFrame extends JFrame {
         statusLabel.setText(message);
     }
 
-    private void showResult(String value) {
+    private void showResult(String value, boolean exact, String detail) {
         resultValueLabel.setText(value);
-        resultValueLabel.setToolTipText(NO_RESULT.equals(value) ? null : toTooltip(value));
-        resultValueLabel.getAccessibleContext().setAccessibleName("Résultat : " + value);
+        resultValueLabel.setToolTipText(NO_RESULT.equals(value) ? null : toTooltip(value, detail));
+        resultValueLabel.getAccessibleContext().setAccessibleName(
+                "Résultat : " + value + (exact ? "" : " (valeur approchée)"));
+        resultValueLabel.getAccessibleContext().setAccessibleDescription(
+                detail.isEmpty() ? RESULT_DESCRIPTION : RESULT_DESCRIPTION + ". " + detail);
     }
 
-    private static String toTooltip(String value) {
-        if (value.length() <= TOOLTIP_LINE_LENGTH) {
+    // The result, then its detail (error bound or exact value), cut into lines of TOOLTIP_LINE_LENGTH characters.
+    private static String toTooltip(String value, String detail) {
+        if (value.length() <= TOOLTIP_LINE_LENGTH && detail.isEmpty()) {
             return value;
         }
         StringBuilder html = new StringBuilder("<html>");
-        for (int start = 0; start < value.length(); start += TOOLTIP_LINE_LENGTH) {
+        appendLines(html, value);
+        if (!detail.isEmpty()) {
+            html.append("<br>");
+            appendLines(html, detail);
+        }
+        return html.append("</html>").toString();
+    }
+
+    private static void appendLines(StringBuilder html, String text) {
+        for (int start = 0; start < text.length(); start += TOOLTIP_LINE_LENGTH) {
             if (start > 0) {
                 html.append("<br>");
             }
-            html.append(value, start, Math.min(start + TOOLTIP_LINE_LENGTH, value.length()));
+            html.append(text, start, Math.min(start + TOOLTIP_LINE_LENGTH, text.length()));
         }
-        return html.append("</html>").toString();
     }
 
     private void configureAccessibility() {
@@ -409,7 +422,7 @@ public final class CalculatorFrame extends JFrame {
         describe(secondNumberField, "Second nombre", "Saisie du second nombre du calcul");
         describe(operationSelector, "Opération", "Choix de l'opération à effectuer");
         describe(historyList, "Historique des calculs", "Liste des calculs précédents, à sélectionner pour les réutiliser");
-        describe(resultValueLabel, "Résultat", "Résultat du dernier calcul");
+        describe(resultValueLabel, "Résultat", RESULT_DESCRIPTION);
     }
 
     private static void label(JLabel label, int mnemonic, JComponent target) {

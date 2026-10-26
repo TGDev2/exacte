@@ -23,45 +23,53 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ * The bounds of the engine, which are those of the exact core since E06 (docs/adr/0004-regles-affichage.md, section 8):
+ * an operand of at most 4100 characters, numerators and denominators of at most 4096 bits, an exponent between -4096
+ * and 4096. Everything beyond is refused before any costly work, and every calculation within them stays short.
+ */
 public class CalculatorSizeLimitsTest {
-    private static final String RESULT_TOO_LONG = "Le résultat dépasse 1000 chiffres (réduisez les nombres saisis).";
-    private static final String POWER_TOO_LONG = "Le résultat dépasse 1000 chiffres (réduisez l'exposant ou la base).";
+    private static final String RESULT_TOO_LARGE = "Le résultat dépasse la taille maximale d'un calcul exact (réduisez les nombres saisis).";
+    private static final String POWER_TOO_LARGE = "Le résultat dépasse la taille maximale d'un calcul exact (réduisez l'exposant ou la base).";
     private static final Duration ACCEPTED_CASE_LIMIT = Duration.ofSeconds(5);
+    private static final int MAX_LENGTH = 4100;
+    // 2^4096 - 1: the largest integer within the 4096-bit limit (1234 digits).
+    private static final BigInteger LARGEST = BigInteger.TWO.pow(4096).subtract(BigInteger.ONE);
 
     private final CalculatorEngine engine = new CalculatorEngine();
 
     @Test
     void testFirstInputOfMaximumLengthIsAcceptedAndLongerIsRefused() throws Exception {
-        assertEquals("2", engine.calculate(Operation.ADDITION, paddedOne(1005), "1").getFormattedResult(),
-                "A 1005-character input should pass the length check.");
+        assertEquals("2", engine.calculate(Operation.ADDITION, paddedOne(MAX_LENGTH), "1").getFormattedResult(),
+                "A 4100-character input should pass the length check.");
 
         engine.calculate(Operation.ADDITION, "1", "1");
         CalculationException exception = assertTimeoutPreemptively(Duration.ofMillis(100), () -> assertThrows(
                 CalculationException.class,
-                () -> engine.calculate(Operation.ADDITION, paddedOne(1006), "1"),
-                "A 1006-character input should be refused."));
-        assertEquals("Le premier nombre est trop long (1005 caractères maximum).", exception.getMessage(),
+                () -> engine.calculate(Operation.ADDITION, paddedOne(MAX_LENGTH + 1), "1"),
+                "A 4101-character input should be refused."));
+        assertEquals("Le premier nombre est trop long (4100 caractères maximum).", exception.getMessage(),
                 "The message should state the limit.");
         assertEquals(InputField.FIRST, exception.getField(), "The first operand is the faulty field.");
     }
 
     @Test
     void testSecondInputOfMaximumLengthIsAcceptedAndLongerIsRefused() throws Exception {
-        assertEquals("2", engine.calculate(Operation.ADDITION, "1", paddedOne(1005)).getFormattedResult(),
-                "A 1005-character input should pass the length check.");
+        assertEquals("2", engine.calculate(Operation.ADDITION, "1", paddedOne(MAX_LENGTH)).getFormattedResult(),
+                "A 4100-character input should pass the length check.");
 
         CalculationException exception = assertTimeoutPreemptively(Duration.ofMillis(100), () -> assertThrows(
                 CalculationException.class,
-                () -> engine.calculate(Operation.ADDITION, "1", paddedOne(1006)),
-                "A 1006-character input should be refused."));
-        assertEquals("Le second nombre est trop long (1005 caractères maximum).", exception.getMessage(),
+                () -> engine.calculate(Operation.ADDITION, "1", paddedOne(MAX_LENGTH + 1)),
+                "A 4101-character input should be refused."));
+        assertEquals("Le second nombre est trop long (4100 caractères maximum).", exception.getMessage(),
                 "The message should state the limit.");
         assertEquals(InputField.SECOND, exception.getField(), "The second operand is the faulty field.");
     }
 
     @Test
     void testSurroundingSpacesDoNotCountTowardsTheInputLength() throws Exception {
-        assertEquals("2", engine.calculate(Operation.ADDITION, "  " + paddedOne(1005) + "  ", "1").getFormattedResult(),
+        assertEquals("2", engine.calculate(Operation.ADDITION, "  " + paddedOne(MAX_LENGTH) + "  ", "1").getFormattedResult(),
                 "The length is measured after trim.");
     }
 
@@ -70,86 +78,97 @@ public class CalculatorSizeLimitsTest {
         CalculationRecord power = assertTimeoutPreemptively(ACCEPTED_CASE_LIMIT,
                 () -> engine.calculate(Operation.POWER, "2", "999"));
         BigInteger expected = BigInteger.TWO.pow(999);
-        assertEquals(expected.toString(), power.getFormattedResult(), "2^999 should be exact.");
-        assertEquals(301, power.getFormattedResult().length(), "2^999 has 301 digits.");
+        assertEquals("5,35754303593… × 10³⁰⁰", power.getFormattedResult(), "2^999 is shown with 12 significant digits.");
+        assertEquals(expected.toString(), power.getReusableValue(), "2^999 is reused exactly, all 301 digits.");
 
-        CalculationRecord chained = engine.calculate(Operation.ADDITION, power.getFormattedResult(), "1");
-        assertEquals(expected.add(BigInteger.ONE).toString(), chained.getFormattedResult(),
+        CalculationRecord chained = engine.calculate(Operation.ADDITION, power.getReusableValue(), "1");
+        assertEquals(expected.add(BigInteger.ONE).toString(), chained.getReusableValue(),
                 "The reused result should chain into the next calculation.");
     }
 
     @Test
+    void testPowersUpToTheComponentLimitAreAcceptedAndBeyondRefused() throws Exception {
+        assertEquals(BigInteger.TWO.pow(4095).toString(), engine.calculate(Operation.POWER, "2", "4095").getReusableValue(),
+                "2^4095 has 4096 bits: accepted.");
+        CalculationException exception = assertThrows(CalculationException.class, () -> engine.calculate(Operation.POWER, "2", "4096"));
+        assertEquals(POWER_TOO_LARGE, exception.getMessage(), "2^4096 has 4097 bits: refused.");
+        assertEquals(InputField.SECOND, exception.getField());
+    }
+
+    @Test
     void testPowerOfAHugeResultIsRefusedImmediately() throws Exception {
-        String twoPower999 = engine.calculate(Operation.POWER, "2", "999").getFormattedResult();
+        String twoPower999 = engine.calculate(Operation.POWER, "2", "999").getReusableValue();
 
         CalculationException exception = assertTimeoutPreemptively(Duration.ofSeconds(1), () -> assertThrows(
                 CalculationException.class,
                 () -> engine.calculate(Operation.POWER, twoPower999, "999"),
                 "(2^999)^999 should be refused before any computation."));
-        assertEquals(POWER_TOO_LONG, exception.getMessage(), "The overflow message should be shown.");
+        assertEquals(POWER_TOO_LARGE, exception.getMessage(), "The overflow message should be shown.");
         assertEquals(InputField.SECOND, exception.getField(), "The exponent is the field to reduce.");
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"99", "10", "0,0001"})
-    void testPowerEstimateRefusesBeforeComputing(String base) {
-        CalculationException exception = assertThrows(
+    void testPowerSizeIsRefusedBeforeComputing(String base) {
+        CalculationException exception = assertTimeoutPreemptively(Duration.ofSeconds(1), () -> assertThrows(
                 CalculationException.class,
-                () -> engine.calculate(Operation.POWER, base, "999"),
-                base + " ^ 999 should be refused.");
-        assertEquals(POWER_TOO_LONG, exception.getMessage(), "The overflow message should be shown for " + base + ".");
+                () -> engine.calculate(Operation.POWER, base, "4096"),
+                base + " ^ 4096 should be refused."));
+        assertEquals(POWER_TOO_LARGE, exception.getMessage(), "The overflow message should be shown for " + base + ".");
         assertEquals(InputField.SECOND, exception.getField(), "The exponent is the field to reduce.");
     }
 
     @Test
-    void testPowerEstimateAlsoCoversNegativeExponents() {
+    void testPowerSizeAlsoCoversNegativeExponents() {
         CalculationException exception = assertThrows(
                 CalculationException.class,
-                () -> engine.calculate(Operation.POWER, "99", "-999"),
+                () -> engine.calculate(Operation.POWER, "99", "-4096"),
                 "Negative exponents use the same estimate.");
-        assertEquals(POWER_TOO_LONG, exception.getMessage(), "The overflow message should be shown.");
+        assertEquals(POWER_TOO_LARGE, exception.getMessage(), "The overflow message should be shown.");
         assertEquals(InputField.SECOND, exception.getField(), "The exponent is the field to reduce.");
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"0,5", "9", "2", "-2"})
-    void testPowersWithinTheLimitAreAccepted(String base) {
+    void testPowersWithinTheLimitAreAcceptedAndExact(String base) {
         CalculationRecord record = assertTimeoutPreemptively(ACCEPTED_CASE_LIMIT,
                 () -> engine.calculate(Operation.POWER, base, "999"));
-        assertTrue(record.getFormattedResult().length() <= 1002, base + "^999 should fit in the display limit.");
+        assertTrue(record.isExact(), base + "^999 is exact.");
+        assertTrue(record.getReusableValue().length() <= MAX_LENGTH, base + "^999 can be typed back.");
     }
 
     @Test
     void testNegativeExponentWithinTheLimitIsAccepted() throws Exception {
         CalculationRecord record = assertTimeoutPreemptively(ACCEPTED_CASE_LIMIT,
                 () -> engine.calculate(Operation.POWER, "2", "-999"));
-        assertEquals(1001, record.getFormattedResult().length(), "2^-999 has 999 decimals after the leading \"0,\".");
+        assertEquals("1,86652723701… × 10⁻³⁰¹", record.getFormattedResult(), "2^-999 is shown with its significant digits.");
+        assertEquals("1/" + BigInteger.TWO.pow(999), record.getReusableValue(), "The fraction is shorter than the 999 decimals.");
     }
 
     @Test
     void testAdditionResultOfExactlyTheLimitIsAccepted() throws Exception {
-        CalculationRecord record = engine.calculate(Operation.ADDITION, repeat('9', 999), "1");
-        assertEquals("1" + repeat('0', 999), record.getFormattedResult(), "A 1000-digit result is allowed.");
+        CalculationRecord record = engine.calculate(Operation.ADDITION, LARGEST.subtract(BigInteger.ONE).toString(), "1");
+        assertEquals(LARGEST.toString(), record.getReusableValue(), "A 4096-bit result is allowed.");
     }
 
     @Test
     void testAdditionResultBeyondTheLimitIsRefused() {
         CalculationException exception = assertThrows(
                 CalculationException.class,
-                () -> engine.calculate(Operation.ADDITION, repeat('9', 1000), "1"),
-                "A 1001-digit result should be refused.");
-        assertEquals(RESULT_TOO_LONG, exception.getMessage(), "The overflow message should be shown.");
+                () -> engine.calculate(Operation.ADDITION, LARGEST.toString(), "1"),
+                "A 4097-bit result should be refused.");
+        assertEquals(RESULT_TOO_LARGE, exception.getMessage(), "The overflow message should be shown.");
         assertEquals(InputField.NONE, exception.getField(), "No single operand is to blame.");
     }
 
     @Test
-    void testProductOfTwoSixHundredDigitNumbersIsRefused() {
-        String sixHundredNines = repeat('9', 600);
+    void testProductOfTwoThousandDigitNumbersIsRefused() {
+        String thousandNines = repeat('9', 1000);
         CalculationException exception = assertThrows(
                 CalculationException.class,
-                () -> engine.calculate(Operation.MULTIPLICATION, sixHundredNines, sixHundredNines),
-                "A 1200-digit product should be refused.");
-        assertEquals(RESULT_TOO_LONG, exception.getMessage(), "The overflow message should be shown.");
+                () -> engine.calculate(Operation.MULTIPLICATION, thousandNines, thousandNines),
+                "A 2000-digit product should be refused.");
+        assertEquals(RESULT_TOO_LARGE, exception.getMessage(), "The overflow message should be shown.");
         assertEquals(InputField.NONE, exception.getField(), "No single operand is to blame.");
     }
 
@@ -164,29 +183,34 @@ public class CalculatorSizeLimitsTest {
                 CalculationException.class,
                 () -> engine.calculate(Operation.MULTIPLICATION, "1", sixtyThousandDigits)));
 
-        assertEquals("Le premier nombre est trop long (1005 caractères maximum).", first.getMessage());
+        assertEquals("Le premier nombre est trop long (4100 caractères maximum).", first.getMessage());
         assertEquals(InputField.FIRST, first.getField());
-        assertEquals("Le second nombre est trop long (1005 caractères maximum).", second.getMessage());
+        assertEquals("Le second nombre est trop long (4100 caractères maximum).", second.getMessage());
         assertEquals(InputField.SECOND, second.getField());
     }
 
+    /** Parsing, computing and formatting the heaviest calculations the bounds allow, or refusing them. */
     @Test
     void testWorstCaseBoundedCalculationsFinishUnderFiftyMilliseconds() throws Exception {
-        String nines1000 = repeat('9', 1000);
-        String sevens1005 = repeat('7', 1005);
-        String twoPower999 = engine.calculate(Operation.POWER, "2", "999").getFormattedResult();
+        String largest = LARGEST.toString();
+        String largestFraction = LARGEST + "/" + LARGEST.subtract(BigInteger.TWO);
+        String otherFraction = LARGEST.subtract(BigInteger.TEN) + "/" + LARGEST.subtract(BigInteger.valueOf(4));
+        String sevens = repeat('7', MAX_LENGTH);
+        String twoPower999 = engine.calculate(Operation.POWER, "2", "999").getReusableValue();
         String[][] cases = {
-            {"ROOT", nines1000, ""},
-            {"ROOT", sevens1005, ""},
-            {"MULTIPLICATION", repeat('9', 500), repeat('9', 500)},
-            {"MULTIPLICATION", sevens1005, sevens1005},
-            {"DIVISION", nines1000, repeat('9', 999) + "7"},
-            {"DIVISION", sevens1005, repeat('3', 1005)},
-            {"ADDITION", nines1000, nines1000},
+            {"ROOT", largest, ""},
+            {"ROOT", largestFraction, ""},
+            {"ROOT", sevens, ""},
+            {"MULTIPLICATION", repeat('9', 600), repeat('9', 600)},
+            {"MULTIPLICATION", largestFraction, otherFraction},
+            {"DIVISION", largest, repeat('9', 1232) + "7"},
+            {"DIVISION", largestFraction, otherFraction},
+            {"ADDITION", largestFraction, otherFraction},
+            {"ADDITION", largest, largest},
+            {"POWER", "3", "2584"},
+            {"POWER", "7", "-1459"},
             {"POWER", "9", "999"},
-            {"POWER", "7", "-999"},
-            {"POWER", "99", "500"},
-            {"POWER", repeat('9', 500), "-2"},
+            {"POWER", repeat('9', 600), "-2"},
             {"POWER", twoPower999, "999"},
             {"ADDITION", repeat('9', 60_000), "1"},
         };
@@ -217,7 +241,8 @@ public class CalculatorSizeLimitsTest {
         String thousandOnes = repeat('1', 1000);
         CalculationRecord sum = assertTimeoutPreemptively(ACCEPTED_CASE_LIMIT,
                 () -> engine.calculate(Operation.ADDITION, thousandOnes, thousandOnes));
-        assertEquals(repeat('2', 1000), sum.getFormattedResult(), "Two 1000-digit numbers add up to 1000 digits.");
+        assertEquals(repeat('2', 1000), sum.getReusableValue(), "Two 1000-digit numbers add up to 1000 digits.");
+        assertEquals("2,22222222222… × 10⁹⁹⁹", sum.getFormattedResult());
 
         assertTimeoutPreemptively(ACCEPTED_CASE_LIMIT, () -> engine.calculate(Operation.POWER, "2", "999"));
         assertTimeoutPreemptively(ACCEPTED_CASE_LIMIT, () -> engine.calculate(Operation.POWER, "9", "999"));
@@ -230,15 +255,15 @@ public class CalculatorSizeLimitsTest {
         CalculatorPresenter presenter = new CalculatorPresenter(engine);
         presenter.onCalculate("1", "2");
 
-        CalculatorViewModel first = presenter.onCalculate(paddedOne(1006), "2");
+        CalculatorViewModel first = presenter.onCalculate(paddedOne(MAX_LENGTH + 1), "2");
         assertEquals(StatusTone.ERROR, first.statusTone(), "An oversized input is an error.");
-        assertEquals("Le premier nombre est trop long (1005 caractères maximum).", first.statusMessage(),
+        assertEquals("Le premier nombre est trop long (4100 caractères maximum).", first.statusMessage(),
                 "The limit should be explained.");
         assertEquals(FocusTarget.FIRST_NUMBER, first.focusTarget(), "Focus returns to the faulty first operand.");
         assertEquals(1, first.historyEntries().size(), "A refused calculation must not touch the history.");
 
-        CalculatorViewModel second = presenter.onCalculate("1", paddedOne(1006));
-        assertEquals("Le second nombre est trop long (1005 caractères maximum).", second.statusMessage(),
+        CalculatorViewModel second = presenter.onCalculate("1", paddedOne(MAX_LENGTH + 1));
+        assertEquals("Le second nombre est trop long (4100 caractères maximum).", second.statusMessage(),
                 "The limit should be explained.");
         assertEquals(FocusTarget.SECOND_NUMBER, second.focusTarget(), "Focus returns to the faulty second operand.");
         assertEquals(1, second.historyEntries().size(), "A refused calculation must not touch the history.");
@@ -253,19 +278,19 @@ public class CalculatorSizeLimitsTest {
         CalculatorViewModel second = assertTimeoutPreemptively(Duration.ofSeconds(1),
                 () -> presenter.onCalculate(first.firstInput(), "999"));
         assertEquals(StatusTone.ERROR, second.statusTone(), "The chained power should be refused.");
-        assertEquals(POWER_TOO_LONG, second.statusMessage(), "The overflow message should be shown.");
+        assertEquals(POWER_TOO_LARGE, second.statusMessage(), "The overflow message should be shown.");
         assertEquals(FocusTarget.SECOND_NUMBER, second.focusTarget(), "Focus goes to the exponent.");
         assertEquals(1, second.historyEntries().size(), "A refused calculation must not touch the history.");
         assertEquals(first.firstInput(), second.firstInput(), "The inputs stay available for correction.");
     }
 
     @Test
-    void testPresenterFocusesFirstOperandWhenTheResultIsTooLong() {
+    void testPresenterFocusesFirstOperandWhenTheResultIsTooLarge() {
         CalculatorPresenter presenter = new CalculatorPresenter(engine);
 
-        CalculatorViewModel viewModel = presenter.onCalculate(repeat('9', 1000), "1");
+        CalculatorViewModel viewModel = presenter.onCalculate(LARGEST.toString(), "1");
 
-        assertEquals(RESULT_TOO_LONG, viewModel.statusMessage(), "The overflow message should be shown.");
+        assertEquals(RESULT_TOO_LARGE, viewModel.statusMessage(), "The overflow message should be shown.");
         assertEquals(FocusTarget.FIRST_NUMBER, viewModel.focusTarget(), "A NONE error falls back to the first operand.");
         assertEquals(0, viewModel.historyEntries().size(), "A refused calculation must not touch the history.");
     }
@@ -274,7 +299,7 @@ public class CalculatorSizeLimitsTest {
     void testOversizedHistoryLineIsSkippedWithBackupAndOthersLoad(@TempDir Path tempDirectory) throws Exception {
         Path historyFile = tempDirectory.resolve("history.tsv");
         String content = "ADDITION\t1\t2\t3\n"
-                + "ADDITION\t" + paddedOne(1006) + "\t2\t3\n"
+                + "ADDITION\t" + paddedOne(MAX_LENGTH + 1) + "\t2\t3\n"
                 + "MULTIPLICATION\t4\t5\t20\n";
         Files.writeString(historyFile, content, StandardCharsets.UTF_8);
 

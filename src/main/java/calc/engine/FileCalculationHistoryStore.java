@@ -1,6 +1,10 @@
 package calc.engine;
 
 import java.io.IOException;
+import calc.number.CertifiedValue;
+import calc.number.NumericError;
+import calc.number.NumericException;
+import calc.number.Rational;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileAlreadyExistsException;
@@ -11,6 +15,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Objects;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -26,10 +31,6 @@ public class FileCalculationHistoryStore implements CalculationHistoryStore {
     private static final int SUPPORTED_FORMAT_VERSION = 1;
     private static final String FORMAT_HEADER = "#calc-history v" + SUPPORTED_FORMAT_VERSION;
     private static final Pattern FORMAT_HEADER_PATTERN = Pattern.compile("#calc-history v(\\d+)");
-    // A stored result is plain text of at most this many characters and this scale; anything bigger is refused
-    // before being parsed, so a hostile exponent such as 1E999999999 never gets expanded.
-    private static final int MAX_STORED_RESULT_LENGTH = CalculationLimits.MAX_INPUT_LENGTH + 100;
-    private static final int MAX_STORED_RESULT_SCALE = 2 * CalculationLimits.MAX_RESULT_DIGITS;
 
     @FunctionalInterface
     public interface FileCopier {
@@ -204,48 +205,57 @@ public class FileCalculationHistoryStore implements CalculationHistoryStore {
         }
 
         Operation operation = operationFromKey(columns[0]);
-        BigDecimal recomputed;
+        CalculationRecord recomputed;
         try {
-            recomputed = engine.calculate(operation, columns[1], columns[2]).getResultValue();
+            recomputed = engine.calculate(operation, columns[1], columns[2]);
         } catch (CalculationException | ArithmeticException exception) {
             String reason = exception.getMessage() == null ? "the operands cannot be recalculated" : exception.getMessage();
             throw new LineRejection(RejectedLine.Cause.INVALID_OPERAND, reason);
         }
-        checkStoredResult(columns[3], recomputed);
-        return new CalculationRecord(operation, columns[1], columns[2], recomputed);
+        checkStoredResult(columns[3], recomputed.getResult());
+        return recomputed;
     }
 
     /**
-     * The stored result must agree with the recalculation. Two deviations are tolerated: the result rounded under
-     * the current rounding policy, and the floating-point drift of the oldest versions (0.30000000000000004), which
-     * rounds to the right value under that same policy.
+     * The stored result must agree with the exact recalculation (docs/adr/0004-regles-affichage.md, section 9). It is
+     * accepted when it lies in the recalculated value (the exact value or the canonical point of a root), when it is
+     * the recalculated value rounded under one of the version 1 policies, or when it rounds to the same number as the
+     * recalculated value under the last version 1 policy (the floating-point drift of the oldest versions,
+     * 0.30000000000000004). Parsing is bounded by the core limits, so a hostile 1E999999999 is never expanded.
      */
-    private static void checkStoredResult(String storedText, BigDecimal recomputed) throws LineRejection {
-        BigDecimal stored;
+    private static void checkStoredResult(String storedText, CertifiedValue recomputed) throws LineRejection {
+        Rational stored;
         try {
-            if (storedText.length() > MAX_STORED_RESULT_LENGTH) {
-                throw new NumberFormatException("too long");
-            }
-            stored = new BigDecimal(storedText.trim());
-        } catch (NumberFormatException exception) {
-            throw new LineRejection(RejectedLine.Cause.UNREADABLE_RESULT, "the result column is not a number");
+            stored = Rational.parse(storedText.trim());
+        } catch (NumericException exception) {
+            throw new LineRejection(RejectedLine.Cause.UNREADABLE_RESULT, exception.error() == NumericError.MALFORMED_INPUT
+                    ? "the result column is not a number"
+                    : "the result column is out of range");
         }
-        if (Math.abs((long) stored.scale()) > MAX_STORED_RESULT_SCALE) {
-            throw new LineRejection(RejectedLine.Cause.UNREADABLE_RESULT, "the result column is out of range");
+        if (recomputed.contains(stored)) {
+            return;
         }
-        if (stored.compareTo(recomputed) != 0 && DecimalPolicy.roundApproximation(stored).compareTo(recomputed) != 0) {
-            throw new LineRejection(RejectedLine.Cause.INCONSISTENT_RESULT, "the stored result differs from the recalculation");
+        Optional<BigDecimal> legacy = LegacyRounding.of(recomputed, LegacyRounding::significant);
+        if (legacy.isPresent() && (LegacyRounding.same(legacy.get(), stored)
+                || LegacyRounding.significant(stored).compareTo(legacy.get()) == 0)) {
+            return;
         }
+        Optional<BigDecimal> older = LegacyRounding.of(recomputed, LegacyRounding::twelveDecimals);
+        if (older.isPresent() && LegacyRounding.same(older.get(), stored)) {
+            return;
+        }
+        throw new LineRejection(RejectedLine.Cause.INCONSISTENT_RESULT, "the stored result differs from the recalculation");
     }
 
-    private String serialize(CalculationRecord record) {
+    private String serialize
+(CalculationRecord record) {
         return keyForOperation(record.getOperation())
                 + "\t"
                 + record.getFirstValue()
                 + "\t"
                 + record.getSecondValue()
                 + "\t"
-                + DecimalPolicy.serialize(record.getResultValue());
+                + record.getReusableValue();
     }
 
     private static String keyForOperation(Operation operation) {

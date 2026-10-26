@@ -8,7 +8,7 @@ import calc.engine.HistoryLoadResult;
 import calc.engine.Operation;
 import calc.engine.RejectedLine;
 import calc.engine.RejectedLine.Cause;
-import java.math.BigDecimal;
+import calc.testing.RecordGenerators;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -19,7 +19,7 @@ public class CalculatorHistoryStatusTest {
     private static final Path BACKUP = Path.of("history.tsv.20240101-120000.bak");
     private static final String BACKUP_NOTICE = " Copie de sauvegarde : " + BACKUP;
     private static final CalculationRecord RECORD =
-            new CalculationRecord(Operation.ADDITION, "1", "2", new BigDecimal("3"));
+            RecordGenerators.calculated(Operation.ADDITION, "1", "2");
 
     @Test
     void testCleanRestoreKeepsTheExistingSuccessMessage() {

@@ -114,7 +114,7 @@ public class CalculatorFrameTest {
             assertEquals("Second nombre (non utilisé)", secondNumberLabel.getText(), "Unary operations should explain that the second operand is unused.");
             assertFalse(reuseAsSecondButton.isEnabled(), "Reusing into the second operand should stay disabled while the operation is unary.");
             assertEquals(
-                    "Racine non exacte : arrondie à 12 décimales et 12 chiffres significatifs minimum.",
+                    "Racine non exacte : « ≈ » et une borne d'erreur garantie.",
                     inputHintLabel.getText(),
                     "The UI should surface the explicit precision rule for roots.");
 
@@ -248,17 +248,42 @@ public class CalculatorFrameTest {
             clickButton(findComponent(rootPane, "calculateButton", AbstractButton.class));
 
             String fullValue = new BigDecimal(2).pow(999).toPlainString();
-            assertEquals(fullValue, resultValueLabel.getText(), "The label should hold the complete result.");
+            assertEquals("5,35754303593… × 10³⁰⁰", resultValueLabel.getText(), "The label shows the Auto text.");
+            assertEquals(fullValue, firstNumberField.getText(), "The field receives the complete exact value.");
             String tooltip = resultValueLabel.getToolTipText();
             assertNotNull(tooltip, "A result should come with a tooltip.");
             assertTrue(
                     tooltip.replaceAll("<[^>]*>", "").contains(fullValue),
-                    "The tooltip should contain the complete long result.");
+                    "The tooltip should contain the complete exact value.");
             assertEquals(0, resultValueLabel.getMinimumSize().width, "The result label should be allowed to shrink to nothing.");
             assertTrue(
                     resultValueLabel.getPreferredSize().width <= Math.max(preferredWidthBefore, 360),
                     "A long result should not widen the result label.");
             assertEquals(widthBefore, frame.getWidth(), "A long result should not widen the window.");
+        } finally {
+            disposeFrame(frame);
+        }
+    }
+
+    @Test
+    void testApproximateResultShowsItsMarkerAndItsBound() throws Exception {
+        CalculatorFrame frame = createFrame();
+        try {
+            JRootPane rootPane = frame.getRootPane();
+            JComboBox<?> operationSelector = findComponent(rootPane, "operationSelector", JComboBox.class);
+            JTextField firstNumberField = findComponent(rootPane, "firstNumberField", JTextField.class);
+            JLabel resultValueLabel = findComponent(rootPane, "resultValueLabel", JLabel.class);
+
+            runOnEdt(() -> {
+                operationSelector.setSelectedItem(Operation.ROOT);
+                firstNumberField.setText("2");
+            });
+            clickButton(findComponent(rootPane, "calculateButton", AbstractButton.class));
+
+            assertEquals("≈ 1,41421356237…", resultValueLabel.getText(), "An approximate result is marked with « ≈ ».");
+            assertEquals("Résultat : ≈ 1,41421356237… (valeur approchée)", resultValueLabel.getAccessibleContext().getAccessibleName());
+            assertTrue(resultValueLabel.getToolTipText().contains("± 2,1 × 10⁻²⁵"), "The tooltip gives the error bound.");
+            assertTrue(resultValueLabel.getAccessibleContext().getAccessibleDescription().contains("± 2,1 × 10⁻²⁵"));
         } finally {
             disposeFrame(frame);
         }

@@ -38,12 +38,13 @@ public final class PresenterActions {
                 .withMaxTransformations(MAX_ACTIONS);
     }
 
-    /** What a user types in a field: mostly plausible numbers, sometimes nothing, sometimes rubbish. */
+    /** What a user types in a field: mostly plausible numbers and fractions, sometimes nothing, sometimes rubbish. */
     public static Arbitrary<String> typedText() {
         Arbitrary<String> number = DecimalGenerators.decimals(14).map(DecimalText::text);
         Arbitrary<String> exponent = DecimalGenerators.integers(2).map(DecimalText::text);
+        Arbitrary<String> fraction = DecimalGenerators.fractions().map(DecimalGenerators.FractionText::text);
         Arbitrary<String> rubbish = Arbitraries.oneOf(DecimalGenerators.invalidDecimals(), DecimalGenerators.blanks(), TextGenerators.numberLike());
-        return Arbitraries.frequencyOf(Tuple.of(6, number), Tuple.of(3, exponent), Tuple.of(2, rubbish));
+        return Arbitraries.frequencyOf(Tuple.of(6, number), Tuple.of(3, exponent), Tuple.of(2, fraction), Tuple.of(2, rubbish));
     }
 
     private static Action<PresenterSession> typeAndCalculate() {

@@ -41,8 +41,8 @@ public final class TextGenerators {
 
     /** Strings far longer than the input bound, to check that the refusal is fast. */
     public static Arbitrary<String> overlong() {
-        Arbitrary<String> digits = Arbitraries.strings().withCharRange('0', '9').ofMinLength(1100).ofMaxLength(3000);
-        Arbitrary<String> mixed = Arbitraries.strings().withChars(NUMBER_LIKE_ALPHABET.toCharArray()).ofMinLength(1100).ofMaxLength(3000);
+        Arbitrary<String> digits = Arbitraries.strings().withCharRange('0', '9').ofMinLength(4200).ofMaxLength(8000);
+        Arbitrary<String> mixed = Arbitraries.strings().withChars(NUMBER_LIKE_ALPHABET.toCharArray()).ofMinLength(4200).ofMaxLength(8000);
         Arbitrary<String> huge = Arbitraries.integers().between(10_000, 60_000).map(length -> "9".repeat(length));
         // A digit at each end: edge spaces are stripped before the length is measured, so a text of spaces is "empty", not "too long".
         return Arbitraries.frequencyOf(Tuple.of(4, digits), Tuple.of(4, mixed), Tuple.of(1, huge)).map(text -> "1" + text + "1");
