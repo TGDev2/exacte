@@ -15,7 +15,7 @@ lancer une partie, comment rejouer un échec trouvé par un test aléatoire et c
 
 Un test d'exemple dit « pour cette entrée, voici la sortie ». Une propriété dit « pour toute entrée de cette forme, ceci
 reste vrai » : jqwik génère les entrées (en visant les cas limites), cherche un contre-exemple et le réduit au plus petit
-possible). Les propriétés sont écrites sur les API publiques (`CalculatorEngine`, `FileCalculationHistoryStore`,
+possible). Les propriétés sont écrites sur les API publiques (`CalculatorEngine`, `JsonHistoryStore`,
 `CalculatorPresenter`, `ValueFormatter`) ; elles ont survécu au remplacement du moteur en E06, à la révision près des
 points listés plus bas (« Révision de l'Epic E06 »).
 
@@ -125,11 +125,7 @@ ArithmeticProperties > subtractionMatchesTheOracle STANDARD_OUT
 - Division par zéro (tout zéro écrit), racine d'un négatif, exposant non entier, exposant hors de ±4096, `0` puissance négative, opération absente, saisie vide ou invalide, saisie trop longue, trop de décimales pour le noyau, espace ordinaire entre les milliers, exposant scientifique hors de ±9999, fraction de dénominateur nul : toujours le bon message et le bon champ (premier, second ou aucun) ; le premier opérande est contrôlé avant le second ; le second opérande d'une racine n'est jamais lu.
 - L'opérande sans partie entière qui a le plus de décimales acceptées est calculé et son texte canonique se relit (régression du défaut 1 ci-dessous).
 
-**Persistance** (`HistoryRoundTripProperties`, `property` ; `HistoryLoaderFuzzProperties`, `robustness`)
-
-- Sauvegarder puis recharger un historique généré redonne les mêmes entrées (valeur, affichage, valeur réutilisable), sans rejet ni copie, sans fichier temporaire ; le fichier a le format documenté (colonne résultat = texte canonique) ; charger puis sauvegarder ne change pas un octet. Une entrée calculée à partir d'une racine réutilisée (générateur `rememberedRootRecords` : racine mémorisée, puis toute opération, puissances jusqu'à 40) se recharge sans rejet, comme le résultat exact de son opérande enregistré, qui rencontre l'intervalle affiché ; la sauvegarder de nouveau ne change pas un octet.
-- Pour un contenu arbitraire : seule exception possible, `CalculationHistoryException` (erreur d'E/S) ; les lignes valides sont restaurées dans l'ordre ; chaque rejet est rapporté avec son numéro de ligne et sa cause ; charger ne modifie jamais le fichier ; une copie identique à l'original existe avant toute écriture dès qu'une ligne est rejetée ; un fichier illisible ou d'une version plus récente n'est jamais écrasé ; sans copie possible, toute écriture est refusée.
-
+**Persistance** : voir la section « Persistance versionnée (E07) » plus bas (`HistoryRoundTripProperties`, `HistoryJsonFuzzProperties`, `LegacyTsvReaderFuzzProperties`).
 **Présentateur** (`PresenterStatefulProperties`, `robustness`) : après chaque action d'une séquence aléatoire (changer d'opération, saisir, calculer, effacer les champs, réutiliser le dernier résultat ou celui qui est sélectionné, sélectionner une entrée, effacer l'historique) :
 
 1. l'historique ne grandit que sur un calcul réussi, d'une entrée, et ne perd des entrées que par l'effacement ;
@@ -222,6 +218,31 @@ Points du filet de sécurité d'E04 modifiés au changement de moteur, et pourqu
 - le format de l'historique : la colonne résultat est le texte canonique (virgule, fraction) ;
 - le présentateur : le modèle de session tient compte de la valeur mémorisée de chaque champ.
 
+## Persistance versionnée (E07)
+
+Le format est décrit dans `docs/FORMAT-FICHIER.md`, les décisions dans `docs/adr/0005-format-persistance.md`. Tout se lance avec
+`.\gradlew.bat test --tests "calc.persistence.*"`. Les tests du package `calc.persistence` remplacent ceux de l'ancien
+`FileCalculationHistoryStore` (supprimé) : les mentions de `HistoryLoaderFuzzProperties` et de l'ancien `HistoryRoundTripProperties` dans la
+section « Défauts trouvés par les propriétés » désignent les classes d'avant E07, reprises par `LegacyTsvReaderFuzzProperties` et par les
+nouvelles propriétés ci-dessous (la régression de l'en-tête `v2147483648` est `LegacyTsvReaderFuzzProperties.aVersionTooLargeForAnIntIsJustANewerVersion`).
+
+Mesures (Windows 11, JDK 21, `gradlew cleanTest check`) : 597 tests, 0 échec, 0 ignoré (468 avant E07), environ 30 s.
+
+| Classe | Étiquette | Ce qu'elle garantit |
+|---|---|---|
+| `HistoryRoundTripProperties` | `property` | historique généré (moteur public, valeurs de toute taille, racines mémorisées réutilisées) → écriture v2 → lecture : mêmes valeurs exactes **et mêmes intervalles**, même affichage, même texte réutilisable ; le fichier a le format documenté (en-tête, pas de nom de constante Java, aucun nombre JSON sauf `version`, une entrée par ligne) ; lire puis écrire ne change pas un octet ; le lecteur accepte le format écrit indépendamment par les générateurs |
+| `HistoryJsonFuzzProperties` | `robustness` | contenu JSON arbitraire (fichiers structurés mêlant entrées valides et abîmées, avec champs inconnus ; octets aléatoires ; texte aléatoire ; fichier tronqué ou abîmé ; JSON quelconque ; imbrications profondes) : seule exception possible `HistoryFormatException`, en moins de 10 s ; les entrées valides sont restaurées dans l'ordre ; chaque rejet porte sa position et sa cause attendue ; charger ne modifie jamais le fichier ; une copie identique existe exactement quand une entrée a été rejetée ; un fichier hors limites n'est jamais remplacé |
+| `LegacyTsvReaderFuzzProperties` | `robustness` | même chose pour le lecteur de la version 1 (utilisé par la migration), qui n'écrit rien ; un en-tête de version supérieure à 1 ne lit et ne rejette rien |
+| `LegacyMigrationTest` | - | migration de **chacun des 11 fichiers** de `legacy/v1` : entrées et valeurs exactes attendues, sauvegarde `history.tsv.v1.bak` identique octet pour octet, fichier v1 retiré, aucun nom Java ni flottant dans le JSON ; idempotence (relancer ne change aucun octet) ; le fichier de version future n'est ni lu ni migré ; les deux fichiers présents → le JSON fait foi ; une sauvegarde existante n'est jamais écrasée ; échec d'écriture → v1 intact puis conversion au démarrage suivant ; reprise de `~/.calc` simulée |
+| `HostileFilesTest` | - | fichiers hostiles (un million de `[`, 500 000 objets imbriqués, chaîne ou clé de 6 Mo, nombre de 3 millions de chiffres, exposant de 3 millions de chiffres, 10 001 entrées, fichier d'un octet au-dessus de la limite, fichier de 100 Mo, un million de clés égales, valeurs `1e999999999`...) : refus avec la bonne cause, au plus 2 ms mesurées (meilleur de trois), budget d'assertion de 2 s ; le magasin ne les remplace jamais ; plus gros historique que l'application écrit : 10 000 entrées usuelles en 114 ms, 8 Mio d'entrées de 600 chiffres en 914 ms |
+| `JsonHistoryStoreTest` | - | forme documentée du fichier ; pas de fichier temporaire ; **échec d'écriture simulé** (déplacement qui échoue, nom temporaire occupé) : le v2 précédent reste intact ; version 99 : lecture seule, **jamais réécrite même après un calcul et un effacement**, pas de copie ; version future illisible : rien chargé, rien écrit ; champs inconnus ignorés ; limites d'écriture (entrées, taille) ; fichier abîmé copié puis remplaçable |
+| `StoreLockTest` | - | deux magasins sur le même dossier : le second est en lecture seule, charge, n'écrit rien (pas de migration, pas de copie) ; la fermeture rend le verrou ; **un processus qui prend le verrou puis est tué** (`destroyForcibly`) : le verrou est repris par le système, 55 ms après la mort du processus sous Windows |
+| `DataDirectoryTest` | - | Windows (avec et sans `APPDATA`), macOS, Linux (`XDG_DATA_HOME` absolu, absent, vide, relatif), autres systèmes, ancien dossier `~/.calc` : environnement simulé, rien ne lit le vrai |
+| `JsonParserTest`, `OperationIdsTest` | - | lecteur JSON strict (refus de tout ce qui n'est pas du JSON valide, limites exactes de profondeur, chaîne et nombre, aucune récursion au-delà de 32 niveaux même sur deux millions d'ouvertures) ; table des identifiants égale à la table documentée, en minuscules, distincts |
+| `CalculatorHistory*Test` | - | statuts du présentateur : migration (« Historique converti au nouveau format (n entrées). »), rejets (« entrée(s) »), version plus récente, instance déjà ouverte, calcul en lecture seule ; les 11 fichiers de référence ouverts par la fenêtre ; journal (chemins, numéros d'entrée, jamais le contenu) |
+
+Générateur : `JsonHistoryGenerators` écrit le JSON à la main, avec sa propre table d'identifiants, indépendamment du code de production
+(c'est un deuxième énoncé du format).
 ## Défauts trouvés par les propriétés
 
 1. **Une entrée valide était perdue au rechargement** (corrigé). Repéré d'abord par un exemple visant le piège noté en E4,

@@ -41,7 +41,7 @@ Le projet est volontairement compact, mais les responsabilités sont séparées 
   - `CalculationLimits` : bornes du moteur, reprises de celles du noyau
   - `Operation`, `InputField`, `CalculationRecord` (porte la valeur exacte ou l'intervalle), `CalculationException` (porte le champ fautif)
   - `LegacyRounding` (privé au package) : anciennes règles d'arrondi, utilisées seulement pour vérifier les historiques de la version 1
-  - `CalculationHistoryStore`, `FileCalculationHistoryStore`, `HistoryLoadResult`, `CalculationHistoryException` : persistance locale de l'historique
+  - `CalculationHistoryStore`, `HistoryLoadResult`, `CalculationHistoryException` : persistance locale de l'historique
 - `calc.number` : noyau numérique exact, sans Swing (voir `docs/adr/0003-representation-numerique.md`)
   - `Rational` : fraction exacte toujours réduite ; `CertifiedValue` : intervalle `[bas, haut]` exact ou approché avec garantie d'inclusion, racine certifiée
   - `NumericLimits` : bornes du noyau ; `NumericException` porte un code `NumericError`, sans texte destiné à l'utilisateur
@@ -124,23 +124,27 @@ Ce chemin est le plus adapté à une démonstration portfolio : l'évaluateur pe
 
 ## Historique persistant
 
-L'historique est stocké localement sur le poste utilisateur :
+L'historique est un fichier JSON versionné, `history.json`, rangé à l'emplacement standard du système (le format complet, avec un exemple, est dans `docs/FORMAT-FICHIER.md`, les décisions dans `docs/adr/0005-format-persistance.md`) :
 
-- sous Windows : `%APPDATA%\Calc\history.tsv`
-- en repli (variable `APPDATA` absente) : `~\.calc\history.tsv`
+- Windows : `%APPDATA%\Calc` (à défaut : `<dossier personnel>\AppData\Roaming\Calc`)
+- macOS : `~/Library/Application Support/Calc`
+- Linux : `$XDG_DATA_HOME/calc`, sinon `~/.local/share/calc`
 
-**Format.** Fichier texte UTF-8 dont la première ligne est l'en-tête de version `#calc-history v1`, suivie d'une ligne par calcul : quatre colonnes séparées par une tabulation (opération, premier nombre, second nombre, résultat). Un fichier sans en-tête (ancien format) reste lisible et reçoit l'en-tête à la sauvegarde suivante. Un BOM UTF-8 en début de fichier est toléré. La colonne résultat contient le texte canonique (`0,3`, `1/3`, `1e1000`). Au rechargement, chaque ligne est recalculée exactement par le moteur et le résultat stocké est comparé au recalcul : la valeur stockée n'est pas crue sur parole.
+**Format.** `{"format": "calc-history", "version": 2, "entries": [...]}`. Chaque valeur est un texte exact (`"1/3"`) ; une valeur approchée (une racine) est un intervalle `[lower, upper]` enregistré sans perte, y compris quand elle sert d'opérande. L'opération est un identifiant stable en minuscules (`addition`, `sqrt`...) qui ne dépend pas du code Java. Les champs inconnus sont ignorés, ce qui prépare la version 3.
 
-**Restauration partielle.** Une ligne invalide (nombre de colonnes incorrect, opération inconnue, saisie refusée par le moteur, trop longue, résultat illisible) ou incohérente (le résultat stocké diffère du recalcul : `ADDITION 1 2 5`) est ignorée et comptée avec sa cause ; les autres lignes sont restaurées. Sont tolérés le résultat arrondi selon les anciennes politiques de la version 1 (12 chiffres significatifs avec au moins 12 décimales, ou 12 décimales) et la dérive flottante des plus anciennes versions (`0.30000000000000004`). Le statut l'indique avec le ton erreur, par exemple « 12 calculs restaurés, 1 ligne illisible ignorée. Copie de sauvegarde : … ». Le contenu de l'historique n'est jamais écrit dans les journaux, seulement le chemin du fichier, le numéro de ligne et la cause.
+**Chargement.** Chaque entrée est recalculée par le moteur et comparée au résultat enregistré : une entrée mal formée, incohérente ou refusée par le moteur est écartée et comptée avec sa cause (« 2 calculs restaurés, 1 entrée illisible ignorée. Copie de sauvegarde : … »), jamais affichée. Le contenu de l'historique n'est jamais écrit dans les journaux. Le fichier est borné (8 Mio, 10 000 entrées, 16 384 caractères par chaîne, profondeur 32) : un fichier hostile est refusé en quelques millisecondes et jamais remplacé.
 
-**Copies `.bak`.** Chaque fois que le fichier est partiellement lu, illisible ou d'une version inconnue, il est d'abord copié à côté de l'original sous `history.tsv.AAAAMMJJ-HHMMSS.bak` (suffixe `-1`, `-2`… si le nom existe déjà). Une copie existante n'est jamais écrasée ni supprimée automatiquement.
+**Migration.** Un `history.tsv` de la version 1 est converti au premier démarrage (« Historique converti au nouveau format (n entrées). ») puis renommé `history.tsv.v1.bak`, sans jamais écraser une sauvegarde existante ; si les deux fichiers existent, le JSON fait foi. Sous macOS et Linux, l'ancien `~/.calc/history.tsv` est repris dans le nouveau dossier.
 
-**Mode protégé.** Si le fichier est illisible, s'il porte une version de format inconnue (par exemple `#calc-history v2`), ou si sa copie de sécurité échoue, l'application refuse toute écriture pendant la session (un fichier illisible ou d'une version inconnue ne fournit aucune entrée) : le fichier d'origine n'est jamais remplacé. Les calculs restent possibles ; le statut signale que l'historique n'a pas pu être enregistré.
+**Copies `.bak`.** Quand des entrées sont rejetées ou que le fichier est abîmé, il est d'abord copié sous `history.json.AAAAMMJJ-HHMMSS.bak` (suffixe `-1`, `-2`… si le nom existe déjà), jamais écrasé.
 
-**Écriture atomique.** Chaque sauvegarde écrit d'abord `history.tsv.tmp` dans le même dossier, force l'écriture sur disque, puis remplace `history.tsv` par un déplacement atomique (remplacement simple si le système de fichiers ne le permet pas). En cas d'échec, le fichier temporaire est supprimé et l'original reste intact. Un historique vide supprime le fichier.
+**Version plus récente.** Un fichier d'une version future est ouvert en lecture seule quand c'est possible (« Historique créé par une version plus récente de Calc : ouvert en lecture seule. ») et n'est jamais réécrit.
+
+**Deux fenêtres.** Un verrou du système (`history.lock`) protège l'historique : une deuxième instance le charge mais ne l'écrit pas (« Calc est déjà ouvert : l'historique de cette fenêtre ne sera pas enregistré. »). Le verrou est rendu par le système si le programme plante.
+
+**Écriture atomique.** Chaque sauvegarde écrit `history.json.tmp`, force l'écriture sur disque, puis remplace `history.json` par un déplacement atomique ; en cas d'échec l'ancien fichier reste intact.
 
 Si le fichier est absent ou invalide, l'application reste utilisable et le statut explique ce qui a été restauré ou non. Les avertissements techniques sont écrits dans la console (`java.util.logging`), pas dans un fichier.
-
 ## Précision numérique
 
 Le moteur calcule avec un noyau exact (`docs/adr/0003-representation-numerique.md`) et affiche selon des règles uniques (`docs/adr/0004-regles-affichage.md`) :
