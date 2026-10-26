@@ -6,6 +6,7 @@ import calc.engine.Operation;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -60,11 +61,14 @@ public class CalculatorHistoryPersistenceTest {
 
         assertEquals(0, viewModel.historyEntries().size(), "Invalid persisted history should be ignored at startup.");
         assertEquals(StatusTone.ERROR, viewModel.statusTone(), "Invalid persisted history should surface as a non-blocking error.");
-        assertEquals(
-                "L'historique précédent n'a pas pu être restauré. Vous pouvez continuer sans blocage."
-                        + " Une copie du fichier d'origine a été conservée.",
-                viewModel.statusMessage(),
-                "The startup message should explain that the user can continue without the previous history.");
+        try (Stream<Path> files = Files.list(tempDirectory)) {
+            Path backup = files.filter(path -> path.getFileName().toString().endsWith(".bak")).findFirst().orElseThrow();
+            assertEquals(
+                    "Aucun calcul restauré, 1 ligne illisible ignorée. Vous pouvez continuer sans blocage."
+                            + " Copie de sauvegarde : " + backup,
+                    viewModel.statusMessage(),
+                    "The startup message should explain what was ignored and where the copy is.");
+        }
     }
 
     @Test

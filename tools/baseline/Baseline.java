@@ -235,7 +235,7 @@ public final class Baseline {
                 "Headerless, a single line whose operand `abc` is not a number (and `abc + 2` is not 5)."));
         files.add(new LegacyFile("empty.tsv", new byte[0], "Zero bytes."));
         files.add(new LegacyFile("wrong-result.tsv", utf8("ADDITION\t1\t2\t5\n"),
-                "Headerless, a valid line whose stored result (5) contradicts the operands (1 + 2)."));
+                "Headerless, a well-formed line whose stored result (5) contradicts the operands (1 + 2)."));
         files.add(new LegacyFile("bom-header.tsv", concat(BOM, utf8("#calc-history v1\nADDITION\t1\t2\t3\n")),
                 "Versioned header `#calc-history v1` preceded by a UTF-8 byte order mark, one valid line."));
         files.add(new LegacyFile("future-version.tsv", utf8("#calc-history v2\nADDITION\t1\t2\t3\n"),
@@ -310,7 +310,9 @@ public final class Baseline {
             CalculatorPresenter presenter = new CalculatorPresenter(
                     new CalculatorEngine(), new FileCalculationHistoryStore(presenterCopy, FIXED_CLOCK, Files::copy));
             CalculatorViewModel view = presenter.createInitialView();
-            text.append("- Status (").append(view.statusTone()).append("): ").append(view.statusMessage()).append("\n");
+            // The backup path lives in a throw-away temp folder: keep the file deterministic.
+            String status = view.statusMessage().replace(temp.toString(), "<tmp>").replace('\\', '/');
+            text.append("- Status (").append(view.statusTone()).append("): ").append(status).append("\n");
             if (view.historyEntries().isEmpty()) {
                 text.append("- Entries displayed: none\n");
             } else {

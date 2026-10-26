@@ -6,20 +6,24 @@ import calc.engine.CalculationRecord;
 import calc.engine.CalculatorEngine;
 import calc.engine.HistoryLoadResult;
 import calc.engine.Operation;
+import calc.engine.RejectedLine;
+import calc.engine.RejectedLine.Cause;
 import java.math.BigDecimal;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class CalculatorHistoryStatusTest {
     private static final Path BACKUP = Path.of("history.tsv.20240101-120000.bak");
+    private static final String BACKUP_NOTICE = " Copie de sauvegarde : " + BACKUP;
     private static final CalculationRecord RECORD =
             new CalculationRecord(Operation.ADDITION, "1", "2", new BigDecimal("3"));
 
     @Test
     void testCleanRestoreKeepsTheExistingSuccessMessage() {
-        CalculatorViewModel view = startWith(new HistoryLoadResult(List.of(RECORD), 0, null));
+        CalculatorViewModel view = startWith(new HistoryLoadResult(List.of(RECORD), List.of(), null));
 
         assertEquals(StatusTone.SUCCESS, view.statusTone());
         assertEquals(
@@ -29,7 +33,7 @@ public class CalculatorHistoryStatusTest {
 
     @Test
     void testEmptyHistoryKeepsTheExistingInformationMessage() {
-        CalculatorViewModel view = startWith(new HistoryLoadResult(List.of(), 0, null));
+        CalculatorViewModel view = startWith(new HistoryLoadResult(List.of(), List.of(), null));
 
         assertEquals(StatusTone.INFO, view.statusTone());
         assertEquals(
@@ -38,36 +42,62 @@ public class CalculatorHistoryStatusTest {
     }
 
     @Test
-    void testPartialRestoreReportsSingularSkippedEntryAndBackup() {
-        CalculatorViewModel view = startWith(new HistoryLoadResult(List.of(RECORD), 1, BACKUP));
+    void testPartialRestoreReportsTheCountsAndTheBackupPath() {
+        CalculatorViewModel view = startWith(new HistoryLoadResult(records(12), rejections(Cause.WRONG_COLUMN_COUNT), BACKUP));
 
         assertEquals(StatusTone.ERROR, view.statusTone());
-        assertEquals(
-                "Historique restauré partiellement : 1 entrée ignorée. Une copie du fichier d'origine a été conservée.",
-                view.statusMessage());
-        assertEquals(1, view.historyEntries().size());
+        assertEquals("12 calculs restaurés, 1 ligne illisible ignorée." + BACKUP_NOTICE, view.statusMessage());
+        assertEquals(12, view.historyEntries().size());
     }
 
     @Test
-    void testPartialRestoreReportsPluralSkippedEntries() {
-        CalculatorViewModel view = startWith(new HistoryLoadResult(List.of(RECORD), 3, BACKUP));
+    void testSingleRestoredEntryAndPluralUnreadableLines() {
+        CalculatorViewModel view = startWith(new HistoryLoadResult(
+                List.of(RECORD), rejections(Cause.UNKNOWN_OPERATION, Cause.INVALID_OPERAND, Cause.UNREADABLE_RESULT), BACKUP));
 
-        assertEquals(StatusTone.ERROR, view.statusTone());
+        assertEquals("1 calcul restauré, 3 lignes illisibles ignorées." + BACKUP_NOTICE, view.statusMessage());
+    }
+
+    @Test
+    void testInconsistentLinesAreNamedSeparatelyFromUnreadableOnes() {
+        CalculatorViewModel view = startWith(new HistoryLoadResult(
+                List.of(RECORD),
+                rejections(Cause.INCONSISTENT_RESULT, Cause.WRONG_COLUMN_COUNT, Cause.INCONSISTENT_RESULT),
+                BACKUP));
+
         assertEquals(
-                "Historique restauré partiellement : 3 entrées ignorées. Une copie du fichier d'origine a été conservée.",
+                "1 calcul restauré, 1 ligne illisible ignorée et 2 lignes incohérentes ignorées." + BACKUP_NOTICE,
                 view.statusMessage());
     }
 
     @Test
-    void testNothingRestorableReportsUnavailableHistoryAndBackup() {
-        CalculatorViewModel view = startWith(new HistoryLoadResult(List.of(), 2, BACKUP));
+    void testNothingRestorableReportsTheIgnoredLinesAndTheBackup() {
+        CalculatorViewModel view = startWith(new HistoryLoadResult(
+                List.of(), rejections(Cause.INCONSISTENT_RESULT, Cause.INCONSISTENT_RESULT), BACKUP));
 
         assertEquals(StatusTone.ERROR, view.statusTone());
         assertEquals(
-                "L'historique précédent n'a pas pu être restauré. Vous pouvez continuer sans blocage."
-                        + " Une copie du fichier d'origine a été conservée.",
+                "Aucun calcul restauré, 2 lignes incohérentes ignorées. Vous pouvez continuer sans blocage." + BACKUP_NOTICE,
                 view.statusMessage());
         assertEquals(0, view.historyEntries().size());
+    }
+
+    @Test
+    void testNewerFormatIsReportedAsSuch() {
+        CalculatorViewModel view = startWith(new HistoryLoadResult(
+                List.of(), rejections(Cause.UNSUPPORTED_FORMAT_VERSION), BACKUP));
+
+        assertEquals(
+                "Aucun calcul restauré, 1 ligne d'un format plus récent ignorée. Vous pouvez continuer sans blocage."
+                        + BACKUP_NOTICE,
+                view.statusMessage());
+    }
+
+    @Test
+    void testRejectionsWithoutAnyBackupDoNotMentionACopy() {
+        CalculatorViewModel view = startWith(new HistoryLoadResult(List.of(RECORD), rejections(Cause.INVALID_OPERAND), null));
+
+        assertEquals("1 calcul restauré, 1 ligne illisible ignorée.", view.statusMessage());
     }
 
     @Test
@@ -81,13 +111,28 @@ public class CalculatorHistoryStatusTest {
     }
 
     @Test
-    void testUnreadableHistoryMentionsTheBackupWhenOneExists() {
+    void testUnreadableHistoryMentionsTheBackupPathWhenOneExists() {
         CalculatorViewModel view = startWith(new CalculationHistoryException("Impossible de lire l'historique", null, BACKUP));
 
         assertEquals(
-                "L'historique précédent n'a pas pu être restauré. Vous pouvez continuer sans blocage."
-                        + " Une copie du fichier d'origine a été conservée.",
+                "L'historique précédent n'a pas pu être restauré. Vous pouvez continuer sans blocage." + BACKUP_NOTICE,
                 view.statusMessage());
+    }
+
+    private static List<CalculationRecord> records(int count) {
+        List<CalculationRecord> records = new ArrayList<>();
+        for (int index = 0; index < count; index++) {
+            records.add(RECORD);
+        }
+        return records;
+    }
+
+    private static List<RejectedLine> rejections(Cause... causes) {
+        List<RejectedLine> rejections = new ArrayList<>();
+        for (int index = 0; index < causes.length; index++) {
+            rejections.add(new RejectedLine(index + 1, causes[index], "test"));
+        }
+        return rejections;
     }
 
     private static CalculatorViewModel startWith(HistoryLoadResult result) {

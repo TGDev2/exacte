@@ -11,7 +11,7 @@ public interface CalculationHistoryStore {
         return new CalculationHistoryStore() {
             @Override
             public HistoryLoadResult loadHistory() {
-                return new HistoryLoadResult(List.of(), 0, null);
+                return new HistoryLoadResult(List.of(), List.of(), null);
             }
 
             @Override
