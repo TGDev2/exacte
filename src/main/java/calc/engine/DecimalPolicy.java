@@ -7,11 +7,11 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 final class DecimalPolicy {
-    static final int MIN_APPROXIMATION_DECIMALS = 12;
-    static final int MIN_SIGNIFICANT_DIGITS = 12;
-    static final int MAX_ABSOLUTE_INTEGER_EXPONENT = 999;
-    static final int MAX_DISPLAY_DIGITS = 1000;
-    static final int MAX_INPUT_LENGTH = 1005;
+    static final int MIN_APPROXIMATION_DECIMALS = CalculationLimits.MIN_APPROXIMATION_DECIMALS;
+    static final int MIN_SIGNIFICANT_DIGITS = CalculationLimits.MIN_SIGNIFICANT_DIGITS;
+    static final int MAX_ABSOLUTE_INTEGER_EXPONENT = CalculationLimits.MAX_ABSOLUTE_INTEGER_EXPONENT;
+    static final int MAX_DISPLAY_DIGITS = CalculationLimits.MAX_RESULT_DIGITS;
+    static final int MAX_INPUT_LENGTH = CalculationLimits.MAX_INPUT_LENGTH;
     static final RoundingMode ROUNDING_MODE = RoundingMode.HALF_UP;
 
     private static final Pattern SUPPORTED_DECIMAL_INPUT = Pattern.compile("[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)");

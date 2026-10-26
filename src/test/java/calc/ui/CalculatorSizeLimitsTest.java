@@ -154,6 +154,65 @@ public class CalculatorSizeLimitsTest {
     }
 
     @Test
+    void testSixtyThousandDigitInputIsRefusedImmediatelyOnEitherOperand() {
+        String sixtyThousandDigits = repeat('9', 60_000);
+
+        CalculationException first = assertTimeoutPreemptively(Duration.ofSeconds(2), () -> assertThrows(
+                CalculationException.class,
+                () -> engine.calculate(Operation.ADDITION, sixtyThousandDigits, "1")));
+        CalculationException second = assertTimeoutPreemptively(Duration.ofSeconds(2), () -> assertThrows(
+                CalculationException.class,
+                () -> engine.calculate(Operation.MULTIPLICATION, "1", sixtyThousandDigits)));
+
+        assertEquals("Le premier nombre est trop long (1005 caractères maximum).", first.getMessage());
+        assertEquals(InputField.FIRST, first.getField());
+        assertEquals("Le second nombre est trop long (1005 caractères maximum).", second.getMessage());
+        assertEquals(InputField.SECOND, second.getField());
+    }
+
+    @Test
+    void testWorstCaseBoundedCalculationsFinishUnderFiftyMilliseconds() throws Exception {
+        String nines1000 = repeat('9', 1000);
+        String sevens1005 = repeat('7', 1005);
+        String twoPower999 = engine.calculate(Operation.POWER, "2", "999").getFormattedResult();
+        String[][] cases = {
+            {"ROOT", nines1000, ""},
+            {"ROOT", sevens1005, ""},
+            {"MULTIPLICATION", repeat('9', 500), repeat('9', 500)},
+            {"MULTIPLICATION", sevens1005, sevens1005},
+            {"DIVISION", nines1000, repeat('9', 999) + "7"},
+            {"DIVISION", sevens1005, repeat('3', 1005)},
+            {"ADDITION", nines1000, nines1000},
+            {"POWER", "9", "999"},
+            {"POWER", "7", "-999"},
+            {"POWER", "99", "500"},
+            {"POWER", repeat('9', 500), "-2"},
+            {"POWER", twoPower999, "999"},
+            {"ADDITION", repeat('9', 60_000), "1"},
+        };
+
+        for (String[] testCase : cases) {
+            Operation operation = Operation.valueOf(testCase[0]);
+            long best = Long.MAX_VALUE;
+            for (int attempt = 0; attempt < 8; attempt++) {
+                long start = System.nanoTime();
+                try {
+                    engine.calculate(operation, testCase[1], testCase[2]);
+                } catch (CalculationException refused) {
+                    // refusing is as valid as computing: only the duration matters here
+                }
+                best = Math.min(best, System.nanoTime() - start);
+            }
+            assertTrue(best < Duration.ofMillis(50).toNanos(),
+                    operation + " " + abbreviate(testCase[1]) + " " + abbreviate(testCase[2]) + " took " + best / 1_000_000.0 + " ms");
+        }
+    }
+
+    private static String abbreviate(String text) {
+        return text.length() > 12 ? text.substring(0, 6) + "..(" + text.length() + " chars)" : text;
+    }
+
+    @Test
     void testBoundaryCasesStayFast() {
         String thousandOnes = repeat('1', 1000);
         CalculationRecord sum = assertTimeoutPreemptively(ACCEPTED_CASE_LIMIT,

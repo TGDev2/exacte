@@ -38,14 +38,14 @@ POWER	3	-30	OK	0,00000000000000485693574962	0,00000000000000485693574962
 POWER	10	-13	OK	0,0000000000001	0,0000000000001
 POWER	0	0	OK	1	1
 POWER	0	-1	ERROR	0 ne peut pas être élevé à une puissance négative.	
-POWER	2	1000	ERROR	L'exposant doit être un entier compris entre -999 et 999.	
+POWER	2	1000	ERROR	L'exposant doit être compris entre -999 et 999.	
 POWER	2	999	OK	len=301 sha256=f937617f3ed86829b625271158c4e7fbb108445fc5780cc993a63bc2cfe47b6a	len=301 sha256=f937617f3ed86829b625271158c4e7fbb108445fc5780cc993a63bc2cfe47b6a
 POWER	2	-999	OK	len=1001 sha256=b05db82022593700efffdf9e80cec8a61dbd8bbdc61771707c9ccb3d8a8e26e0	len=1001 sha256=b05db82022593700efffdf9e80cec8a61dbd8bbdc61771707c9ccb3d8a8e26e0
 POWER	10	999	ERROR	Le résultat dépasse 1000 chiffres (réduisez l'exposant ou la base).	
-POWER	10	1000	ERROR	L'exposant doit être un entier compris entre -999 et 999.	
-POWER	2	-1000	ERROR	L'exposant doit être un entier compris entre -999 et 999.	
+POWER	10	1000	ERROR	L'exposant doit être compris entre -999 et 999.	
+POWER	2	-1000	ERROR	L'exposant doit être compris entre -999 et 999.	
 POWER	2	1,5	ERROR	L'exposant doit être un entier.	
-POWER	2	99999999999	ERROR	L'exposant doit être un entier compris entre -999 et 999.	
+POWER	2	99999999999	ERROR	L'exposant doit être compris entre -999 et 999.	
 POWER	12345678901	100	ERROR	Le résultat dépasse 1000 chiffres (réduisez l'exposant ou la base).	
 ROOT	2		OK	1,414213562373	1,414213562373
 ROOT	0,00000000000000000000000001		OK	0,0000000000001	0,0000000000001

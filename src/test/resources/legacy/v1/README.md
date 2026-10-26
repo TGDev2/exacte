@@ -73,7 +73,7 @@ Headerless, two valid lines around one line that is not a calculation.
 
 - Size: 68 bytes
 - Store: 2 entries restored, 1 lines skipped, backup copy created
-- Status (ERROR): Historique restauré partiellement : 1 entrée ignorée. Une copie du fichier d'origine a été conservée.
+- Status (ERROR): 2 calculs restaurés, 1 ligne illisible ignorée. Copie de sauvegarde : <tmp>/b/history.tsv.20260101-000000.bak
 - Entries displayed:
   - `1 + 2 = 3`
   - `3 * 4 = 12`
@@ -84,7 +84,7 @@ Headerless, a single line whose operand `abc` is not a number (and `abc + 2` is 
 
 - Size: 17 bytes
 - Store: 0 entries restored, 1 lines skipped, backup copy created
-- Status (ERROR): L'historique précédent n'a pas pu être restauré. Vous pouvez continuer sans blocage. Une copie du fichier d'origine a été conservée.
+- Status (ERROR): Aucun calcul restauré, 1 ligne illisible ignorée. Vous pouvez continuer sans blocage. Copie de sauvegarde : <tmp>/b/history.tsv.20260101-000000.bak
 - Entries displayed: none
 
 ## empty.tsv
@@ -98,13 +98,12 @@ Zero bytes.
 
 ## wrong-result.tsv
 
-Headerless, a valid line whose stored result (5) contradicts the operands (1 + 2).
+Headerless, a well-formed line whose stored result (5) contradicts the operands (1 + 2).
 
 - Size: 15 bytes
-- Store: 1 entries restored, 0 lines skipped, backup copy not created
-- Status (SUCCESS): Historique restauré. Vous pouvez réutiliser un résultat précédent ou lancer un nouveau calcul.
-- Entries displayed:
-  - `1 + 2 = 3`
+- Store: 0 entries restored, 1 lines skipped, backup copy created
+- Status (ERROR): Aucun calcul restauré, 1 ligne incohérente ignorée. Vous pouvez continuer sans blocage. Copie de sauvegarde : <tmp>/b/history.tsv.20260101-000000.bak
+- Entries displayed: none
 
 ## bom-header.tsv
 
@@ -122,6 +121,6 @@ Versioned header `#calc-history v2` (newer than the supported version 1), one li
 
 - Size: 32 bytes
 - Store: 0 entries restored, 1 lines skipped, backup copy created
-- Status (ERROR): L'historique précédent n'a pas pu être restauré. Vous pouvez continuer sans blocage. Une copie du fichier d'origine a été conservée.
+- Status (ERROR): Aucun calcul restauré, 1 ligne d'un format plus récent ignorée. Vous pouvez continuer sans blocage. Copie de sauvegarde : <tmp>/b/history.tsv.20260101-000000.bak
 - Entries displayed: none
 

@@ -8,6 +8,8 @@ import calc.engine.CalculatorEngine;
 import calc.engine.HistoryLoadResult;
 import calc.engine.InputField;
 import calc.engine.Operation;
+import calc.engine.RejectedLine;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -19,7 +21,7 @@ public class CalculatorPresenter {
     private static final String EMPTY_HISTORY_STATUS = "Historique vide. Saisissez un calcul puis appuyez sur Entrée ou cliquez sur Calculer.";
     private static final String RESTORED_HISTORY_STATUS = "Historique restauré. Vous pouvez réutiliser un résultat précédent ou lancer un nouveau calcul.";
     private static final String UNAVAILABLE_HISTORY_STATUS = "L'historique précédent n'a pas pu être restauré. Vous pouvez continuer sans blocage.";
-    private static final String BACKUP_KEPT_STATUS = "Une copie du fichier d'origine a été conservée.";
+    private static final String BACKUP_NOTICE_PREFIX = "Copie de sauvegarde : ";
 
     private final CalculatorEngine engine;
     private final CalculationHistoryStore historyStore;
@@ -269,30 +271,52 @@ public class CalculatorPresenter {
             history.addAll(loadResult.records());
             applyRestoreStatus(loadResult);
         } catch (CalculationHistoryException exception) {
-            statusMessage = withBackupNotice(UNAVAILABLE_HISTORY_STATUS, exception.getBackupFile() != null);
+            statusMessage = withBackupNotice(UNAVAILABLE_HISTORY_STATUS, exception.getBackupFile());
             statusTone = StatusTone.ERROR;
         }
     }
 
     private void applyRestoreStatus(HistoryLoadResult loadResult) {
-        int skippedLines = loadResult.skippedLines();
-        boolean backupKept = loadResult.backupFile() != null;
-        if (skippedLines == 0) {
-            boolean restored = !loadResult.records().isEmpty();
-            statusMessage = restored ? RESTORED_HISTORY_STATUS : EMPTY_HISTORY_STATUS;
-            statusTone = restored ? StatusTone.SUCCESS : StatusTone.INFO;
-        } else if (loadResult.records().isEmpty()) {
-            statusMessage = withBackupNotice(UNAVAILABLE_HISTORY_STATUS, backupKept);
-            statusTone = StatusTone.ERROR;
-        } else {
-            String skipped = skippedLines == 1 ? "1 entrée ignorée" : skippedLines + " entrées ignorées";
-            statusMessage = withBackupNotice("Historique restauré partiellement : " + skipped + ".", backupKept);
-            statusTone = StatusTone.ERROR;
+        List<RejectedLine> rejections = loadResult.rejections();
+        int restored = loadResult.records().size();
+        if (rejections.isEmpty()) {
+            statusMessage = restored > 0 ? RESTORED_HISTORY_STATUS : EMPTY_HISTORY_STATUS;
+            statusTone = restored > 0 ? StatusTone.SUCCESS : StatusTone.INFO;
+            return;
+        }
+
+        String ignored = describeIgnoredLines(rejections);
+        String summary = restored == 0
+                ? "Aucun calcul restauré, " + ignored + ". Vous pouvez continuer sans blocage."
+                : restored + (restored == 1 ? " calcul restauré, " : " calculs restaurés, ") + ignored + ".";
+        statusMessage = withBackupNotice(summary, loadResult.backupFile());
+        statusTone = StatusTone.ERROR;
+    }
+
+    private static String describeIgnoredLines(List<RejectedLine> rejections) {
+        long inconsistent = rejections.stream().filter(line -> line.cause() == RejectedLine.Cause.INCONSISTENT_RESULT).count();
+        long newerFormat = rejections.stream()
+                .filter(line -> line.cause() == RejectedLine.Cause.UNSUPPORTED_FORMAT_VERSION)
+                .count();
+        long unreadable = rejections.size() - inconsistent - newerFormat;
+
+        List<String> parts = new ArrayList<>();
+        addIgnoredLines(parts, unreadable, "illisible", "illisibles");
+        addIgnoredLines(parts, inconsistent, "incohérente", "incohérentes");
+        addIgnoredLines(parts, newerFormat, "d'un format plus récent", "d'un format plus récent");
+        return String.join(" et ", parts);
+    }
+
+    private static void addIgnoredLines(List<String> parts, long count, String singular, String plural) {
+        if (count == 1) {
+            parts.add("1 ligne " + singular + " ignorée");
+        } else if (count > 1) {
+            parts.add(count + " lignes " + plural + " ignorées");
         }
     }
 
-    private static String withBackupNotice(String message, boolean backupKept) {
-        return backupKept ? message + " " + BACKUP_KEPT_STATUS : message;
+    private static String withBackupNotice(String message, Path backupFile) {
+        return backupFile != null ? message + " " + BACKUP_NOTICE_PREFIX + backupFile : message;
     }
 
     private boolean persistHistory() {

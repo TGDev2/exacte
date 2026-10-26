@@ -122,9 +122,9 @@ L'historique est stocké localement sur le poste utilisateur :
 - sous Windows : `%APPDATA%\Calc\history.tsv`
 - en repli (variable `APPDATA` absente) : `~\.calc\history.tsv`
 
-**Format.** Fichier texte UTF-8 dont la première ligne est l'en-tête de version `#calc-history v1`, suivie d'une ligne par calcul : quatre colonnes séparées par une tabulation (opération, premier nombre, second nombre, résultat). Un fichier sans en-tête (ancien format) reste lisible et reçoit l'en-tête à la sauvegarde suivante. Un BOM UTF-8 en début de fichier est toléré. Au rechargement, chaque ligne est recalculée par le moteur : la valeur stockée n'est pas crue sur parole.
+**Format.** Fichier texte UTF-8 dont la première ligne est l'en-tête de version `#calc-history v1`, suivie d'une ligne par calcul : quatre colonnes séparées par une tabulation (opération, premier nombre, second nombre, résultat). Un fichier sans en-tête (ancien format) reste lisible et reçoit l'en-tête à la sauvegarde suivante. Un BOM UTF-8 en début de fichier est toléré. Au rechargement, chaque ligne est recalculée par le moteur et le résultat stocké est comparé au recalcul : la valeur stockée n'est pas crue sur parole.
 
-**Restauration partielle.** Une ligne invalide (nombre de colonnes incorrect, opération inconnue, saisie refusée par le moteur, trop longue) est ignorée et comptée ; les autres lignes sont restaurées. Le statut l'indique (« Historique restauré partiellement : 1 entrée ignorée. ») avec le ton erreur.
+**Restauration partielle.** Une ligne invalide (nombre de colonnes incorrect, opération inconnue, saisie refusée par le moteur, trop longue, résultat illisible) ou incohérente (le résultat stocké diffère du recalcul : `ADDITION 1 2 5`) est ignorée et comptée avec sa cause ; les autres lignes sont restaurées. Sont tolérés le résultat arrondi selon la politique actuelle et la dérive flottante des plus anciennes versions (`0.30000000000000004`). Le statut l'indique avec le ton erreur, par exemple « 12 calculs restaurés, 1 ligne illisible ignorée. Copie de sauvegarde : … ». Le contenu de l'historique n'est jamais écrit dans les journaux, seulement le chemin du fichier, le numéro de ligne et la cause.
 
 **Copies `.bak`.** Chaque fois que le fichier est partiellement lu, illisible ou d'une version inconnue, il est d'abord copié à côté de l'original sous `history.tsv.AAAAMMJJ-HHMMSS.bak` (suffixe `-1`, `-2`… si le nom existe déjà). Une copie existante n'est jamais écrasée ni supprimée automatiquement.
 
@@ -153,6 +153,9 @@ Pour que l'interface ne gèle jamais, les tailles sont bornées avant tout calcu
 - une saisie (après suppression des espaces de début et de fin) ne dépasse pas 1005 caractères
 - tout résultat tient en 1000 chiffres affichables au plus (`max(précision, échelle) ≤ 1000`), sinon le calcul est refusé avec un message
 - pour une puissance, la taille est estimée avant le calcul (`max(précision, échelle)` de la base multiplié par `|exposant|`, borné à 1000), exposants négatifs compris : `2 ^ 999` (301 chiffres) est accepté, mais élever ce résultat à la puissance `999` est refusé immédiatement
+- l'exposant d'une puissance est un entier compris entre `-999` et `999`
+
+Ces valeurs sont définies une seule fois, dans `CalculationLimits`. Elles sont justifiées par une mesure (voir `docs/adr/0001-durcissement-historique-et-bornes.md`) : au pire, un calcul accepté ou refusé prend environ 8 ms à froid, pour un budget de 50 ms.
 
 ## Règles de saisie
 

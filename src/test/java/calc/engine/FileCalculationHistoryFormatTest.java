@@ -110,7 +110,7 @@ public class FileCalculationHistoryFormatTest {
             Operation operation = operations[index];
             String secondOperand = operation.requiresSecondOperand() ? "2" : "";
             Path historyFile = tempDirectory.resolve("history-" + index + ".tsv");
-            CalculationRecord record = new CalculationRecord(operation, "4", secondOperand, new BigDecimal("4"));
+            CalculationRecord record = new CalculatorEngine().calculate(operation, "4", secondOperand);
             FileCalculationHistoryStore store = new FileCalculationHistoryStore(historyFile);
 
             store.saveHistory(List.of(record));
