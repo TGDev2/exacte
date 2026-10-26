@@ -40,7 +40,7 @@ Le projet est volontairement compact, mais les responsabilités sont séparées 
 - `calc/Main.java` : point d'entrée, assemble moteur, persistance, présentateur et fenêtre
 - `calc.engine` : moteur de calcul et persistance, sans aucune dépendance à Swing
   - `CalculatorEngine` : exécute les calculs avec le noyau exact et traduit chaque refus en message français ; `Operand` : texte saisi ou valeur déjà connue
-  - `OperandParser` (privé au package) : grammaire de saisie (décimal, fraction, notation scientifique, milliers)
+  - `OperandParser` (privé au package) : grammaire de saisie (décimal, fraction, notation scientifique, milliers) ; `NumberLiterals` : lecture d'un littéral (milliers en espaces insécables), partagée avec le langage d'expressions ; `NumericMessages` : messages des refus du noyau qui ne nomment aucun champ, partagés aussi
   - `CalculationLimits` : bornes du moteur, reprises de celles du noyau
   - `Operation`, `InputField`, `CalculationRecord` (porte la valeur exacte ou l'intervalle), `CalculationException` (porte le champ fautif)
   - `LegacyRounding` (privé au package) : anciennes règles d'arrondi, utilisées seulement pour vérifier les historiques de la version 1
@@ -49,6 +49,10 @@ Le projet est volontairement compact, mais les responsabilités sont séparées 
   - `Rational` : fraction exacte toujours réduite ; `CertifiedValue` : intervalle `[bas, haut]` exact ou approché avec garantie d'inclusion, racine certifiée
   - `NumericLimits` : bornes du noyau ; `NumericException` porte un code `NumericError`, sans texte destiné à l'utilisateur
 - `calc.format` : `ValueFormatter`, seul endroit où une valeur devient texte (modes Auto, Décimal, Fraction, Scientifique, texte canonique réutilisable ; voir `docs/adr/0004-regles-affichage.md`)
+- `calc.expression` : langage d'expressions du futur carnet, sans interface (voir `docs/adr/0007-grammaire-expressions.md` et le guide `docs/GUIDE-EXPRESSIONS.md`)
+  - `Lexer` (jetons et positions), `ExpressionParser` (descente récursive bornée en longueur, profondeur et nombre de nœuds) et `ParsedLine` (nature de la ligne, arbre, commentaire, références et noms utilisés)
+  - `Node` : arbre immuable (interface scellée et records) ; `Evaluator` : évaluation avec le noyau exact, noms et références résolus par un `Resolver` de l'appelant (`TableResolver` pour les tests)
+  - `CanonicalPrinter` : texte canonique à parenthèses minimales ; `ReferenceRewriter` : renumérotation des `$n` dans le texte d'origine ; `ExpressionException` : code, position et message français
 - `calc.ui` : interface
   - `CalculatorPresenter` : logique d'interaction, gestion d'historique, statut, focus, préparation du workflow suivant et mémoire de la valeur placée dans chaque champ ; testable sans interface graphique
   - `CalculatorViewModel` (record immuable, textes déjà prêts à afficher), `FocusTarget`, `ReuseTarget`, `StatusTone`, `OperationText` (libellés des opérations)
@@ -103,7 +107,7 @@ Le projet fournit des tests JUnit 5 et des propriétés jqwik (`src/test/java`, 
 - accents des textes visibles : un test lit les littéraux des sources qui portent des textes affichés et refuse les formes sans accent connues
 - contrastes : chaque couleur de texte de statut et de badge atteint au moins 4,5:1 sur son fond
 - non-régression : 70 cas de référence (`src/test/resources/golden/engine-v2.tsv`) rejoués contre le moteur et le présentateur, sortie par sortie (affichage, valeur réutilisable ou message d'erreur) ; chaque écart avec la version 1 (`engine-v1.tsv`) est justifié dans [docs/changements-comportement-E06.md](docs/changements-comportement-E06.md) ; les historiques de référence se trouvent dans `src/test/resources/legacy/v1`
-- tests par propriétés et de robustesse (jqwik) : arithmétique comparée à un oracle indépendant, erreurs, aller-retour et fuzzing de l'historique, fuzzing de la saisie, séquences aléatoires d'actions du présentateur ; voir [docs/TESTS.md](docs/TESTS.md)
+- tests par propriétés et de robustesse (jqwik) : arithmétique comparée à un oracle indépendant, erreurs, aller-retour et fuzzing de l'historique, fuzzing de la saisie, séquences aléatoires d'actions du présentateur, langage d'expressions (aller-retour imprimeur → analyseur, évaluation comparée au noyau, fuzzing, réécriture des références octet pour octet) ; voir [docs/TESTS.md](docs/TESTS.md)
 
 Commande :
 
