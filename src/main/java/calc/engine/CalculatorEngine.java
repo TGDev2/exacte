@@ -124,10 +124,17 @@ public class CalculatorEngine {
             throw new CalculationException(invalidMessage, field);
         }
 
+        BigDecimal value;
         try {
-            return DecimalPolicy.parseNormalizedInput(normalizedInput);
+            value = DecimalPolicy.parseNormalizedInput(normalizedInput);
         } catch (NumberFormatException exception) {
             throw new CalculationException(invalidMessage, field);
         }
+        // The history stores the canonical text, which gains a "0" before a bare decimal point (".5" -> "0,5"):
+        // it must fit the bound too, or a saved entry would be refused as too long when it is read back.
+        if (DecimalPolicy.format(value).length() > DecimalPolicy.MAX_INPUT_LENGTH) {
+            throw new CalculationException(tooLongMessage, field);
+        }
+        return value;
     }
 }

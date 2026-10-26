@@ -23,6 +23,9 @@ repositories {
 dependencies {
     testImplementation(platform("org.junit:junit-bom:5.14.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")
+    // Property-based testing engine for the JUnit Platform. 1.10.2 is built against JUnit Platform 1.14.4,
+    // the one managed by the junit-bom above.
+    testImplementation("net.jqwik:jqwik:1.10.2")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
@@ -51,8 +54,24 @@ tasks.test {
     // forward it explicitly so `gradlew check -Djava.awt.headless=true` really runs the tests without a display.
     System.getProperty("java.awt.headless")?.let { systemProperty("java.awt.headless", it) }
 
+    // Runs a subset by JUnit tag (`ui`, `property`, `robustness`...): `gradlew test -PincludeTags=property`.
+    // Several tags are separated by commas; `-PexcludeTags=` works the same way. See docs/TESTS.md.
+    val includeTags = providers.gradleProperty("includeTags").orNull?.split(',')?.filter { it.isNotBlank() }.orEmpty()
+    val excludeTags = providers.gradleProperty("excludeTags").orNull?.split(',')?.filter { it.isNotBlank() }.orEmpty()
+    if (includeTags.isNotEmpty() || excludeTags.isNotEmpty()) {
+        useJUnitPlatform {
+            if (includeTags.isNotEmpty()) includeTags(*includeTags.toTypedArray())
+            if (excludeTags.isNotEmpty()) excludeTags(*excludeTags.toTypedArray())
+        }
+    }
+
+    // Every `-Pjqwik.*` Gradle property reaches the test JVM and wins over src/test/resources/junit-platform.properties:
+    // `gradlew check -Pjqwik.tries.default=20000` for a deeper run, `-Pjqwik.reporting.onlyfailures=false` to report every
+    // property (tries, seed). See docs/TESTS.md.
+    providers.gradlePropertiesPrefixedBy("jqwik.").get().forEach { (name, value) -> systemProperty(name, value) }
+
     testLogging {
-        events(TestLogEvent.FAILED, TestLogEvent.SKIPPED)
+        events(TestLogEvent.FAILED, TestLogEvent.SKIPPED, TestLogEvent.STANDARD_OUT)
         exceptionFormat = TestExceptionFormat.FULL
         showExceptions = true
         showCauses = true

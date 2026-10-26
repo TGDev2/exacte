@@ -85,7 +85,7 @@ public class FileCalculationHistoryStore implements CalculationHistoryStore {
         if (!lines.isEmpty()) {
             Matcher headerMatch = FORMAT_HEADER_PATTERN.matcher(lines.get(0));
             if (headerMatch.matches()) {
-                int version = Integer.parseInt(headerMatch.group(1));
+                int version = parseVersion(headerMatch.group(1));
                 if (version != SUPPORTED_FORMAT_VERSION) {
                     return refuseUnsupportedVersion(version, lines);
                 }
@@ -142,6 +142,16 @@ public class FileCalculationHistoryStore implements CalculationHistoryStore {
         } catch (IOException exception) {
             LOGGER.log(Level.WARNING, "Cannot write history file " + historyFile, exception);
             throw new CalculationHistoryException("Impossible d'enregistrer l'historique : " + historyFile, exception);
+        }
+    }
+
+    // The header only holds digits, so the sole way to fail is a number too large for an int: that is a version
+    // newer than any this program knows, not a reason to crash the loader.
+    private static int parseVersion(String digits) {
+        try {
+            return Integer.parseInt(digits);
+        } catch (NumberFormatException tooLarge) {
+            return Integer.MAX_VALUE;
         }
     }
 
