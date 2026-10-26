@@ -12,8 +12,9 @@ import java.util.regex.Pattern;
  * {@code gcd(|p|, q) = 1} and zero is {@code 0/1}. Two equal values therefore have the same numerator and denominator,
  * so {@link #equals(Object)}, {@link #hashCode()} and {@link #compareTo(Rational)} agree.
  *
- * <p>Addition, subtraction, multiplication and division are exact and not bounded: their cost and the size of their
- * result are at most about twice those of their operands, and {@link CertifiedValue} checks every result it keeps
+ * <p>Addition, subtraction, multiplication and division are exact and not bounded: the size of their result is at most
+ * about twice that of their operands (their cost, dominated by a gcd, grows with the square of that size), so it is
+ * bounded by the operands, and {@link CertifiedValue} checks every result it keeps
  * against {@link NumericLimits#MAX_COMPONENT_BITS}. The two operations whose cost does not depend on the size of their
  * operands only, {@link #pow(int)} and {@link #parse(String)}, check the limits before computing.
  */
@@ -102,9 +103,9 @@ public final class Rational implements Comparable<Rational> {
      * with at least one digit before the exponent ({@code 12}, {@code -0,5}, {@code .5}, {@code 3.}, {@code 1.5E-3}), or
      * two such decimals separated by {@code /} ({@code -1,5/4e2}). Only ASCII digits are accepted.
      *
-     * <p>Errors, in this order: {@link NumericError#SIZE_LIMIT_EXCEEDED} for a text longer than
-     * {@link NumericLimits#MAX_LITERAL_LENGTH} (checked first); {@link NumericError#MALFORMED_INPUT};
-     * {@link NumericError#EXPONENT_OUT_OF_RANGE} for a scientific exponent beyond
+     * <p>Errors, in this order, each one checked on the whole text (both members of a fraction) before the next:
+     * {@link NumericError#SIZE_LIMIT_EXCEEDED} for a text longer than {@link NumericLimits#MAX_LITERAL_LENGTH};
+     * {@link NumericError#MALFORMED_INPUT}; {@link NumericError#EXPONENT_OUT_OF_RANGE} for a scientific exponent beyond
      * {@link NumericLimits#MAX_SCIENTIFIC_EXPONENT}; {@link NumericError#SIZE_LIMIT_EXCEEDED} when a member or the
      * result needs more than {@link NumericLimits#MAX_COMPONENT_BITS} bits (detected before building a power of ten
      * when the digit count already proves it); {@link NumericError#DIVISION_BY_ZERO} for a zero denominator.
@@ -115,29 +116,36 @@ public final class Rational implements Comparable<Rational> {
             throw new NumericException(NumericError.SIZE_LIMIT_EXCEEDED);
         }
         int slash = text.indexOf('/');
-        if (slash < 0) {
-            return parseDecimal(text);
+        Matcher top = matchDecimal(slash < 0 ? text : text.substring(0, slash));
+        Matcher bottom = slash < 0 ? null : matchDecimal(text.substring(slash + 1));
+        int topExponent = exponentOf(top);
+        int bottomExponent = bottom == null ? 0 : exponentOf(bottom);
+        Rational numerator = valueOf(top, topExponent);
+        if (bottom == null) {
+            return numerator;
         }
-        Rational top = parseDecimal(text.substring(0, slash));
-        Rational bottom = parseDecimal(text.substring(slash + 1));
-        if (bottom.signum() == 0) {
+        Rational denominator = valueOf(bottom, bottomExponent);
+        if (denominator.signum() == 0) {
             throw new NumericException(NumericError.DIVISION_BY_ZERO);
         }
-        return withinLimits(top.multiply(bottom.reciprocal()));
+        return withinLimits(numerator.multiply(denominator.reciprocal()));
     }
 
-    private static Rational parseDecimal(String text) throws NumericException {
+    private static Matcher matchDecimal(String text) throws NumericException {
         Matcher matcher = DECIMAL.matcher(text);
-        if (!matcher.matches()) {
+        if (!matcher.matches() || (matcher.group(2).isEmpty() && (matcher.group(3) == null || matcher.group(3).isEmpty()))) {
             throw new NumericException(NumericError.MALFORMED_INPUT);
         }
-        String integerDigits = matcher.group(2);
-        String fractionDigits = matcher.group(3) == null ? "" : matcher.group(3);
-        if (integerDigits.isEmpty() && fractionDigits.isEmpty()) {
-            throw new NumericException(NumericError.MALFORMED_INPUT);
-        }
-        int exponent = matcher.group(5) == null ? 0 : parseExponent("-".equals(matcher.group(4)), matcher.group(5));
+        return matcher;
+    }
 
+    private static int exponentOf(Matcher decimal) throws NumericException {
+        return decimal.group(5) == null ? 0 : parseExponent("-".equals(decimal.group(4)), decimal.group(5));
+    }
+
+    private static Rational valueOf(Matcher decimal, int exponent) throws NumericException {
+        String integerDigits = decimal.group(2);
+        String fractionDigits = decimal.group(3) == null ? "" : decimal.group(3);
         String digits = integerDigits + fractionDigits;
         int first = 0;
         while (first < digits.length() && digits.charAt(first) == '0') {
@@ -165,7 +173,7 @@ public final class Rational implements Comparable<Rational> {
         }
 
         BigInteger mantissa = new BigInteger(significant);
-        if ("-".equals(matcher.group(1))) {
+        if ("-".equals(decimal.group(1))) {
             mantissa = mantissa.negate();
         }
         Rational value = power >= 0

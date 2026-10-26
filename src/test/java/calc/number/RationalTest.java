@@ -194,6 +194,15 @@ class RationalTest {
         }
     }
 
+    @ParameterizedTest
+    @CsvSource(delimiter = ';', value = {
+        "1e99999/x; MALFORMED_INPUT", "1e5000/x; MALFORMED_INPUT", "x/0; MALFORMED_INPUT",
+        "1e5000/1e99999; EXPONENT_OUT_OF_RANGE", "1e5000/0; SIZE_LIMIT_EXCEEDED", "1/1e5000; SIZE_LIMIT_EXCEEDED"
+    })
+    void eachCheckCoversBothMembersBeforeTheNextOne(String text, NumericError expected) {
+        assertEquals(expected, assertThrows(NumericException.class, () -> Rational.parse(text)).error());
+    }
+
     @Test
     void aNullTextIsAProgrammingError() {
         assertThrows(NullPointerException.class, () -> Rational.parse(null));
