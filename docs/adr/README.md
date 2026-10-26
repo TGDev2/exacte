@@ -15,4 +15,4 @@ Later work reads the ADRs instead of guessing why things are the way they are.
 
 | Number | Title | Status |
 |---|---|---|
-| _none yet_ | | |
+| 0001 | Hardening: lossless history, atomic writes, bounds, typed errors | Accepted |
