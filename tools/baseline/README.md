@@ -6,6 +6,8 @@ history store as they are and writes:
 - `src/test/resources/golden/engine-v1.tsv` and `.gitattributes` - one line per engine case (70 cases: 47 OK, 23 ERROR);
 - `src/test/resources/legacy/v1/*.tsv`, `src/test/resources/legacy/v1/README.md` and `src/test/resources/legacy/v1/.gitattributes`.
 
+> **Since E07** the legacy-file part of this tool needs `FileCalculationHistoryStore`, which was removed when the history became JSON (`docs/adr/0005-format-persistance.md`). Run it on a commit before E07 to regenerate the version 1 observations; the files in `src/test/resources/legacy/v1` are unchanged and are now the input of the migration tests (`LegacyMigrationTest`).
+
 It is not part of the production code and is not built by Gradle.
 
 ## Regenerate

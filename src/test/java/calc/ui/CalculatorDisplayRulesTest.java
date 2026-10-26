@@ -2,7 +2,7 @@ package calc.ui;
 
 import calc.engine.CalculationRecord;
 import calc.engine.CalculatorEngine;
-import calc.engine.FileCalculationHistoryStore;
+import calc.persistence.JsonHistoryStore;
 import calc.engine.HistoryLoadResult;
 import calc.engine.Operation;
 import calc.testing.DisplayTexts;
@@ -139,9 +139,13 @@ public class CalculatorDisplayRulesTest {
             records.add(engine.calculate(Operation.DIVISION, record.getReusableValue(), "7"));
         }
 
-        Path historyFile = tempDirectory.resolve("history.tsv");
-        new FileCalculationHistoryStore(historyFile).saveHistory(records);
-        HistoryLoadResult restored = new FileCalculationHistoryStore(historyFile).loadHistory();
+        try (JsonHistoryStore writer = JsonHistoryStore.open(tempDirectory)) {
+            writer.saveHistory(records);
+        }
+        HistoryLoadResult restored;
+        try (JsonHistoryStore reader = JsonHistoryStore.open(tempDirectory)) {
+            restored = reader.loadHistory();
+        }
 
         assertEquals(0, restored.skippedLines(), "Every persisted entry should reload.");
         assertEquals(records.size(), restored.records().size(), "Every persisted entry should reload.");

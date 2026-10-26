@@ -1,19 +1,13 @@
 package calc.ui;
 
 import calc.engine.CalculatorEngine;
-import calc.engine.FileCalculationHistoryStore;
-import calc.engine.HistoryLoadResult;
-import calc.engine.RejectedLine.Cause;
+import calc.persistence.JsonHistoryStore;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.List;
-import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -22,85 +16,74 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** Loads every reference file of {@code legacy/v1} and pins what is restored, rejected and backed up. */
+/** Opens the window on every reference file of {@code legacy/v1} and pins the status the user reads after the migration. */
 public class CalculatorHistoryLegacyFilesTest {
-    private static final Clock FIXED_CLOCK = Clock.fixed(Instant.parse("2024-01-02T03:04:05Z"), ZoneOffset.UTC);
+    private static final String CONVERTED = "Historique converti au nouveau format (";
 
-    @ParameterizedTest(name = "{0}: {1} restored, {2} rejected ({3}), backup {4}")
-    @CsvSource(nullValues = "-", value = {
-        "nominal.tsv,            6, 0, -,                          false",
-        "rounded.tsv,            1, 0, -,                          false",
-        "legacy-float.tsv,       1, 0, -,                          false",
-        "crlf.tsv,               3, 0, -,                          false",
-        "bom.tsv,                2, 0, -,                          false",
-        "bom-header.tsv,         1, 0, -,                          false",
-        "empty.tsv,              0, 0, -,                          false",
-        "one-corrupted-line.tsv, 2, 1, WRONG_COLUMN_COUNT,         true",
-        "inconsistent.tsv,       0, 1, INVALID_OPERAND,            true",
-        "wrong-result.tsv,       0, 1, INCONSISTENT_RESULT,        true",
-        "future-version.tsv,     0, 1, UNSUPPORTED_FORMAT_VERSION, true",
+    @ParameterizedTest(name = "{0}: {1} entries, status {2}")
+    @CsvSource(delimiter = '|', quoteCharacter = '"', value = {
+        "nominal.tsv            | 6 | SUCCESS | Historique converti au nouveau format (6 entrées).",
+        "rounded.tsv            | 1 | SUCCESS | Historique converti au nouveau format (1 entrée).",
+        "legacy-float.tsv       | 1 | SUCCESS | Historique converti au nouveau format (1 entrée).",
+        "crlf.tsv               | 3 | SUCCESS | Historique converti au nouveau format (3 entrées).",
+        "bom.tsv                | 2 | SUCCESS | Historique converti au nouveau format (2 entrées).",
+        "bom-header.tsv         | 1 | SUCCESS | Historique converti au nouveau format (1 entrée).",
+        "empty.tsv              | 0 | SUCCESS | Historique converti au nouveau format (0 entrée).",
+        "one-corrupted-line.tsv | 2 | ERROR   | Historique converti au nouveau format (2 entrées), 1 entrée illisible ignorée. Copie de sauvegarde : <BAK>",
+        "inconsistent.tsv       | 0 | ERROR   | Historique converti au nouveau format (0 entrée), 1 entrée illisible ignorée. Copie de sauvegarde : <BAK>",
+        "wrong-result.tsv       | 0 | ERROR   | Historique converti au nouveau format (0 entrée), 1 entrée incohérente ignorée. Copie de sauvegarde : <BAK>",
+        "future-version.tsv     | 0 | ERROR   | Historique créé par une version plus récente de Calc : il n'a pas pu être ouvert et ne sera pas modifié.",
     })
-    void testEveryReferenceFileLoadsAsExpected(
-            String fileName, int restored, int rejected, Cause cause, boolean backupCreated, @TempDir Path directory)
-            throws Exception {
-        Path historyFile = copyFixture(fileName, directory);
-        byte[] original = Files.readAllBytes(historyFile);
+    void testEveryReferenceFileGivesTheExpectedStatus(
+            String fileName, int restored, StatusTone tone, String message, @TempDir Path directory) throws Exception {
+        copyFixture(fileName, directory);
 
-        HistoryLoadResult result = new FileCalculationHistoryStore(historyFile, FIXED_CLOCK, Files::copy).loadHistory();
+        CalculatorViewModel view;
+        try (JsonHistoryStore store = JsonHistoryStore.open(directory)) {
+            view = new CalculatorPresenter(new CalculatorEngine(), store).createInitialView();
+        }
 
-        assertEquals(restored, result.records().size(), "entries restored");
-        assertEquals(rejected, result.skippedLines(), "lines rejected");
-        assertEquals(rejected, result.rejections().size());
-        if (cause != null) {
-            assertEquals(cause, result.rejections().get(0).cause());
-        }
-        if (backupCreated) {
-            assertNotNull(result.backupFile(), "a backup is needed when something was rejected");
-            assertArrayEquals(original, Files.readAllBytes(result.backupFile()), "the copy is byte-for-byte the original");
-        } else {
-            assertNull(result.backupFile(), "no backup when nothing was rejected");
-            assertEquals(List.of("history.tsv"), fileNames(directory), "no stray file next to the history");
-        }
-        assertArrayEquals(original, Files.readAllBytes(historyFile), "loading never modifies the original");
+        assertEquals(restored, view.historyEntries().size(), "entries shown");
+        assertEquals(tone, view.statusTone());
+        assertEquals(message.replace("<BAK>", directory.resolve("history.tsv.v1.bak").toString()), view.statusMessage());
     }
 
     @Test
-    void testCorruptedLineScenarioKeepsTheValidLinesAndTheOriginalCopy(@TempDir Path directory) throws Exception {
-        Path historyFile = copyFixture("one-corrupted-line.tsv", directory);
-        byte[] original = Files.readAllBytes(historyFile);
+    void testMigratedHistoryKeepsWorkingAfterTheConversion(@TempDir Path directory) throws Exception {
+        byte[] original = copyFixture("one-corrupted-line.tsv", directory);
 
-        CalculatorPresenter presenter = new CalculatorPresenter(
-                new CalculatorEngine(), new FileCalculationHistoryStore(historyFile, FIXED_CLOCK, Files::copy));
-        CalculatorViewModel start = presenter.createInitialView();
-        CalculatorViewModel afterCalculation = presenter.onCalculate("10", "5");
+        CalculatorViewModel afterCalculation;
+        try (JsonHistoryStore store = JsonHistoryStore.open(directory)) {
+            CalculatorPresenter presenter = new CalculatorPresenter(new CalculatorEngine(), store);
+            presenter.createInitialView();
+            afterCalculation = presenter.onCalculate("10", "5");
+        }
 
-        Path backup = directory.resolve("history.tsv.20240102-030405.bak");
-        assertEquals(
-                "2 calculs restaurés, 1 ligne illisible ignorée. Copie de sauvegarde : " + backup,
-                start.statusMessage());
         assertEquals(StatusTone.SUCCESS, afterCalculation.statusTone());
-        assertArrayEquals(original, Files.readAllBytes(backup), "the backup holds the untouched original, corrupted line included");
-        assertEquals(
-                List.of("#calc-history v1", "ADDITION\t1\t2\t3", "MULTIPLICATION\t3\t4\t12", "ADDITION\t10\t5\t15"),
-                Files.readAllLines(historyFile, StandardCharsets.UTF_8),
-                "the valid lines are still in the current file, followed by the new calculation");
-        assertFalse(Files.readString(historyFile, StandardCharsets.UTF_8).contains("not a calculation"));
+        assertArrayEquals(original, Files.readAllBytes(directory.resolve("history.tsv.v1.bak")),
+                "the backup holds the untouched original, corrupted line included");
+        String json = Files.readString(directory.resolve("history.json"), StandardCharsets.UTF_8);
+        assertEquals(3, json.lines().filter(line -> line.contains("\"op\":")).count(), "the two valid lines and the new calculation");
+        assertTrue(json.contains("\"operands\": [\"10\", \"5\"]"));
+        assertFalse(json.contains("not a calculation"));
+
+        try (JsonHistoryStore store = JsonHistoryStore.open(directory)) {
+            CalculatorViewModel reopened = new CalculatorPresenter(new CalculatorEngine(), store).createInitialView();
+            assertEquals(List.of("1 + 2 = 3", "3 * 4 = 12", "10 + 5 = 15"),
+                    reopened.historyEntries().stream().map(Object::toString).toList());
+            assertEquals("Historique restauré. Vous pouvez réutiliser un résultat précédent ou lancer un nouveau calcul.",
+                    reopened.statusMessage());
+        }
     }
 
-    private static Path copyFixture(String fileName, Path directory) throws IOException {
-        Path target = directory.resolve("history.tsv");
+    private static byte[] copyFixture(String fileName, Path directory) throws IOException {
         try (InputStream stream = CalculatorHistoryLegacyFilesTest.class.getResourceAsStream("/legacy/v1/" + fileName)) {
             assertNotNull(stream, "missing reference file " + fileName);
-            Files.write(target, stream.readAllBytes());
-        }
-        return target;
-    }
-
-    private static List<String> fileNames(Path directory) throws IOException {
-        try (Stream<Path> files = Files.list(directory)) {
-            return files.map(path -> path.getFileName().toString()).sorted().toList();
+            byte[] bytes = stream.readAllBytes();
+            Files.write(directory.resolve("history.tsv"), bytes);
+            return bytes;
         }
     }
 }
