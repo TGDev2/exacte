@@ -68,7 +68,7 @@ tasks.test {
     // Every `-Pjqwik.*` Gradle property reaches the test JVM and wins over src/test/resources/junit-platform.properties:
     // `gradlew check -Pjqwik.tries.default=20000` for a deeper run, `-Pjqwik.reporting.onlyfailures=false` to report every
     // property (tries, seed). See docs/TESTS.md.
-    project.properties.filterKeys { it.startsWith("jqwik.") }.forEach { (name, value) -> systemProperty(name, value.toString()) }
+    providers.gradlePropertiesPrefixedBy("jqwik.").get().forEach { (name, value) -> systemProperty(name, value) }
 
     testLogging {
         events(TestLogEvent.FAILED, TestLogEvent.SKIPPED, TestLogEvent.STANDARD_OUT)
