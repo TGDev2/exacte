@@ -48,7 +48,7 @@ séparateur     = U+00A0 | U+202F ;
 chiffres       = chiffre { chiffre } ;
 chiffre        = '0' | '1' | ... | '9' ;
 ENTIER_POSITIF = chiffres ;                          (* value from 1 to 2 147 483 647 *)
-IDENT          = ( lettre | '_' ) { lettre | chiffre_unicode | '_' } ;   (* and not a reserved word *)
+IDENT          = ( lettre | '_' ) { lettre | chiffre_unicode | marque_combinante | '_' } ;  (* not a reserved word *)
 blanc          = ' ' | tab | U+00A0 | U+202F ;
 ```
 
@@ -66,7 +66,8 @@ Decisions written into the grammar (the brief's proposal is kept unchanged, made
 - **No implicit multiplication.** Two adjacent operands (`2 3`, `2(3)`, `2x`, `(1)(2)`, `ans 2`) are the error
   « Opérateur manquant » on the second one. `2x` is not a number with a unit or a product: refusing it keeps `2e3`
   unambiguous and the rule easy to explain.
-- **Identifiers**: a Unicode letter or `_`, then Unicode letters, digits or `_` (`prix`, `taux_TVA`, `année2`, `_x`).
+- **Identifiers**: a Unicode letter or `_`, then Unicode letters, digits, combining marks or `_`
+  (`prix`, `taux_TVA`, `année2`, `_x`).
   *Names are case sensitive (`Prix` and `prix` are two variables), which never merges two names silently; reserved words
   are not: `ans`, `ANS`, `Sqrt` and `RACINE` are reserved.* A reserved word cannot be assigned.
 - **Numbers** follow the engine exactly, through the same code (`calc.engine.NumberLiterals`): comma or point, bounded
@@ -88,8 +89,9 @@ Decisions written into the grammar (the brief's proposal is kept unchanged, made
 ### 2. Positions
 
 Every token and every node carries a `Span`: start index included, end index excluded, counted in UTF-16 characters of
-the line (Java `String` indexes), so `line.substring(start, end)` is the source text. A parenthesised expression keeps
-the span of its content. An assignment spans from its name to the end of its value.
+the line (Java `String` indexes), so `line.substring(start, end)` is the source text, and that text read alone gives the
+same node. The span of a parenthesised operand includes its parentheses (`(2 - 2)` in `1 / (2 - 2)`), the span of an
+operation runs from its first to its last character, and an assignment spans from its name to the end of its value.
 
 ### 3. Limits, checked explicitly
 
@@ -100,12 +102,14 @@ the span of its content. An assignment spans from its name to the end of its val
 | nodes of the tree | 500 | at each node created | « Expression trop longue (500 éléments maximum). » |
 
 Each node consumes at least one character, so 1000 characters cannot make more than 1000 nodes; 500 still allows a sum
-of 250 numbers. The parser recurses only through the nesting constructs, so its stack depth is bounded by the depth
-limit (100 levels × about 6 frames). The lexer is a loop. The evaluator and the printer recurse along the tree, whose
-depth cannot exceed its node count; for a tree built by hand they check the same bound. `ExpressionLimits` lets a caller
-choose other limits, up to 1000 levels and 5000 nodes (stack safety); the tests use it to show that 10 000 nested
-parentheses are refused by the depth check itself, and not only because such a line is too long. Numbers keep the
-bounds of the core (4096 bits per component, exponent of a power within ±4096), checked by the core.
+of 250 numbers. The parser recurses only through the nesting constructs (about five frames per level), so its stack
+depth is bounded by the depth limit. A caller may choose other limits with `ExpressionLimits`, but never a depth above
+100: measured in interpreted mode, a 256 KB thread stack (a quarter of the default of 64-bit JVMs) overflows near 150
+levels, and `ExpressionRobustnessTest` parses at depth 100 on such a stack. The lexer is a loop, and the evaluator and the
+printer walk the tree with an explicit stack, so a tree of any depth (100 000 levels built by hand in the tests) cannot
+exhaust the stack; the node limit only bounds their work. The tests use a parser without a length limit to show that
+10 000 nested parentheses are refused by the depth check itself, and not only because such a line is too long. Numbers
+keep the bounds of the core (4096 bits per component, exponent of a power within ±4096), checked by the core.
 
 ### 4. Errors
 
@@ -171,6 +175,9 @@ that name a field of the form (« Le second nombre ... ») are worded for expres
 - **Case-insensitive variable names.** Friendlier, but `Prix` and `prix` would silently be the same cell; case
   insensitivity is kept for the reserved words only, so that `SQRT(2)` still works.
 - **One exception class per stage.** Callers (E10) need one catch and one code; the stage is a property of the code.
+- **A recursive evaluator and printer.** Simpler to read, but a tree built by hand (or a future caller with other
+  limits) could exhaust the stack: measured, fewer than 300 levels fit a 256 KB stack before the JIT compiles the
+  method. An explicit stack costs a few lines and removes the question.
 - **Rewriting through the token list.** It would make the rewriting impossible on a line with a lexical error; the
   rewriting uses the lexer's rule for references (`$` followed by digits, outside the comment) on the raw text instead.
 

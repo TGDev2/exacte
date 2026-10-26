@@ -34,7 +34,10 @@ public final class ExpressionException extends Exception {
         return span;
     }
 
-    /** The code of the numeric core, present exactly for {@link ExpressionError#NUMERIC}. */
+    /**
+     * The code of the numeric core: present for {@link ExpressionError#NUMERIC}, except for the safety net of an
+     * unexpected {@link ArithmeticException}; absent for every other error.
+     */
     public Optional<NumericError> numericError() {
         return Optional.ofNullable(numericError);
     }
