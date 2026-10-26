@@ -94,7 +94,7 @@ public final class CalculatorFrame extends JFrame {
         modeLabel = new JLabel("Affichage");
         modeSelector = new DisplayModeSelector();
         exactnessBadge = new ExactnessBadge();
-        resultFractionLabel = new JLabel();
+        resultFractionLabel = new JLabel(" ");
         resultValueLabel = new JLabel(NO_RESULT, SwingConstants.RIGHT) {
             // A result text can be long (Décimal mode, error messages): let the layout shrink the label (ellipsis)
             // instead of letting the text widen the window.
@@ -225,8 +225,8 @@ public final class CalculatorFrame extends JFrame {
 
         JLabel helper = new JLabel(
                 "<html>Le résultat est réutilisé et enregistré sans perte, même si l'affichage est abrégé.<br>"
-                        + "« … » : chiffres omis ; « ≈ » : valeur approchée garantie (borne d'erreur dans l'infobulle).<br>"
-                        + "Ctrl+M : mode d'affichage suivant.</html>");
+                        + "12 chiffres significatifs ; « … » : chiffres omis ; « ≈ » : valeur approchée garantie "
+                        + "(borne d'erreur dans l'infobulle).</html>");
         helper.setForeground(INFO_COLOR);
 
         JPanel modeRow = new JPanel(new BorderLayout(8, 0));
@@ -434,8 +434,8 @@ public final class CalculatorFrame extends JFrame {
         }
 
         String fraction = viewModel.resultFraction();
-        resultFractionLabel.setText(fraction.isEmpty() ? "" : "Fraction exacte : " + fraction);
-        resultFractionLabel.setVisible(!fraction.isEmpty());
+        // A blank text rather than a hidden label: its line stays reserved, so showing a fraction never resizes the window.
+        resultFractionLabel.setText(fraction.isEmpty() ? " " : "Fraction exacte : " + fraction);
         resultFractionLabel.getAccessibleContext().setAccessibleName(
                 fraction.isEmpty() ? "Fraction exacte" : "Fraction exacte : " + fraction);
     }

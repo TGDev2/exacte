@@ -361,7 +361,7 @@ public class CalculatorFrameTest {
             assertTrue(badge.isVisible());
             assertEquals("Exact", badge.getText(), "1 ÷ 4 is exact.");
             assertEquals(null, badge.getToolTipText(), "An exact, complete result has nothing to add.");
-            assertFalse(fractionLabel.isVisible(), "The complete text needs no secondary fraction.");
+            assertTrue(fractionLabel.getText().isBlank(), "The complete text needs no secondary fraction.");
 
             runOnEdt(() -> {
                 firstNumberField.setText("1");
@@ -380,7 +380,7 @@ public class CalculatorFrameTest {
             clickButton(calculateButton);
             assertEquals("≈ Approché", badge.getText(), "√2 is approximate.");
             assertEquals("Erreur maximale : ± 2,1 × 10⁻²⁵", badge.getToolTipText());
-            assertFalse(fractionLabel.isVisible(), "An approximate value has no exact fraction.");
+            assertTrue(fractionLabel.getText().isBlank(), "An approximate value has no exact fraction.");
             assertEquals("Exactitude du résultat : ≈ Approché", badge.getAccessibleContext().getAccessibleName());
 
             invokeShortcut(rootPane, KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0));
