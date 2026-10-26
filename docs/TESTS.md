@@ -7,7 +7,7 @@ lancer une partie, comment rejouer un échec trouvé par un test aléatoire et c
 
 | Niveau | Où | Étiquette (tag) | Rôle |
 |---|---|---|---|
-| Exemples JUnit 5 | `src/test/java/calc/engine`, `calc/ui`, `calc/number`, `calc/format` | aucune | Un cas précis, un message exact, un comportement décidé. Rapides, faciles à lire. |
+| Exemples JUnit 5 | `src/test/java/calc/engine`, `calc/ui`, `calc/number`, `calc/format`, `calc/expression` | aucune | Un cas précis, un message exact, un comportement décidé. Rapides, faciles à lire. |
 | Sorties de référence | `GoldenOutputsTest`, `src/test/resources/golden`, `legacy/v1` | aucune | Rejoue 70 calculs (`engine-v2.tsv`, mêmes entrées que `engine-v1.tsv`) et 11 fichiers d'historique enregistrés : tout changement de sortie est vu. |
 | Fenêtre Swing | `CalculatorFrameTest` | `ui` | Raccourcis, focus, accessibilité. Demande un écran (ignoré sans écran, voir `docs/CI.md`). |
 | Propriétés | `*Properties` (hors fuzzing) | `property` | Une promesse vraie pour des milliers d'entrées générées, comparée à un oracle indépendant. |
@@ -263,6 +263,31 @@ Pas de propriété ici : des exemples, tous rapides.
   tests `ui` ont aussi été lancés avec l'apparence Windows (`-Dswing.defaultlaf=...WindowsLookAndFeel` dans
   `JAVA_TOOL_OPTIONS`) : même résultat.
 
+## Langage d'expressions (E09)
+
+La grammaire et les décisions sont dans `docs/adr/0007-grammaire-expressions.md`, le guide utilisateur dans
+`docs/GUIDE-EXPRESSIONS.md`. Tout se lance avec `.\gradlew.bat test --tests "calc.expression.*"`.
+
+Mesures (Windows 11, JDK 21, `gradlew cleanTest check`) : 827 tests, 0 échec, 0 ignoré (628 avant E09, dont 199 pour
+`calc.expression`), environ 33 s.
+
+| Classe | Étiquette | Ce qu'elle garantit |
+|---|---|---|
+| `ExpressionEvaluationTest` | - | tables de valeurs exactes : priorités et associativité (`2+3*4 = 14`, `-2^2 = -4`, `2^3^2 = 512`, `2^-1 = 1/2`, `(1/3)*3 = 1`, `--2 = 2`...), racines (`√2*√2` approché qui contient 2), virgule et point, notation `e`, espaces insécables, opérateurs Unicode, mots réservés dans toutes les casses, variables sensibles à la casse, références `ans` et `$n`, commentaires, nature de la ligne, références et noms relevés |
+| `ExpressionErrorsTest` | - | **chaque message** du langage avec son code et sa position exacte (début inclus, fin exclue) : erreurs lexicales, syntaxiques et d'évaluation, longueur, profondeur et nombre de nœuds aux bornes exactes, caractère invisible nommé par son code, caractère hors du plan de base |
+| `LexerTest`, `CanonicalPrinterTest`, `ReferenceRewriterTest` | - | jetons et positions ; textes canoniques (parenthèses minimales) ; renumérotation de l'exemple de l'Epic (3 → 4, 5 supprimée), lignes invalides réécrites quand même |
+| `ExpressionRobustnessTest` | - | 10 000 parenthèses imbriquées : « Trop d'imbrications » par le contrôle de profondeur (analyseur sans limite de longueur) et ligne trop longue avec les limites par défaut ; chaque construction imbriquée comptée ; ligne de 1 Mo refusée en une dizaine de microsecondes ; analyse à la profondeur maximale et arbres de 100 000 niveaux évalués et imprimés sur une pile de 256 Ko, sans `StackOverflowError` |
+| `ExpressionGuideTest` | - | les exemples du guide s'évaluent ligne à ligne avec les valeurs annoncées ; chaque ligne du tableau « Erreurs fréquentes » donne exactement son message |
+| `ExpressionRoundTripProperties` | `property` | arbre aléatoire (toutes formes, nombres de toutes tailles, noms Unicode, `ans`, `$n`, affectations) → imprimeur canonique → analyseur → même arbre, positions mises à part ; le texte canonique est un point fixe ; le texte désigné par la position de **chaque** nœud, relu seul, redonne ce nœud |
+| `ExpressionDifferentialProperties` | `property` | arbre aléatoire de nombres : l'évaluateur donne la même valeur, ou le même code de refus, que les opérations du noyau appliquées directement, sur l'arbre et sur l'arbre réimprimé puis relu (couverture vérifiée : environ 59 % exacts, 14 % approchés, 27 % refusés) |
+| `ExpressionFuzzProperties` | `robustness` | toute ligne (Unicode, contrôles, morceaux du langage collés ou espacés, lignes longues et très longues, arbres imprimés) : un résultat ou une `ExpressionException` avec un message et une position dans la ligne, jamais une autre exception, en moins de 50 ms (meilleur de deux après échauffement) |
+| `ReferenceRewriteProperties` | `property` | renuméroter puis relire donne les références renumérotées (ou « Référence vers une ligne supprimée » à la position du premier `$?`) et tout le texte hors des jetons de référence est identique octet pour octet ; le texte attendu est construit à partir des jetons du lexer ; sur un texte quelconque, seules les suites `$chiffres` avant le premier `#` changent (oracle par expression régulière) |
+
+**Preuve d'efficacité** : la priorité du moins unaire et de `^` a été inversée temporairement dans l'analyseur
+(`-2^2` lu `(-2)^2`) : 8 tests échouent, dont trois propriétés à elles seules (`printedTreesParseBackToTheSameTree`,
+`theCanonicalTextIsAFixedPoint`, `theEvaluatorMatchesTheCoreAppliedDirectly`) ; la modification a été retirée sans être
+commitée.
+
 ## Défauts trouvés par les propriétés
 
 1. **Une entrée valide était perdue au rechargement** (corrigé). Repéré d'abord par un exemple visant le piège noté en E4,
@@ -296,6 +321,16 @@ Pas de propriété ici : des exemples, tous rapides.
    la colonne résultat de ces lignes est le recalcul exact depuis les opérandes enregistrés (ADR 0004, section 9).
    Régression : `HistoryRoundTripProperties.largeResultsCalculatedFromARememberedRootReload` et la propriété
    `entriesCalculatedFromRememberedRootsReloadWithoutRejection` ; sans la correction, les deux échouent.
+
+6. **La position d'une opération autour d'une parenthèse ne désignait pas son texte** (E09, corrigé avant le premier
+   commit des propriétés). Trouvé en écrivant `ExpressionRoundTripProperties.theSpanOfEveryNodeReadsBackAsThatNode` :
+   dans `(a + b) * c`, la multiplication allait de `a` à `c` (`a + b) * c`), parce qu'une expression entre parenthèses
+   gardait la position de son contenu. Correction : la position d'un opérande entre parenthèses inclut les parenthèses.
+   Régression : la propriété elle-même et les positions de `ExpressionErrorsTest` (`1 / (2 - 2)` → `(2 - 2)`).
+7. **Une borne de pile annoncée sans preuve** (E09, corrigé avant commit). Les plafonds « sûrs » d'abord choisis
+   (1000 niveaux d'analyse, 5000 nœuds évalués récursivement) faisaient déborder la pile dès le premier test placé à la
+   borne. Correction : l'évaluateur et l'imprimeur parcourent l'arbre avec une pile explicite, et la profondeur d'analyse
+   est plafonnée à 100 ; `ExpressionRobustnessTest` le vérifie sur une pile de 256 Ko.
 
 ## Limites connues
 
