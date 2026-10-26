@@ -13,3 +13,6 @@ target/
 .project
 .settings/
 nbproject/
+
+# jqwik run database (replays failed seeds)
+.jqwik-database
