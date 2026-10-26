@@ -38,11 +38,16 @@ public class CalculatorFrame extends JFrame {
     private static final Color SUCCESS_COLOR = new Color(18, 93, 56);
     private static final Color ERROR_COLOR = new Color(163, 44, 44);
     private static final Color INFO_COLOR = new Color(60, 60, 60);
+    private static final String NO_RESULT = "--";
+    private static final int RESULT_MAX_PREFERRED_WIDTH = 360;
+    private static final int TOOLTIP_LINE_LENGTH = 60;
 
     private final CalculatorPresenter presenter;
     private final JTextField firstNumberField;
     private final JTextField secondNumberField;
+    private final JLabel firstNumberLabel;
     private final JLabel secondNumberLabel;
+    private final JLabel operationLabel;
     private final JComboBox<Operation> operationSelector;
     private final JLabel inputHintLabel;
     private final JLabel resultValueLabel;
@@ -63,21 +68,37 @@ public class CalculatorFrame extends JFrame {
         this.presenter = Objects.requireNonNull(presenter);
         firstNumberField = new JTextField(14);
         secondNumberField = new JTextField(14);
+        firstNumberLabel = new JLabel("Premier nombre");
         secondNumberLabel = new JLabel("Second nombre");
+        operationLabel = new JLabel("Opération");
         operationSelector = new JComboBox<>(Operation.values());
         inputHintLabel = new JLabel();
-        resultValueLabel = new JLabel("--", SwingConstants.RIGHT);
+        resultValueLabel = new JLabel(NO_RESULT, SwingConstants.RIGHT) {
+            // A result can hold up to 1000 digits: let the layout shrink the label (ellipsis)
+            // instead of letting the text widen the window.
+            @Override
+            public Dimension getMinimumSize() {
+                return new Dimension(0, super.getMinimumSize().height);
+            }
+
+            @Override
+            public Dimension getPreferredSize() {
+                Dimension size = super.getPreferredSize();
+                return new Dimension(Math.min(size.width, RESULT_MAX_PREFERRED_WIDTH), size.height);
+            }
+        };
         statusLabel = new JLabel();
         historyModel = new DefaultListModel<>();
         historyList = new JList<>(historyModel);
         calculateButton = new JButton("Calculer");
         clearButton = new JButton("Effacer");
         clearHistoryButton = new JButton("Effacer historique");
-        reuseLastResultButton = new JButton("Reprendre dernier resultat");
+        reuseLastResultButton = new JButton("Reprendre dernier résultat");
         reuseAsFirstButton = new JButton("Vers nombre 1");
         reuseAsSecondButton = new JButton("Vers nombre 2");
 
         assignComponentNames();
+        configureAccessibility();
         configureFrame();
         bindEvents();
         applyViewModel(presenter.createInitialView());
@@ -110,8 +131,8 @@ public class CalculatorFrame extends JFrame {
         title.setFont(title.getFont().deriveFont(Font.BOLD, 22f));
 
         JLabel subtitle = new JLabel(
-                "<html>Entree calcule, Echap efface, Ctrl+R reprend le dernier resultat. "
-                        + "Le resultat se prepare automatiquement pour le calcul suivant.</html>");
+                "<html>Entrée calcule, Échap efface, Ctrl+R reprend le dernier résultat. "
+                        + "Le résultat se prépare automatiquement pour le calcul suivant.</html>");
         subtitle.setForeground(INFO_COLOR);
 
         header.add(title, BorderLayout.NORTH);
@@ -130,17 +151,17 @@ public class CalculatorFrame extends JFrame {
         gbc.gridx = 0;
         gbc.gridy = 0;
 
-        panel.add(new JLabel("Premier nombre"), gbc);
+        panel.add(firstNumberLabel, gbc);
 
         gbc.gridy++;
         firstNumberField.setToolTipText("Saisissez le premier nombre.");
         panel.add(firstNumberField, gbc);
 
         gbc.gridy++;
-        panel.add(new JLabel("Operation"), gbc);
+        panel.add(operationLabel, gbc);
 
         gbc.gridy++;
-        operationSelector.setToolTipText("Choisissez l'operation. Le clavier permet d'utiliser les fleches du selecteur.");
+        operationSelector.setToolTipText("Choisissez l'opération. Le clavier permet d'utiliser les flèches du sélecteur.");
         panel.add(operationSelector, gbc);
 
         gbc.gridy++;
@@ -173,15 +194,15 @@ public class CalculatorFrame extends JFrame {
 
     private JPanel buildResultPanel() {
         JPanel panel = new JPanel(new BorderLayout(8, 8));
-        panel.setBorder(BorderFactory.createTitledBorder("Resultat"));
+        panel.setBorder(BorderFactory.createTitledBorder("Résultat"));
 
         resultValueLabel.setFont(resultValueLabel.getFont().deriveFont(Font.BOLD, 24f));
         statusLabel.setForeground(INFO_COLOR);
 
         JLabel helper = new JLabel(
-                "<html>Le resultat affiche est exactement celui qui sera reutilise et enregistre.<br>"
-                        + "Un resultat exact n'est jamais arrondi ; les autres sont arrondis<br>"
-                        + "a 12 decimales et 12 chiffres significatifs minimum.</html>");
+                "<html>Le résultat affiché est exactement celui qui sera réutilisé et enregistré.<br>"
+                        + "Un résultat exact n'est jamais arrondi ; les autres sont arrondis<br>"
+                        + "à 12 décimales et 12 chiffres significatifs minimum.</html>");
         helper.setForeground(INFO_COLOR);
 
         panel.add(resultValueLabel, BorderLayout.CENTER);
@@ -196,7 +217,7 @@ public class CalculatorFrame extends JFrame {
         panel.setBorder(BorderFactory.createTitledBorder("Historique"));
 
         JLabel helper = new JLabel(
-                "<html>Selectionnez une ligne pour la reutiliser.<br>Sans selection, le dernier resultat est repris.</html>");
+                "<html>Sélectionnez une ligne pour la réutiliser.<br>Sans sélection, le dernier résultat est repris.</html>");
         helper.setForeground(INFO_COLOR);
         panel.add(helper, BorderLayout.NORTH);
 
@@ -277,9 +298,10 @@ public class CalculatorFrame extends JFrame {
             secondNumberField.setEnabled(viewModel.isSecondInputEnabled());
             secondNumberField.setEditable(viewModel.isSecondInputEnabled());
             secondNumberLabel.setText(viewModel.getSecondInputLabel());
+            secondNumberField.getAccessibleContext().setAccessibleName(viewModel.getSecondInputLabel());
             secondNumberField.setToolTipText(viewModel.getSecondInputTooltip());
             inputHintLabel.setText(viewModel.getInputHint());
-            resultValueLabel.setText(viewModel.getResultValue());
+            showResult(viewModel.getResultValue());
             setStatusMessage(viewModel.getStatusMessage(), resolveStatusColor(viewModel.getStatusTone()));
 
             historyModel.clear();
@@ -344,10 +366,61 @@ public class CalculatorFrame extends JFrame {
         statusLabel.setText(message);
     }
 
+    private void showResult(String value) {
+        resultValueLabel.setText(value);
+        resultValueLabel.setToolTipText(NO_RESULT.equals(value) ? null : toTooltip(value));
+        resultValueLabel.getAccessibleContext().setAccessibleName("Résultat : " + value);
+    }
+
+    private static String toTooltip(String value) {
+        if (value.length() <= TOOLTIP_LINE_LENGTH) {
+            return value;
+        }
+        StringBuilder html = new StringBuilder("<html>");
+        for (int start = 0; start < value.length(); start += TOOLTIP_LINE_LENGTH) {
+            if (start > 0) {
+                html.append("<br>");
+            }
+            html.append(value, start, Math.min(start + TOOLTIP_LINE_LENGTH, value.length()));
+        }
+        return html.append("</html>").toString();
+    }
+
+    private void configureAccessibility() {
+        label(firstNumberLabel, KeyEvent.VK_P, firstNumberField);
+        label(operationLabel, KeyEvent.VK_O, operationSelector);
+        label(secondNumberLabel, KeyEvent.VK_S, secondNumberField);
+
+        calculateButton.setMnemonic(KeyEvent.VK_C);
+        reuseLastResultButton.setMnemonic(KeyEvent.VK_R);
+        clearButton.setMnemonic(KeyEvent.VK_E);
+        reuseAsFirstButton.setMnemonic(KeyEvent.VK_1);
+        reuseAsSecondButton.setMnemonic(KeyEvent.VK_2);
+        clearHistoryButton.setMnemonic(KeyEvent.VK_H);
+
+        describe(firstNumberField, "Premier nombre", "Saisie du premier nombre du calcul");
+        describe(secondNumberField, "Second nombre", "Saisie du second nombre du calcul");
+        describe(operationSelector, "Opération", "Choix de l'opération à effectuer");
+        describe(historyList, "Historique des calculs", "Liste des calculs précédents, à sélectionner pour les réutiliser");
+        describe(resultValueLabel, "Résultat", "Résultat du dernier calcul");
+    }
+
+    private static void label(JLabel label, int mnemonic, JComponent target) {
+        label.setDisplayedMnemonic(mnemonic);
+        label.setLabelFor(target);
+    }
+
+    private static void describe(JComponent component, String name, String description) {
+        component.getAccessibleContext().setAccessibleName(name);
+        component.getAccessibleContext().setAccessibleDescription(description);
+    }
+
     private void assignComponentNames() {
         firstNumberField.setName("firstNumberField");
         secondNumberField.setName("secondNumberField");
+        firstNumberLabel.setName("firstNumberLabel");
         secondNumberLabel.setName("secondNumberLabel");
+        operationLabel.setName("operationLabel");
         operationSelector.setName("operationSelector");
         inputHintLabel.setName("inputHintLabel");
         resultValueLabel.setName("resultValueLabel");

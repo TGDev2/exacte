@@ -11,6 +11,9 @@ import java.awt.event.ActionEvent;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.lang.reflect.InvocationTargetException;
+import java.math.BigDecimal;
+import java.util.HashSet;
+import java.util.Set;
 import javax.swing.AbstractButton;
 import javax.swing.Action;
 import javax.swing.JComboBox;
@@ -26,6 +29,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -105,10 +109,10 @@ public class CalculatorFrameTest {
 
             runOnEdt(() -> operationSelector.setSelectedItem(Operation.ROOT));
             assertFalse(secondNumberField.isEnabled(), "Unary operations should disable the second operand field in the UI.");
-            assertEquals("Second nombre (non utilise)", secondNumberLabel.getText(), "Unary operations should explain that the second operand is unused.");
+            assertEquals("Second nombre (non utilisé)", secondNumberLabel.getText(), "Unary operations should explain that the second operand is unused.");
             assertFalse(reuseAsSecondButton.isEnabled(), "Reusing into the second operand should stay disabled while the operation is unary.");
             assertEquals(
-                    "Racine non exacte : arrondie a 12 decimales et 12 chiffres significatifs minimum.",
+                    "Racine non exacte : arrondie à 12 décimales et 12 chiffres significatifs minimum.",
                     inputHintLabel.getText(),
                     "The UI should surface the explicit precision rule for roots.");
 
@@ -127,13 +131,132 @@ public class CalculatorFrameTest {
 
             assertEquals("3", secondNumberField.getText(), "Selected history entries should be reusable directly from the UI.");
             assertEquals(
-                    "Le resultat historique a ete copie dans le second nombre.",
+                    "Le résultat historique a été copié dans le second nombre.",
                     statusLabel.getText(),
                     "The UI should explain the result of a history reuse action.");
 
             clickButton(clearHistoryButton);
             assertEquals(0, historyList.getModel().getSize(), "Clearing history from the UI should empty the visible list.");
             assertFalse(clearHistoryButton.isEnabled(), "Clearing history should disable the clear action again.");
+        } finally {
+            disposeFrame(frame);
+        }
+    }
+
+    @Test
+    void testMnemonicsAreDistinctAndLabelsPointToTheirFields() throws Exception {
+        CalculatorFrame frame = createFrame();
+        try {
+            JRootPane rootPane = frame.getRootPane();
+            String[] labelNames = {"firstNumberLabel", "operationLabel", "secondNumberLabel"};
+            String[] labelTargets = {"firstNumberField", "operationSelector", "secondNumberField"};
+            String[] buttonNames = {
+                "calculateButton", "reuseLastResultButton", "clearButton",
+                "reuseAsFirstButton", "reuseAsSecondButton", "clearHistoryButton"
+            };
+
+            Set<Integer> mnemonics = new HashSet<>();
+            for (int index = 0; index < labelNames.length; index++) {
+                JLabel label = findComponent(rootPane, labelNames[index], JLabel.class);
+                assertNotEquals(0, label.getDisplayedMnemonic(), labelNames[index] + " should have a mnemonic.");
+                assertTrue(mnemonics.add(label.getDisplayedMnemonic()), labelNames[index] + " mnemonic should be unique.");
+                assertNotNull(label.getLabelFor(), labelNames[index] + " should label a component.");
+                assertEquals(
+                        findComponent(rootPane, labelTargets[index], JComponent.class),
+                        label.getLabelFor(),
+                        labelNames[index] + " should label " + labelTargets[index] + ".");
+            }
+            for (String buttonName : buttonNames) {
+                AbstractButton button = findComponent(rootPane, buttonName, AbstractButton.class);
+                assertNotEquals(0, button.getMnemonic(), buttonName + " should have a mnemonic.");
+                assertTrue(mnemonics.add(button.getMnemonic()), buttonName + " mnemonic should be unique.");
+                assertTrue(button.getDisplayedMnemonicIndex() >= 0, buttonName + " should underline its mnemonic.");
+            }
+        } finally {
+            disposeFrame(frame);
+        }
+    }
+
+    @Test
+    void testKeyComponentsHaveAccessibleNames() throws Exception {
+        CalculatorFrame frame = createFrame();
+        try {
+            JRootPane rootPane = frame.getRootPane();
+            String[] componentNames = {
+                "firstNumberField", "secondNumberField", "operationSelector", "historyList", "resultValueLabel"
+            };
+            for (String componentName : componentNames) {
+                JComponent component = findComponent(rootPane, componentName, JComponent.class);
+                String name = component.getAccessibleContext().getAccessibleName();
+                String description = component.getAccessibleContext().getAccessibleDescription();
+                assertTrue(name != null && !name.isBlank(), componentName + " should have an accessible name.");
+                assertTrue(description != null && !description.isBlank(), componentName + " should have an accessible description.");
+            }
+        } finally {
+            disposeFrame(frame);
+        }
+    }
+
+    @Test
+    void testTabOrderFollowsTheReadingOrder() throws Exception {
+        CalculatorFrame frame = createFrame();
+        try {
+            JRootPane rootPane = frame.getRootPane();
+            JTextField firstNumberField = findComponent(rootPane, "firstNumberField", JTextField.class);
+            JTextField secondNumberField = findComponent(rootPane, "secondNumberField", JTextField.class);
+            runOnEdt(() -> {
+                firstNumberField.setText("1");
+                secondNumberField.setText("2");
+            });
+            clickButton(findComponent(rootPane, "calculateButton", AbstractButton.class));
+
+            String[] expectedOrder = {
+                "firstNumberField", "operationSelector", "secondNumberField", "calculateButton",
+                "reuseLastResultButton", "clearButton", "historyList", "reuseAsFirstButton",
+                "reuseAsSecondButton", "clearHistoryButton", "firstNumberField"
+            };
+            Component current = firstNumberField;
+            for (int index = 1; index < expectedOrder.length; index++) {
+                current = frame.getFocusTraversalPolicy().getComponentAfter(frame, current);
+                assertNotNull(current, "Tab should reach " + expectedOrder[index] + ".");
+                assertEquals(expectedOrder[index], current.getName(), "Unexpected tab order at step " + index + ".");
+            }
+        } finally {
+            disposeFrame(frame);
+        }
+    }
+
+    @Test
+    void testLongResultIsTruncatedOnScreenButCompleteInTheTooltip() throws Exception {
+        CalculatorFrame frame = createFrame();
+        try {
+            JRootPane rootPane = frame.getRootPane();
+            JComboBox<?> operationSelector = findComponent(rootPane, "operationSelector", JComboBox.class);
+            JTextField firstNumberField = findComponent(rootPane, "firstNumberField", JTextField.class);
+            JTextField secondNumberField = findComponent(rootPane, "secondNumberField", JTextField.class);
+            JLabel resultValueLabel = findComponent(rootPane, "resultValueLabel", JLabel.class);
+            int widthBefore = frame.getWidth();
+            int preferredWidthBefore = resultValueLabel.getPreferredSize().width;
+
+            runOnEdt(() -> {
+                operationSelector.setSelectedItem(Operation.POWER);
+                firstNumberField.setText("2");
+                secondNumberField.setText("999");
+            });
+            clickButton(findComponent(rootPane, "calculateButton", AbstractButton.class));
+
+            String fullValue = new BigDecimal(2).pow(999).toPlainString();
+            assertEquals(fullValue, resultValueLabel.getText(), "The label should hold the complete result.");
+            String tooltip = resultValueLabel.getToolTipText();
+            assertNotNull(tooltip, "A result should come with a tooltip.");
+            assertTrue(
+                    tooltip.replaceAll("<[^>]*>", "").contains(fullValue),
+                    "The tooltip should contain the complete long result.");
+            assertEquals(0, resultValueLabel.getMinimumSize().width, "The result label should be allowed to shrink to nothing.");
+            assertTrue(
+                    resultValueLabel.getPreferredSize().width <= Math.max(preferredWidthBefore, 360),
+                    "A long result should not widen the result label.");
+            assertEquals(widthBefore, frame.getWidth(), "A long result should not widen the window.");
         } finally {
             disposeFrame(frame);
         }
