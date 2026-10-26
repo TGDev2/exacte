@@ -17,9 +17,6 @@ public final class CalculationLimits {
     /** Largest absolute value of the exponent of the scientific notation of an operand ({@code 1,5e-7}). */
     public static final int MAX_SCIENTIFIC_EXPONENT = NumericLimits.MAX_SCIENTIFIC_EXPONENT;
 
-    /** Largest size, in bits, of the numerator and of the denominator of an operand or a result. */
-    public static final int MAX_COMPONENT_BITS = NumericLimits.MAX_COMPONENT_BITS;
-
     private CalculationLimits() {
     }
 }
