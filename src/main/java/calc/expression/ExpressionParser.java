@@ -160,9 +160,10 @@ public final class ExpressionParser {
                     enter(token);
                     requireOperand(token);
                     Node inner = expression();
-                    closing(token);
+                    Token close = closing(token);
                     depth--;
-                    return inner;
+                    // The parentheses belong to the source of the operand, so that every span reads back as its node.
+                    return withSpan(inner, Span.between(token.span(), close.span()));
                 }
                 case SQRT_WORD: {
                     if (!at(Token.Type.LEFT_PARENTHESIS)) {
@@ -193,6 +194,19 @@ public final class ExpressionParser {
                     // Only reachable at the start of the line: every other caller checks the operand first.
                     throw noOperandAtStart(token);
             }
+        }
+
+        private static Node withSpan(Node node, Span span) {
+            return switch (node) {
+                case Node.NumberLiteral number -> new Node.NumberLiteral(number.value(), span);
+                case Node.Variable variable -> new Node.Variable(variable.name(), span);
+                case Node.Ans ans -> new Node.Ans(span);
+                case Node.LineRef reference -> new Node.LineRef(reference.line(), span);
+                case Node.Unary unary -> new Node.Unary(unary.sign(), unary.operand(), span);
+                case Node.Binary binary -> new Node.Binary(binary.operator(), binary.left(), binary.right(), span);
+                case Node.Sqrt sqrt -> new Node.Sqrt(sqrt.operand(), span);
+                case Node.Assignment assignment -> throw new IllegalStateException("an assignment is never parenthesised");
+            };
         }
 
         private Token closing(Token open) throws ExpressionException {
