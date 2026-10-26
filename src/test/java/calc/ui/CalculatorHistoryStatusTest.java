@@ -21,63 +21,63 @@ public class CalculatorHistoryStatusTest {
     void testCleanRestoreKeepsTheExistingSuccessMessage() {
         CalculatorViewModel view = startWith(new HistoryLoadResult(List.of(RECORD), 0, null));
 
-        assertEquals(StatusTone.SUCCESS, view.getStatusTone());
+        assertEquals(StatusTone.SUCCESS, view.statusTone());
         assertEquals(
                 "Historique restauré. Vous pouvez réutiliser un résultat précédent ou lancer un nouveau calcul.",
-                view.getStatusMessage());
+                view.statusMessage());
     }
 
     @Test
     void testEmptyHistoryKeepsTheExistingInformationMessage() {
         CalculatorViewModel view = startWith(new HistoryLoadResult(List.of(), 0, null));
 
-        assertEquals(StatusTone.INFO, view.getStatusTone());
+        assertEquals(StatusTone.INFO, view.statusTone());
         assertEquals(
                 "Historique vide. Saisissez un calcul puis appuyez sur Entrée ou cliquez sur Calculer.",
-                view.getStatusMessage());
+                view.statusMessage());
     }
 
     @Test
     void testPartialRestoreReportsSingularSkippedEntryAndBackup() {
         CalculatorViewModel view = startWith(new HistoryLoadResult(List.of(RECORD), 1, BACKUP));
 
-        assertEquals(StatusTone.ERROR, view.getStatusTone());
+        assertEquals(StatusTone.ERROR, view.statusTone());
         assertEquals(
                 "Historique restauré partiellement : 1 entrée ignorée. Une copie du fichier d'origine a été conservée.",
-                view.getStatusMessage());
-        assertEquals(1, view.getHistoryEntries().size());
+                view.statusMessage());
+        assertEquals(1, view.historyEntries().size());
     }
 
     @Test
     void testPartialRestoreReportsPluralSkippedEntries() {
         CalculatorViewModel view = startWith(new HistoryLoadResult(List.of(RECORD), 3, BACKUP));
 
-        assertEquals(StatusTone.ERROR, view.getStatusTone());
+        assertEquals(StatusTone.ERROR, view.statusTone());
         assertEquals(
                 "Historique restauré partiellement : 3 entrées ignorées. Une copie du fichier d'origine a été conservée.",
-                view.getStatusMessage());
+                view.statusMessage());
     }
 
     @Test
     void testNothingRestorableReportsUnavailableHistoryAndBackup() {
         CalculatorViewModel view = startWith(new HistoryLoadResult(List.of(), 2, BACKUP));
 
-        assertEquals(StatusTone.ERROR, view.getStatusTone());
+        assertEquals(StatusTone.ERROR, view.statusTone());
         assertEquals(
                 "L'historique précédent n'a pas pu être restauré. Vous pouvez continuer sans blocage."
                         + " Une copie du fichier d'origine a été conservée.",
-                view.getStatusMessage());
-        assertEquals(0, view.getHistoryEntries().size());
+                view.statusMessage());
+        assertEquals(0, view.historyEntries().size());
     }
 
     @Test
     void testUnreadableHistoryReportsUnavailableHistoryWithoutBackupWhenNoCopyExists() {
         CalculatorViewModel view = startWith(new CalculationHistoryException("Impossible de lire l'historique", null, null));
 
-        assertEquals(StatusTone.ERROR, view.getStatusTone());
+        assertEquals(StatusTone.ERROR, view.statusTone());
         assertEquals(
                 "L'historique précédent n'a pas pu être restauré. Vous pouvez continuer sans blocage.",
-                view.getStatusMessage());
+                view.statusMessage());
     }
 
     @Test
@@ -87,7 +87,7 @@ public class CalculatorHistoryStatusTest {
         assertEquals(
                 "L'historique précédent n'a pas pu être restauré. Vous pouvez continuer sans blocage."
                         + " Une copie du fichier d'origine a été conservée.",
-                view.getStatusMessage());
+                view.statusMessage());
     }
 
     private static CalculatorViewModel startWith(HistoryLoadResult result) {

@@ -53,7 +53,7 @@ public class CalculatorHistoryBackupTest {
         CalculatorPresenter presenter = new CalculatorPresenter(new CalculatorEngine(), newStore(historyFile));
         CalculatorViewModel view = presenter.onCalculate("10", "5");
 
-        assertEquals(StatusTone.SUCCESS, view.getStatusTone(), "The calculation after a partial restore must be saved.");
+        assertEquals(StatusTone.SUCCESS, view.statusTone(), "The calculation after a partial restore must be saved.");
         assertEquals(
                 List.of(
                         "#calc-history v1",
@@ -75,7 +75,7 @@ public class CalculatorHistoryBackupTest {
         CalculatorPresenter presenter = new CalculatorPresenter(new CalculatorEngine(), newStore(historyFile));
         CalculatorViewModel startView = presenter.createInitialView();
 
-        assertEquals(0, startView.getHistoryEntries().size());
+        assertEquals(0, startView.historyEntries().size());
         assertTrue(Files.exists(tempDirectory.resolve(BACKUP_NAME)), "A copy must exist before any write.");
 
         presenter.onCalculate("1", "1");
@@ -155,9 +155,9 @@ public class CalculatorHistoryBackupTest {
 
         CalculatorViewModel view = presenter.onCalculate("1", "1");
 
-        assertEquals(StatusTone.ERROR, view.getStatusTone());
-        assertEquals("Calcul effectué, mais l'historique n'a pas pu être enregistré.", view.getStatusMessage());
-        assertFalse(view.getStatusMessage().contains("simulated"), "No technical detail in the interface.");
+        assertEquals(StatusTone.ERROR, view.statusTone());
+        assertEquals("Calcul effectué, mais l'historique n'a pas pu être enregistré.", view.statusMessage());
+        assertFalse(view.statusMessage().contains("simulated"), "No technical detail in the interface.");
         assertArrayEquals(originalBytes, Files.readAllBytes(historyFile), "The original file must survive a refused save.");
     }
 

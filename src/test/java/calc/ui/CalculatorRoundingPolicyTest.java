@@ -142,16 +142,16 @@ public class CalculatorRoundingPolicyTest {
         presenter.onOperationChanged(Operation.DIVISION, "", "");
 
         CalculatorViewModel tiny = presenter.onCalculate("1", "3000000000000");
-        assertEquals("0,000000000000333333333333", tiny.getResultValue(), "A tiny quotient should keep its significant digits.");
+        assertEquals("0,000000000000333333333333", tiny.resultValue(), "A tiny quotient should keep its significant digits.");
 
-        CalculatorViewModel reused = presenter.onReuseHistoryResult(ReuseTarget.SECOND_NUMBER, tiny.getFirstInput(), "");
-        CalculatorViewModel chained = presenter.onCalculate(reused.getFirstInput(), reused.getSecondInput());
+        CalculatorViewModel reused = presenter.onReuseHistoryResult(ReuseTarget.SECOND_NUMBER, tiny.firstInput(), "");
+        CalculatorViewModel chained = presenter.onCalculate(reused.firstInput(), reused.secondInput());
 
-        assertEquals(StatusTone.SUCCESS, chained.getStatusTone(), chained.getStatusMessage());
-        assertEquals("1", chained.getResultValue(), "A non-zero value divided by itself is 1.");
+        assertEquals(StatusTone.SUCCESS, chained.statusTone(), chained.statusMessage());
+        assertEquals("1", chained.resultValue(), "A non-zero value divided by itself is 1.");
         assertEquals(
                 "0,000000000000333333333333 / 0,000000000000333333333333 = 1",
-                chained.getHistoryEntries().get(1).toString(),
+                chained.historyEntries().get(1).toString(),
                 "The chained entry should be recorded.");
     }
 

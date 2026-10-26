@@ -295,34 +295,34 @@ public class CalculatorFrame extends JFrame {
     private void applyViewModel(CalculatorViewModel viewModel) {
         applyingViewModel = true;
         try {
-            operationSelector.setSelectedItem(viewModel.getSelectedOperation());
-            firstNumberField.setText(viewModel.getFirstInput());
-            secondNumberField.setText(viewModel.getSecondInput());
-            secondNumberField.setEnabled(viewModel.isSecondInputEnabled());
-            secondNumberField.setEditable(viewModel.isSecondInputEnabled());
-            secondNumberLabel.setText(viewModel.getSecondInputLabel());
-            secondNumberField.getAccessibleContext().setAccessibleName(viewModel.getSecondInputLabel());
-            secondNumberField.setToolTipText(viewModel.getSecondInputTooltip());
-            inputHintLabel.setText(viewModel.getInputHint());
-            showResult(viewModel.getResultValue());
-            setStatusMessage(viewModel.getStatusMessage(), resolveStatusColor(viewModel.getStatusTone()));
+            operationSelector.setSelectedItem(viewModel.selectedOperation());
+            firstNumberField.setText(viewModel.firstInput());
+            secondNumberField.setText(viewModel.secondInput());
+            secondNumberField.setEnabled(viewModel.secondInputEnabled());
+            secondNumberField.setEditable(viewModel.secondInputEnabled());
+            secondNumberLabel.setText(viewModel.secondInputLabel());
+            secondNumberField.getAccessibleContext().setAccessibleName(viewModel.secondInputLabel());
+            secondNumberField.setToolTipText(viewModel.secondInputTooltip());
+            inputHintLabel.setText(viewModel.inputHint());
+            showResult(viewModel.resultValue());
+            setStatusMessage(viewModel.statusMessage(), resolveStatusColor(viewModel.statusTone()));
 
             historyModel.clear();
-            for (CalculationRecord record : viewModel.getHistoryEntries()) {
+            for (CalculationRecord record : viewModel.historyEntries()) {
                 historyModel.addElement(record);
             }
 
-            if (viewModel.getSelectedHistoryIndex() >= 0) {
-                historyList.setSelectedIndex(viewModel.getSelectedHistoryIndex());
-                historyList.ensureIndexIsVisible(viewModel.getSelectedHistoryIndex());
+            if (viewModel.selectedHistoryIndex() >= 0) {
+                historyList.setSelectedIndex(viewModel.selectedHistoryIndex());
+                historyList.ensureIndexIsVisible(viewModel.selectedHistoryIndex());
             } else {
                 historyList.clearSelection();
             }
 
-            reuseAsFirstButton.setEnabled(viewModel.isReuseAsFirstEnabled());
-            reuseAsSecondButton.setEnabled(viewModel.isReuseAsSecondEnabled());
-            reuseLastResultButton.setEnabled(viewModel.isReuseLastResultEnabled());
-            clearHistoryButton.setEnabled(viewModel.isClearHistoryEnabled());
+            reuseAsFirstButton.setEnabled(viewModel.reuseAsFirstEnabled());
+            reuseAsSecondButton.setEnabled(viewModel.reuseAsSecondEnabled());
+            reuseLastResultButton.setEnabled(viewModel.reuseLastResultEnabled());
+            clearHistoryButton.setEnabled(viewModel.clearHistoryEnabled());
         } finally {
             applyingViewModel = false;
         }
@@ -331,15 +331,15 @@ public class CalculatorFrame extends JFrame {
     }
 
     private void requestFocus(CalculatorViewModel viewModel) {
-        if (viewModel.getFocusTarget() == FocusTarget.NONE) {
+        if (viewModel.focusTarget() == FocusTarget.NONE) {
             return;
         }
 
         SwingUtilities.invokeLater(() -> {
             JTextField targetField = null;
-            if (viewModel.getFocusTarget() == FocusTarget.FIRST_NUMBER) {
+            if (viewModel.focusTarget() == FocusTarget.FIRST_NUMBER) {
                 targetField = firstNumberField;
-            } else if (viewModel.getFocusTarget() == FocusTarget.SECOND_NUMBER && secondNumberField.isEnabled()) {
+            } else if (viewModel.focusTarget() == FocusTarget.SECOND_NUMBER && secondNumberField.isEnabled()) {
                 targetField = secondNumberField;
             }
 
@@ -348,7 +348,7 @@ public class CalculatorFrame extends JFrame {
             }
 
             targetField.requestFocusInWindow();
-            if (viewModel.shouldSelectFocusedFieldText()) {
+            if (viewModel.selectFocusedFieldText()) {
                 targetField.selectAll();
             }
         });

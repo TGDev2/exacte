@@ -240,7 +240,6 @@ public class CalculatorPresenter {
 
     private CalculatorViewModel buildViewModel() {
         boolean secondInputEnabled = selectedOperation.requiresSecondOperand();
-        boolean historyAvailable = !history.isEmpty();
         CalculatorViewModel viewModel = new CalculatorViewModel(
                 selectedOperation,
                 firstInput,
@@ -256,10 +255,6 @@ public class CalculatorPresenter {
                 statusTone,
                 history,
                 selectedHistoryIndex,
-                historyAvailable,
-                historyAvailable && secondInputEnabled,
-                historyAvailable,
-                historyAvailable,
                 focusTarget,
                 selectFocusedFieldText);
 

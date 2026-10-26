@@ -19,14 +19,14 @@ public class CalculatorPresenterTest {
 
         CalculatorViewModel viewModel = presenter.onCalculate("1,5", "2.5");
 
-        assertEquals("4", viewModel.getResultValue(), "Binary calculation should expose the formatted result.");
-        assertEquals("4", viewModel.getFirstInput(), "Successful calculations should prepare the result as the next first operand.");
-        assertEquals("", viewModel.getSecondInput(), "Successful binary calculations should clear the second operand for the next step.");
-        assertEquals(1, viewModel.getHistoryEntries().size(), "Successful calculations should be added to history.");
-        assertEquals(0, viewModel.getSelectedHistoryIndex(), "The latest history entry should be selected after calculation.");
-        assertEquals(StatusTone.SUCCESS, viewModel.getStatusTone(), "Successful calculations should expose a success status.");
-        assertEquals(FocusTarget.SECOND_NUMBER, viewModel.getFocusTarget(), "Binary workflow should move focus to the second operand.");
-        assertTrue(viewModel.isReuseLastResultEnabled(), "A result should enable the quick reuse action.");
+        assertEquals("4", viewModel.resultValue(), "Binary calculation should expose the formatted result.");
+        assertEquals("4", viewModel.firstInput(), "Successful calculations should prepare the result as the next first operand.");
+        assertEquals("", viewModel.secondInput(), "Successful binary calculations should clear the second operand for the next step.");
+        assertEquals(1, viewModel.historyEntries().size(), "Successful calculations should be added to history.");
+        assertEquals(0, viewModel.selectedHistoryIndex(), "The latest history entry should be selected after calculation.");
+        assertEquals(StatusTone.SUCCESS, viewModel.statusTone(), "Successful calculations should expose a success status.");
+        assertEquals(FocusTarget.SECOND_NUMBER, viewModel.focusTarget(), "Binary workflow should move focus to the second operand.");
+        assertTrue(viewModel.reuseLastResultEnabled(), "A result should enable the quick reuse action.");
     }
 
     @Test
@@ -36,13 +36,13 @@ public class CalculatorPresenterTest {
         CalculatorViewModel operationView = presenter.onOperationChanged(Operation.ROOT, "9", "12");
         CalculatorViewModel resultView = presenter.onCalculate("9", "12");
 
-        assertEquals(Operation.ROOT, operationView.getSelectedOperation(), "The presenter should update the selected operation.");
-        assertFalse(operationView.isSecondInputEnabled(), "Unary operations should disable the second operand.");
-        assertEquals("", operationView.getSecondInput(), "Unary operations should clear the second operand input.");
-        assertEquals("3", resultView.getResultValue(), "Unary calculations should compute the expected result.");
-        assertEquals("3", resultView.getFirstInput(), "Unary calculations should also prepare the result for reuse.");
-        assertEquals(FocusTarget.FIRST_NUMBER, resultView.getFocusTarget(), "Unary workflow should return focus to the first operand.");
-        assertEquals("\u221A(9) = 3", resultView.getHistoryEntries().get(0).toString(), "Unary history entries should remain explicit.");
+        assertEquals(Operation.ROOT, operationView.selectedOperation(), "The presenter should update the selected operation.");
+        assertFalse(operationView.secondInputEnabled(), "Unary operations should disable the second operand.");
+        assertEquals("", operationView.secondInput(), "Unary operations should clear the second operand input.");
+        assertEquals("3", resultView.resultValue(), "Unary calculations should compute the expected result.");
+        assertEquals("3", resultView.firstInput(), "Unary calculations should also prepare the result for reuse.");
+        assertEquals(FocusTarget.FIRST_NUMBER, resultView.focusTarget(), "Unary workflow should return focus to the first operand.");
+        assertEquals("\u221A(9) = 3", resultView.historyEntries().get(0).toString(), "Unary history entries should remain explicit.");
     }
 
     @Test
@@ -50,12 +50,12 @@ public class CalculatorPresenterTest {
         CalculatorPresenter presenter = new CalculatorPresenter(new CalculatorEngine());
 
         CalculatorViewModel firstView = presenter.onCalculate("0,1", "0,2");
-        CalculatorViewModel secondView = presenter.onCalculate(firstView.getFirstInput(), "0,3");
+        CalculatorViewModel secondView = presenter.onCalculate(firstView.firstInput(), "0,3");
 
-        assertEquals("0,3", firstView.getResultValue(), "The first rounded result should stay readable.");
-        assertEquals("0,3", firstView.getFirstInput(), "The prepared operand should match the visible result exactly.");
-        assertEquals("0,6", secondView.getResultValue(), "Chained calculations should reuse the same decimal value without drift.");
-        assertEquals("0,3 + 0,3 = 0,6", secondView.getHistoryEntries().get(1).toString(), "History should reflect the same value that was reused.");
+        assertEquals("0,3", firstView.resultValue(), "The first rounded result should stay readable.");
+        assertEquals("0,3", firstView.firstInput(), "The prepared operand should match the visible result exactly.");
+        assertEquals("0,6", secondView.resultValue(), "Chained calculations should reuse the same decimal value without drift.");
+        assertEquals("0,3 + 0,3 = 0,6", secondView.historyEntries().get(1).toString(), "History should reflect the same value that was reused.");
     }
 
     @Test
@@ -64,14 +64,14 @@ public class CalculatorPresenterTest {
 
         CalculatorViewModel viewModel = presenter.onCalculate("abc", "2");
 
-        assertEquals("--", viewModel.getResultValue(), "Failed calculations should reset the visible result.");
-        assertEquals(StatusTone.ERROR, viewModel.getStatusTone(), "Failed calculations should expose an error state.");
+        assertEquals("--", viewModel.resultValue(), "Failed calculations should reset the visible result.");
+        assertEquals(StatusTone.ERROR, viewModel.statusTone(), "Failed calculations should expose an error state.");
         assertEquals(
                 "Le premier nombre est invalide. Utilisez des chiffres, un signe et une virgule ou un point.",
-                viewModel.getStatusMessage(),
+                viewModel.statusMessage(),
                 "Invalid input should keep the targeted validation message.");
-        assertEquals(0, viewModel.getHistoryEntries().size(), "Failed calculations should not create history entries.");
-        assertEquals(FocusTarget.FIRST_NUMBER, viewModel.getFocusTarget(), "First-operand errors should bring focus back to the first operand.");
+        assertEquals(0, viewModel.historyEntries().size(), "Failed calculations should not create history entries.");
+        assertEquals(FocusTarget.FIRST_NUMBER, viewModel.focusTarget(), "First-operand errors should bring focus back to the first operand.");
     }
 
     @Test
@@ -81,9 +81,9 @@ public class CalculatorPresenterTest {
 
         CalculatorViewModel viewModel = presenter.onCalculate("8", "0");
 
-        assertEquals(StatusTone.ERROR, viewModel.getStatusTone(), "Division by zero should surface as an error.");
-        assertEquals(0, viewModel.getHistoryEntries().size(), "Division by zero should not mutate history.");
-        assertEquals(FocusTarget.SECOND_NUMBER, viewModel.getFocusTarget(), "Second-operand errors should return focus to the second operand.");
+        assertEquals(StatusTone.ERROR, viewModel.statusTone(), "Division by zero should surface as an error.");
+        assertEquals(0, viewModel.historyEntries().size(), "Division by zero should not mutate history.");
+        assertEquals(FocusTarget.SECOND_NUMBER, viewModel.focusTarget(), "Second-operand errors should return focus to the second operand.");
     }
 
     @Test
@@ -94,7 +94,7 @@ public class CalculatorPresenterTest {
 
         assertEquals(
                 "L'exposant doit être entier entre -999 et 999.",
-                viewModel.getInputHint(),
+                viewModel.inputHint(),
                 "The UI model should explain the supported exponent range.");
     }
 
@@ -108,19 +108,19 @@ public class CalculatorPresenterTest {
         presenter.onHistorySelectionChanged(0);
         CalculatorViewModel selectedReuse = presenter.onReuseHistoryResult(
                 ReuseTarget.FIRST_NUMBER,
-                latestCalculation.getFirstInput(),
-                latestCalculation.getSecondInput());
+                latestCalculation.firstInput(),
+                latestCalculation.secondInput());
 
-        assertEquals("5", selectedReuse.getFirstInput(), "Selected history entries should be reusable as the first operand.");
-        assertEquals(FocusTarget.SECOND_NUMBER, selectedReuse.getFocusTarget(), "Reusing a first operand in a binary workflow should move focus to the second operand.");
+        assertEquals("5", selectedReuse.firstInput(), "Selected history entries should be reusable as the first operand.");
+        assertEquals(FocusTarget.SECOND_NUMBER, selectedReuse.focusTarget(), "Reusing a first operand in a binary workflow should move focus to the second operand.");
 
         CalculatorViewModel latestReuse = presenter.onReuseLastResult(
-                selectedReuse.getFirstInput(),
-                selectedReuse.getSecondInput());
+                selectedReuse.firstInput(),
+                selectedReuse.secondInput());
 
-        assertEquals("9", latestReuse.getFirstInput(), "The quick latest-result action should restore the newest result.");
-        assertEquals("", latestReuse.getSecondInput(), "The latest-result action should prepare a fresh second operand.");
-        assertEquals(1, latestReuse.getSelectedHistoryIndex(), "The latest-result action should select the latest history entry.");
+        assertEquals("9", latestReuse.firstInput(), "The quick latest-result action should restore the newest result.");
+        assertEquals("", latestReuse.secondInput(), "The latest-result action should prepare a fresh second operand.");
+        assertEquals(1, latestReuse.selectedHistoryIndex(), "The latest-result action should select the latest history entry.");
     }
 
     @ParameterizedTest
@@ -131,8 +131,8 @@ public class CalculatorPresenterTest {
 
         CalculatorViewModel viewModel = presenter.onCalculate("2", exponent);
 
-        assertEquals(StatusTone.ERROR, viewModel.getStatusTone(), "An invalid exponent should surface as an error.");
-        assertEquals(FocusTarget.SECOND_NUMBER, viewModel.getFocusTarget(), "Exponent errors concern the second operand.");
+        assertEquals(StatusTone.ERROR, viewModel.statusTone(), "An invalid exponent should surface as an error.");
+        assertEquals(FocusTarget.SECOND_NUMBER, viewModel.focusTarget(), "Exponent errors concern the second operand.");
     }
 
     @Test
@@ -144,7 +144,7 @@ public class CalculatorPresenterTest {
 
         assertEquals(
                 "L'exposant doit être un entier compris entre -999 et 999.",
-                viewModel.getStatusMessage(),
+                viewModel.statusMessage(),
                 "A huge integer exponent is out of range, not non-integer.");
     }
 
@@ -155,8 +155,8 @@ public class CalculatorPresenterTest {
 
         CalculatorViewModel viewModel = presenter.onCalculate("0", "-1");
 
-        assertEquals(StatusTone.ERROR, viewModel.getStatusTone(), "0 ^ -1 should surface as an error.");
-        assertEquals(FocusTarget.FIRST_NUMBER, viewModel.getFocusTarget(), "The base is the faulty operand for 0 ^ -1.");
+        assertEquals(StatusTone.ERROR, viewModel.statusTone(), "0 ^ -1 should surface as an error.");
+        assertEquals(FocusTarget.FIRST_NUMBER, viewModel.focusTarget(), "The base is the faulty operand for 0 ^ -1.");
     }
 
     @Test
@@ -172,8 +172,8 @@ public class CalculatorPresenterTest {
 
         CalculatorViewModel viewModel = presenter.onCalculate("1", "2");
 
-        assertEquals("texte quelconque", viewModel.getStatusMessage(), "The message is displayed untouched.");
-        assertEquals(FocusTarget.SECOND_NUMBER, viewModel.getFocusTarget(), "Focus must not depend on the message text.");
+        assertEquals("texte quelconque", viewModel.statusMessage(), "The message is displayed untouched.");
+        assertEquals(FocusTarget.SECOND_NUMBER, viewModel.focusTarget(), "Focus must not depend on the message text.");
     }
 
     @Test
@@ -189,6 +189,6 @@ public class CalculatorPresenterTest {
 
         CalculatorViewModel viewModel = presenter.onCalculate("1", "2");
 
-        assertEquals(FocusTarget.FIRST_NUMBER, viewModel.getFocusTarget(), "A NONE error falls back to the first operand.");
+        assertEquals(FocusTarget.FIRST_NUMBER, viewModel.focusTarget(), "A NONE error falls back to the first operand.");
     }
 }
