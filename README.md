@@ -49,33 +49,38 @@ Cette séparation permet de tester les parcours d'usage critiques sans dépendre
 
 ## Prérequis
 
-- JDK 17 minimum (le projet est compilé avec `--release 17`).
-- Maven n'est pas à installer : le Maven Wrapper est fourni (`mvnw.cmd` sous Windows, `./mvnw` sous Linux et macOS).
-- `jpackage` (inclus dans le JDK) n'est nécessaire que pour le packaging Windows.
+- Un JDK 17 ou plus récent est nécessaire pour lancer Gradle. Le projet est compilé et testé avec Java 21 : si aucun JDK 21 n'est installé, Gradle le télécharge automatiquement (toolchain, résolution via Foojay).
+- Gradle n'est pas à installer : le Gradle Wrapper est fourni (`gradlew.bat` sous Windows, `./gradlew` sous Linux et macOS).
+- `jpackage` (inclus dans le JDK 21 utilisé par Gradle) n'est nécessaire que pour le packaging Windows ; `package.ps1` le trouve tout seul.
 
 Commandes principales (PowerShell, à la racine du dépôt) :
 
 ```powershell
-.\mvnw.cmd -B verify                              # compile (-Xlint:all -Werror), exécute les tests, produit target\calc.jar
-.\mvnw.cmd -B verify "-Dcalc.ui.required=true"    # échoue si les tests d'interface ne peuvent pas s'exécuter (comme la CI)
-.\run.ps1                                         # construit sans les tests puis lance l'application (java -jar target\calc.jar)
-.\package.ps1                                     # verify, puis application Windows dans dist\
+.\gradlew.bat check                              # compile (-Xlint:all -Werror) et exécute les tests JUnit 5
+.\gradlew.bat check "-Dcalc.ui.required=true"    # échoue si les tests d'interface ne peuvent pas s'exécuter (comme la CI)
+.\gradlew.bat run                                # lance l'application
+.\gradlew.bat jar                                # produit build\libs\calc.jar (java -jar build\libs\calc.jar)
+.\check.ps1 ; .\run.ps1 ; .\package.ps1          # enveloppes PowerShell qui délèguent à Gradle
 ```
 
-Sans affichage graphique, les tests d'interface sont ignorés (signalés comme `skipped`), sauf si `calc.ui.required=true` est positionné. Si la politique d'exécution PowerShell bloque les scripts, les lancer avec `powershell -ExecutionPolicy Bypass -File .\run.ps1`.
+Sous Linux et macOS, les mêmes commandes s'écrivent `./gradlew check`, `./gradlew run` et `./gradlew jar`.
+
+Les tests portant le tag JUnit `ui` pilotent la vraie fenêtre Swing et nécessitent un affichage. Sans affichage graphique, ils sont ignorés (signalés comme `skipped`), sauf si `calc.ui.required=true` est positionné : ils échouent alors. Pour forcer le mode sans affichage, `gradlew check -Djava.awt.headless=true` convient : le build transmet explicitement cette propriété à la JVM de test, ce que Gradle ne fait pas de lui-même.
+
+Les scripts PowerShell sont de simples délégations vers Gradle et propagent son code de sortie. Si la politique d'exécution PowerShell bloque les scripts, les lancer avec `powershell -ExecutionPolicy Bypass -File .\run.ps1`.
 
 ## Intégration continue
 
 Le workflow `.github/workflows/ci.yml` s'exécute à chaque `push` et pull request vers `main` :
 
-- Linux (Ubuntu) avec JDK 17 et JDK 21, sous `xvfb-run` pour disposer d'un affichage virtuel
-- Windows avec JDK 17
+- Linux (Ubuntu) avec JDK 17 et JDK 21 pour lancer Gradle (le code est toujours compilé avec la toolchain Java 21), sous `xvfb-run` pour disposer d'un affichage virtuel
+- Windows avec JDK 17 pour lancer Gradle
 
-Chaque job lance `mvnw -B verify -Dcalc.ui.required=true` : aucun test d'interface ne peut y être ignoré silencieusement.
+Chaque job lance `gradlew check -Dcalc.ui.required=true` : aucun test d'interface ne peut y être ignoré silencieusement.
 
 ## Vérification
 
-Le projet fournit 116 tests JUnit 5 (`src/test/java/calc/engine` et `calc/ui`) couvrant notamment :
+Le projet fournit 187 tests JUnit 5 (`src/test/java/calc/engine` et `calc/ui`) couvrant notamment :
 
 - calculs binaires et unaires valides, avec virgule et point
 - erreurs de saisie ciblées, avec le champ fautif et le focus correspondant
@@ -86,11 +91,12 @@ Le projet fournit 116 tests JUnit 5 (`src/test/java/calc/engine` et `calc/ui`) c
 - historique : restauration partielle, copies `.bak`, BOM, ancien format sans en-tête, version inconnue non écrasée, mode protégé, écriture atomique et échec d'écriture
 - workflow après un calcul réussi, réutilisation d'un résultat d'historique, statuts affichés
 - vérification Swing des raccourcis, du changement unaire/binaire, de la réutilisation depuis l'UI et de l'accessibilité (mnémoniques distincts, libellés associés, noms accessibles, ordre de tabulation, info-bulle du résultat long)
+- non-régression : 70 cas de référence (`src/test/resources/golden/engine-v1.tsv`) rejoués contre le moteur et le présentateur, sortie par sortie (affichage, valeur réutilisable ou message d'erreur) ; les historiques de référence se trouvent dans `src/test/resources/legacy/v1`
 
 Commande :
 
 ```powershell
-.\mvnw.cmd -B verify
+.\gradlew.bat check
 ```
 
 Le script `check.ps1` est une enveloppe de cette commande.
@@ -105,7 +111,7 @@ Commande :
 
 Le script :
 
-- vérifie le projet (`mvnw.cmd -B verify`)
+- vérifie le projet (`gradlew.bat check`) et construit le JAR
 - crée une application Windows portable dans `dist\Calc\Calc.exe`
 - crée une archive de distribution dans `dist\Calc-portable.zip`
 
@@ -166,7 +172,7 @@ Commande :
 .\run.ps1
 ```
 
-Le script construit le projet sans les tests (`target\calc.jar`) puis lance l'application, sans dépendre d'un IDE.
+Le script lance `gradlew.bat run` : Gradle compile le projet puis démarre l'application, sans dépendre d'un IDE.
 
 ## Pourquoi ce projet va au-delà d'un exercice basique
 
@@ -183,6 +189,6 @@ Le script construit le projet sans les tests (`target\calc.jar`) puis lance l'ap
 - **Historique non borné** : le nombre d'entrées n'est pas limité. C'est volontaire : mesuré, 5 000 calculs prennent 3,9 s cumulées et le rechargement 19 ms, ce qui ne justifie pas de limite.
 - **Messages d'erreur dans le moteur** : les messages destinés à l'utilisateur sont écrits en français dans le moteur ; il n'y a pas d'internationalisation.
 - **Deux opérandes** : le modèle de calcul est « nombre, opération, nombre » ; il n'y a pas de saisie d'expression (parenthèses, priorités).
-- **Packaging Windows uniquement** : l'application portable est produite pour Windows et n'est pas signée ; il n'y a ni installeur ni release automatisée. Sous Linux et macOS, l'application se lance avec `java -jar target/calc.jar` après `./mvnw -B verify`.
+- **Packaging Windows uniquement** : l'application portable est produite pour Windows et n'est pas signée ; il n'y a ni installeur ni release automatisée. Sous Linux et macOS, l'application se lance avec `java -jar build/libs/calc.jar` après `./gradlew jar`.
 - **Arithmétique décimale** : les calculs utilisent des décimaux, sans fractions exactes. Un résultat approché est arrondi puis réutilisé tel qu'affiché, donc un enchaînement peut être légèrement inexact (`1 / 3 = 0,333333333333`, puis `× 3 = 0,999999999999` et non `1`).
 - Les tests UI couvrent les parcours critiques, pas un rendu graphique pixel par pixel.
