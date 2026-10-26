@@ -9,7 +9,8 @@ import java.util.Objects;
 /**
  * Writes a tree as the one canonical text that parses back to the same tree (positions aside), with the fewest
  * parentheses: ASCII operators {@code + - * / ^}, spaces around {@code + - * /}, {@code √x} before a primary and
- * {@code √(...)} otherwise, numbers with a decimal comma, plain up to 30 characters and {@code d,ddde±n} beyond.
+ * {@code √(...)} otherwise, numbers with a decimal comma, plain up to 30 characters and {@code d,ddde±n} beyond. The text
+ * can be longer than the source of the tree, hence beyond the line limit of {@link ExpressionLimits#DEFAULT}.
  */
 public final class CanonicalPrinter {
     private static final int MAX_PLAIN_NUMBER_LENGTH = 30;

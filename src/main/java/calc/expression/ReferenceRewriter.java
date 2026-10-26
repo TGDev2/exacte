@@ -7,7 +7,8 @@ import java.util.OptionalInt;
  * Renumbers the line references of the ORIGINAL text of a line, leaving every other character untouched (spaces, the
  * notation of numbers, the comment). A reference is what the lexer reads as one: {@code $} followed by digits, before
  * the first {@code #}. A reference to a deleted line becomes {@code $?}, which reads as « Référence vers une ligne
- * supprimée ». The text does not have to parse: a line that is still being fixed keeps its references up to date.
+ * supprimée ». The text does not have to parse: a line that is still being fixed keeps its references up to date. A
+ * renumbered reference may be longer ({@code $9} becomes {@code $10}), so a line near the length limit may exceed it.
  */
 public final class ReferenceRewriter {
     /** What a reference to a deleted line becomes. */

@@ -114,15 +114,17 @@ keep the bounds of the core (4096 bits per component, exponent of a power within
 ### 4. Errors
 
 One checked exception, `ExpressionException`, carries a code (`ExpressionError`), the stage of the code (lexical,
-syntax, evaluation), a span and a French message; a refusal of the core also carries its `NumericError`. The first
-error met from left to right is reported. Positions point at what the user must fix:
+syntax, evaluation), a span and a French message; a refusal of the core also carries its `NumericError`. The stages
+run in order on the whole line: it is first cut into tokens, so a lexical error is reported before any syntax error, even
+one further left (`) 1,5,3` reports the invalid number, not the `)`); within a stage the first error from the left is
+reported, and evaluation goes from the left operand to the right one. Positions point at what the user must fix:
 
 | Error | Span | Message |
 |---|---|---|
 | unexpected character | the character | « Caractère inattendu « @ ». » |
 | invalid number | the number | « Nombre invalide « 1,5,3 ». » |
 | missing operand | the operator | « Opérande manquant après « × ». » (« avant » for a leading binary operator) |
-| missing operator | the second operand | « Opérateur manquant. » |
+| missing operator | the first token of the second operand | « Opérateur manquant. » |
 | missing closing parenthesis | the unmatched `(` | « Parenthèse fermante manquante. » |
 | `)` without `(` | the `)` | « Parenthèse fermante « ) » sans parenthèse ouvrante. » |
 | `sqrt` without `(` | the word | « Parenthèse ouvrante attendue après « sqrt ». » |
@@ -158,7 +160,11 @@ that name a field of the form (« Le second nombre ... ») are worded for expres
 - `ReferenceRewriter`: replaces, in the **original text**, every `$n` token outside the comment according to a
   `LineRenumbering` (for instance 3 → 4, 5 → deleted), and leaves every other character untouched (spaces, number
   notation, comment). A reference to a deleted line becomes `$?`. It works on lines that do not parse, since a notebook
-  must keep renumbering a line while the user is still fixing it.
+  must keep renumbering a line while the user is still fixing it. Renumbering may lengthen a line (`$9` becomes
+  `$10`) beyond the length limit; the line is then refused as too long, like any other.
+- The canonical text can be longer than its source (plain digits up to 30 characters, spaces around operators), so the
+  text of a line close to 1000 characters may exceed the length limit: the round trip is guaranteed for a parser whose
+  length limit admits the printed text (the tests use one).
 
 ## Alternatives considered (Alternatives considérées)
 

@@ -268,8 +268,8 @@ Pas de propriété ici : des exemples, tous rapides.
 La grammaire et les décisions sont dans `docs/adr/0007-grammaire-expressions.md`, le guide utilisateur dans
 `docs/GUIDE-EXPRESSIONS.md`. Tout se lance avec `.\gradlew.bat test --tests "calc.expression.*"`.
 
-Mesures (Windows 11, JDK 21, `gradlew cleanTest check`) : 827 tests, 0 échec, 0 ignoré (628 avant E09, dont 199 pour
-`calc.expression`), environ 33 s.
+Mesures (Windows 11, JDK 21, `gradlew cleanTest check`) : 832 tests, 0 échec, 0 ignoré (628 avant E09, dont 204 pour
+`calc.expression`), de 33 à 35 s.
 
 | Classe | Étiquette | Ce qu'elle garantit |
 |---|---|---|
