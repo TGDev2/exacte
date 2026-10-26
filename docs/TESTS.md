@@ -7,7 +7,7 @@ lancer une partie, comment rejouer un échec trouvé par un test aléatoire et c
 
 | Niveau | Où | Étiquette (tag) | Rôle |
 |---|---|---|---|
-| Exemples JUnit 5 | `src/test/java/calc/engine`, `calc/ui` | aucune | Un cas précis, un message exact, un comportement décidé. Rapides, faciles à lire. |
+| Exemples JUnit 5 | `src/test/java/calc/engine`, `calc/ui`, `calc/number` | aucune | Un cas précis, un message exact, un comportement décidé. Rapides, faciles à lire. |
 | Sorties de référence | `GoldenOutputsTest`, `src/test/resources/golden`, `legacy/v1` | aucune | Rejoue 70 calculs et 11 fichiers d'historique enregistrés : tout changement de sortie est vu. |
 | Fenêtre Swing | `CalculatorFrameTest` | `ui` | Raccourcis, focus, accessibilité. Demande un écran (ignoré sans écran, voir `docs/CI.md`). |
 | Propriétés | `*Properties` (hors fuzzing) | `property` | Une promesse vraie pour des milliers d'entrées générées, comparée à un oracle indépendant. |
@@ -20,11 +20,11 @@ possible. Les propriétés sont écrites sur les API publiques (`CalculatorEngin
 
 Mesures sur la machine de développement (Windows 11, JDK 21, démon Gradle chaud, `gradlew cleanTest check`) :
 
-| | Avant E04 | Après E04 |
-|---|---|---|
-| Tests exécutés | 249 | 304 (dont 50 propriétés et 4 exemples jqwik) |
-| Essais jqwik | - | 43 405 (42 905 contrôles : le reste est écarté par des hypothèses) |
-| Durée de `check` | 4,4 s | 19,9 s, 19,9 s et 20,1 s sur trois exécutions |
+| | Avant E04 | Après E04 | Après E05 |
+|---|---|---|---|
+| Tests exécutés | 249 | 304 (dont 50 propriétés et 4 exemples jqwik) | 437 (dont 75 propriétés et 4 exemples jqwik) |
+| Essais jqwik | - | 43 405 (42 905 contrôles : le reste est écarté par des hypothèses) | 74 405 (73 736 contrôles), dont 31 000 pour `calc.number` |
+| Durée de `check` | 4,4 s | 19,9 s, 19,9 s et 20,1 s sur trois exécutions | 21,6 s et 21,2 s sur deux exécutions |
 
 ## Étiquettes
 
@@ -48,6 +48,7 @@ Dans PowerShell, les arguments qui contiennent un point ou une virgule se metten
 .\gradlew.bat test "-PincludeTags=rounding-policy"             # celles à réviser en E06
 .\gradlew.bat test "-PexcludeTags=property,robustness"         # seulement les exemples (rapide)
 .\gradlew.bat test --tests "calc.engine.ArithmeticProperties"  # une classe
+.\gradlew.bat test --tests "calc.number.*"                     # le noyau numérique exact (E05)
 .\gradlew.bat test --tests "calc.engine.ArithmeticProperties.additionMatchesTheOracle"   # une propriété
 .\gradlew.bat check "-Pjqwik.tries.default=20000"              # un essai plus profond (20 fois plus d'entrées)
 .\gradlew.bat check "-Pjqwik.reporting.onlyfailures=false"     # rapporter aussi les propriétés réussies (essais, graine)
@@ -91,6 +92,8 @@ ArithmeticProperties > subtractionMatchesTheOracle STANDARD_OUT
 | `HistoryFileGenerators` | Contenus de fichiers d'historique : lignes valides, rejetées (avec la cause attendue) ou vides, BOM, en-tête, fins de ligne LF, CRLF, CR, versions inconnues, octets aléatoires, octets abîmés. Les fichiers structurés portent ce que le chargeur doit restaurer et rejeter. |
 | `PresenterActions`, `PresenterSession` | Séquences d'actions de l'utilisateur et vérification de leurs conséquences. |
 | `ArithmeticOracle` | Référence indépendante : analyse du texte, `BigDecimal` à 200 chiffres, règle d'affichage. N'importe rien du code de production. |
+| `FractionOracle` | Référence indépendante pour les rationnels : paires `BigInteger` jamais réduites, formules d'école, comparaison par produits en croix. N'importe rien du code de production. |
+| `RationalGenerators` | Entiers de toutes tailles (avec une part de -3 à 3), fractions brutes (signe au dénominateur, facteur commun), rationnels, intervalles qui contiennent un point connu (exacts, étroits, larges, autour de zéro), littéraux décimaux lus aussi par `BigDecimal`. |
 | `MemoryHistoryStore`, `TempDirectories` | Magasin d'historique en mémoire ; répertoires temporaires supprimés après usage. |
 
 ## Ce que garantissent les propriétés
@@ -133,6 +136,45 @@ ArithmeticProperties > subtractionMatchesTheOracle STANDARD_OUT
 5. aucune exception ;
 6. en plus : l'historique enregistré est celui qui est affiché, le focus ne va jamais sur le champ désactivé, un refus réutilise le message du moteur et cible le champ qu'il désigne.
 
+## Noyau numérique exact (`calc.number`, E05)
+
+Le noyau n'est pas encore branché sur le moteur (E06) : ses tests portent directement sur `Rational` et `CertifiedValue`
+(voir `docs/adr/0003-representation-numerique.md`). Tout se lance avec `.\gradlew.bat test --tests "calc.number.*"`.
+
+**Rationnels** (`RationalProperties`, `property` ; `RationalTest`, exemples)
+
+- Axiomes de corps : associativité et commutativité de `+` et `×`, distributivité, éléments neutres, opposé, inverse.
+- Forme canonique (dénominateur > 0, PGCD = 1, zéro = `0/1`) après chaque opération, y compris quand le générateur donne
+  le signe au dénominateur ou un facteur commun.
+- `compareTo` cohérent avec `equals` et `hashCode`, et avec l'oracle.
+- `+ − × ÷` et puissances entières égales à `FractionOracle` (paires `BigInteger` jamais réduites, formules d'école).
+- Lecture des décimaux identique à celle de `BigDecimal` (signe, virgule ou point, zéros, exposant `e`/`E`), et des
+  fractions `p/q` de décimaux ; aller-retour texte canonique → lecture, et décimal exact (point ou virgule) → lecture.
+- Décimal exact présent si et seulement si le dénominateur réduit est de la forme `2ᵃ5ᵇ`.
+- Fuzzing (`RationalParseFuzzProperties`, `robustness`) : pour tout texte, un rationnel canonique dans les limites ou une
+  `NumericException` avec un code de lecture, jamais une autre exception.
+
+**Valeurs à intervalle certifié** (`CertifiedValueProperties`, `property` ; `CertifiedValueTest`, exemples)
+
+- **Propriété d'inclusion**, pour `+`, `−`, `×`, `÷`, la puissance entière et la racine : un point `x` dans `X` et `y`
+  dans `Y` (intervalles exacts, étroits jusqu'à `2⁻³⁰⁰`, larges, traversant zéro), alors `x op y` (calculé exactement)
+  est dans `X op Y`. Chacune de ces six propriétés fait 2000 essais (12 000 au total), quel que soit le réglage par
+  défaut. Chaque refus est vérifié contre sa condition (diviseur contenant zéro, racine d'un intervalle qui descend sous
+  zéro, puissance négative d'un intervalle contenant zéro).
+- Racine certifiée : `lo² ≤ x ≤ hi²`, largeur au plus `2⁻ᵖ × lo` pour toute précision `p` de 1 à 120 bits, exacte si et
+  seulement si numérateur et dénominateur sont des carrés parfaits.
+- Arrondi extérieur : `bas(x) ≤ x ≤ haut(x)`, au plus 128 bits significatifs, au plus 4096 bits par composante,
+  écart relatif d'au plus `2⁻¹²⁶`, idempotent ; refus seulement pour une magnitude d'au moins `2⁴⁰⁹⁵`.
+- Toute combinaison de `+ − × ÷` sur des valeurs exactes reste exacte et égale à l'oracle ; une chaîne d'opérations sur
+  des intervalles contient toujours la valeur exacte de la même chaîne sur les points.
+- Chaque code de `NumericError` est déclenché par au moins un exemple (`everyErrorCodeIsTriggered` échoue si un code
+  est ajouté sans déclencheur).
+
+**Limites** (`NumericLimitsTest`, exemples) : les entrées énormes (`2^999` élevé à 999, littéral de 100 000 chiffres,
+`1e9999`…) sont refusées avant tout calcul coûteux, et les opérations les plus lentes dans les limites (composantes de
+4096 bits) durent moins de 10 ms (meilleur de 8 essais après échauffement). Les mesures détaillées viennent de
+`tools/numeric-limits` et figurent dans l'ADR 0003.
+
 ## Propriétés à réviser lors du changement de moteur (E06)
 
 `RoundingPolicyProperties` (étiquette `rounding-policy`) décrit la politique d'arrondi **actuelle** : un quotient ou une
@@ -160,6 +202,13 @@ surveiller à ce moment-là : le texte exact des messages d'erreur (`ErrorProper
    `#calc-history v2147483648`. `Integer.parseInt` lançait une `NumberFormatException` hors du contrat du chargeur.
    Correction : une version trop grande pour un `int` est une version plus récente (fichier conservé, écriture refusée).
    Régression : `HistoryLoaderFuzzProperties.aVersionTooLargeForAnIntIsJustANewerVersion`.
+3. **Une borne hors budget dans une racine approchée** (`CertifiedValueProperties.squareRootIsInclusive`, E05, corrigé
+   avant le premier commit ; vert à la première exécution, trouvé à la deuxième graine). Échantillon réduit : le point
+   `1/9` dans l'intervalle `[0, 1/9]`, précision 1 bit. La racine `[0, 1/3]` gardait la racine exacte `1/3` d'une borne
+   carré parfait dans un résultat approché, alors qu'une borne approchée doit être un nombre binaire d'au plus 128 bits
+   significatifs. Défaut réintroduit exprès pour la preuve d'efficacité : la propriété seule le retrouve en 416 essais.
+   L'inclusion restait vraie, la borne de taille non. Correction : les deux bornes d'une racine approchée passent par le
+   même arrondi extérieur que les autres opérations. Régression : `CertifiedValueTest.squareRootsOfIntervalsAreMonotone`.
 
 ## Limites connues
 

@@ -40,6 +40,9 @@ Le projet est volontairement compact, mais les responsabilités sont séparées 
   - `CalculationLimits` : expose les bornes utiles à l'interface
   - `Operation`, `InputField`, `CalculationRecord`, `CalculationException` (porte le champ fautif)
   - `CalculationHistoryStore`, `FileCalculationHistoryStore`, `HistoryLoadResult`, `CalculationHistoryException` : persistance locale de l'historique
+- `calc.number` : noyau numérique exact, sans Swing, pas encore utilisé par le moteur (son intégration est prévue ensuite ; voir `docs/adr/0003-representation-numerique.md`)
+  - `Rational` : fraction exacte toujours réduite ; `CertifiedValue` : intervalle `[bas, haut]` exact ou approché avec garantie d'inclusion, racine certifiée
+  - `NumericLimits` : bornes du noyau ; `NumericException` porte un code `NumericError`, sans texte destiné à l'utilisateur
 - `calc.ui` : interface
   - `CalculatorPresenter` : logique d'interaction, gestion d'historique, statut, focus et préparation du workflow suivant ; testable sans interface graphique
   - `CalculatorViewModel` (record immuable), `FocusTarget`, `ReuseTarget`, `StatusTone`, `OperationText` (libellés des opérations)
