@@ -122,6 +122,8 @@ La calculatrice applique une regle unique de bout en bout :
 - un resultat approche (division non terminante, racine carree non exacte, puissance negative non terminante) est arrondi une seule fois avec `HALF_UP` a au moins 12 decimales et au moins 12 chiffres significatifs : `1 / 3 = 0,333333333333`, `1 / 3000000000000 = 0,000000000000333333333333` ; un resultat non nul n'est donc jamais affiche `0`
 - les puissances acceptent uniquement un exposant entier compris entre `-999` et `999`
 - la saisie attend un decimal simple avec virgule ou point ; la notation scientifique n'est pas prise en charge
+- le point est un separateur decimal, jamais un separateur de milliers : `1.000` vaut `1`
+- un espace, une espace insecable (U+00A0) ou une espace fine insecable (U+202F) peut grouper les milliers de la partie entiere, uniquement sous la forme `1 000`, `12 345 678`, `1 000,5` ; `1 00`, `1 0000`, `1,000.5` et `1.000.000` sont refuses ; les espaces en debut et fin de saisie sont ignorees ; le resultat est affiche sans groupement
 
 Cette politique evite qu'un nombre soit affiche d'une facon, reutilise avec une autre valeur, puis restaure differemment apres relance.
 
