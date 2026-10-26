@@ -143,7 +143,7 @@ public class CalculatorPresenterTest {
         CalculatorViewModel viewModel = presenter.onCalculate("2", "99999999999");
 
         assertEquals(
-                "L'exposant doit être un entier compris entre -999 et 999.",
+                "L'exposant doit être compris entre -999 et 999.",
                 viewModel.statusMessage(),
                 "A huge integer exponent is out of range, not non-integer.");
     }

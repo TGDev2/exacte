@@ -83,7 +83,7 @@ public class CalculatorEngine {
         }
         if (secondValue.abs().compareTo(MAX_ABSOLUTE_EXPONENT) > 0) {
             throw new CalculationException(
-                    "L'exposant doit être un entier compris entre -"
+                    "L'exposant doit être compris entre -"
                             + DecimalPolicy.MAX_ABSOLUTE_INTEGER_EXPONENT
                             + " et "
                             + DecimalPolicy.MAX_ABSOLUTE_INTEGER_EXPONENT

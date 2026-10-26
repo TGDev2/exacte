@@ -131,7 +131,7 @@ public class CalculatorEngineTest {
                 () -> engine.calculate(Operation.POWER, "2", "99999999999"),
                 "An out-of-range integer exponent should be rejected.");
         assertEquals(
-                "L'exposant doit être un entier compris entre -999 et 999.",
+                "L'exposant doit être compris entre -999 et 999.",
                 exception.getMessage(),
                 "An integer exponent beyond the range must not be reported as non-integer.");
     }
