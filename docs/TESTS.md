@@ -23,9 +23,9 @@ Mesures sur la machine de développement (Windows 11, JDK 21, démon Gradle chau
 
 | | Avant E04 | Après E04 | Après E05 | Après E06 |
 |---|---|---|---|---|
-| Tests exécutés | 249 | 304 (dont 50 propriétés et 4 exemples jqwik) | 437 (dont 75 propriétés et 4 exemples jqwik) | 460 (dont 85 propriétés et 4 exemples jqwik) |
-| Essais jqwik | - | 43 405 (42 905 contrôles : le reste est écarté par des hypothèses) | 74 405 (73 736 contrôles), dont 31 000 pour `calc.number` | 83 905 (83 342 contrôles) |
-| Durée de `check` | 4,4 s | 19,9 s, 19,9 s et 20,1 s sur trois exécutions | 21,6 s et 21,2 s sur deux exécutions | 28,7 s, 26,8 s et 27,0 s sur trois exécutions |
+| Tests exécutés | 249 | 304 (dont 50 propriétés et 4 exemples jqwik) | 437 (dont 75 propriétés et 4 exemples jqwik) | 462 (dont 86 propriétés et 5 exemples jqwik) |
+| Essais jqwik | - | 43 405 (42 905 contrôles : le reste est écarté par des hypothèses) | 74 405 (73 736 contrôles), dont 31 000 pour `calc.number` | 84 205 (83 637 contrôles) |
+| Durée de `check` | 4,4 s | 19,9 s, 19,9 s et 20,1 s sur trois exécutions | 21,6 s et 21,2 s sur deux exécutions | 29,7 s et 29,1 s sur deux exécutions |
 
 ## Étiquettes
 
@@ -127,7 +127,7 @@ ArithmeticProperties > subtractionMatchesTheOracle STANDARD_OUT
 
 **Persistance** (`HistoryRoundTripProperties`, `property` ; `HistoryLoaderFuzzProperties`, `robustness`)
 
-- Sauvegarder puis recharger un historique généré redonne les mêmes entrées (valeur, affichage, valeur réutilisable), sans rejet ni copie, sans fichier temporaire ; le fichier a le format documenté (colonne résultat = texte canonique) ; charger puis sauvegarder ne change pas un octet. Une entrée calculée à partir d'une racine réutilisée se recharge sans rejet, comme le résultat exact de son opérande enregistré.
+- Sauvegarder puis recharger un historique généré redonne les mêmes entrées (valeur, affichage, valeur réutilisable), sans rejet ni copie, sans fichier temporaire ; le fichier a le format documenté (colonne résultat = texte canonique) ; charger puis sauvegarder ne change pas un octet. Une entrée calculée à partir d'une racine réutilisée (générateur `rememberedRootRecords` : racine mémorisée, puis toute opération, puissances jusqu'à 40) se recharge sans rejet, comme le résultat exact de son opérande enregistré, qui rencontre l'intervalle affiché ; la sauvegarder de nouveau ne change pas un octet.
 - Pour un contenu arbitraire : seule exception possible, `CalculationHistoryException` (erreur d'E/S) ; les lignes valides sont restaurées dans l'ordre ; chaque rejet est rapporté avec son numéro de ligne et sa cause ; charger ne modifie jamais le fichier ; une copie identique à l'original existe avant toute écriture dès qu'une ligne est rejetée ; un fichier illisible ou d'une version plus récente n'est jamais écrasé ; sans copie possible, toute écriture est refusée.
 
 **Présentateur** (`PresenterStatefulProperties`, `robustness`) : après chaque action d'une séquence aléatoire (changer d'opération, saisir, calculer, effacer les champs, réutiliser le dernier résultat ou celui qui est sélectionné, sélectionner une entrée, effacer l'historique) :
@@ -248,6 +248,13 @@ Points du filet de sécurité d'E04 modifiés au changement de moteur, et pourqu
    `1,000000000000… × 10¹⁶` au lieu de `1,00000000000… × 10¹⁶` : le chiffre de trop n'était retiré que pour une échelle
    positive. La même cause donnait `≈ -1,0…` au lieu de `≈ -1…` pour un intervalle très large
    (`FormatterProperties`). Régression : `CalculatorDisplayRulesTest` (`1000000000000000 + 0`) et les deux propriétés.
+5. **Le magasin rejetait ses propres lignes** (revue indépendante de E06, corrigé). Une entrée calculée à partir d'une
+   racine mémorisée (`√2` puis `× 123456789012345`, `1e15 ÷ √2`) était écrite avec un point de l'intervalle du résultat,
+   et le rechargement, qui recalcule exactement depuis le point de l'opérande, trouvait un autre point qui différait dès
+   la 12e décimale : ligne « incohérente », écartée. Les générateurs ne produisaient que des opérandes saisis. Correction :
+   la colonne résultat de ces lignes est le recalcul exact depuis les opérandes enregistrés (ADR 0004, section 9).
+   Régression : `HistoryRoundTripProperties.largeResultsCalculatedFromARememberedRootReload` et la propriété
+   `entriesCalculatedFromRememberedRootsReloadWithoutRejection` ; sans la correction, les deux échouent.
 
 ## Limites connues
 

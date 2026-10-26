@@ -132,9 +132,13 @@ result is accepted when it is, as a number:
 3. a value that rounds under the last version 1 policy to the same number as the recomputed value: the floating-point
    drift of the oldest versions (`0.30000000000000004`).
 
-Rule 3 also accepts the lines whose operand was a remembered approximate value: version 1 can only store its canonical
-point, the reload recomputes from that point exactly, and both agree far beyond the 12th digit. The restored entry is
-the exact recomputation. On writing, the result column holds the canonical text (comma, `1/3`, `1e1000`).
+On writing, the result column holds the canonical text of the result (comma, `1/3`, `1e1000`). Version 1 cannot store an
+interval: when an operand was a remembered approximate value, its column holds the canonical point of that interval, and
+the result column then holds the canonical text of the exact recalculation of the line from its stored operands, the only
+result a reload can verify (rule 1). The entry in memory keeps its interval; the restored entry is that exact
+recalculation, a point of the interval that was shown. If the recalculation from the stored point is itself refused (a
+power of a remembered root above about 48, whose exact value exceeds 4096 bits), the line cannot be represented in
+version 1: it is written as is and rejected, with a backup, at the next load.
 
 `DecimalPolicy` is removed. What remains of it is `LegacyRounding`, used only by rules 2 and 3.
 
@@ -153,8 +157,12 @@ the exact recomputation. On writing, the result column holds the canonical text 
   requires it to stay refused; the no-break spaces keep the feature.
 - **Keeping 1005 characters for the input.** The canonical text of an exact result can be a fraction of up to about
   2470 characters; a shorter input bound would refuse to read back a reused result.
-- **A fourth tolerance in the history check (relative distance).** Not needed: rule 3 already accepts the lines built
-  from a remembered approximate value, and a looser rule would hide corrupted results.
+- **Accepting the stored point of an approximate result by a tolerance.** A first version relied on rule 3 for the lines
+  built from a remembered approximate value; the review of E06 showed that two points of the result interval can differ
+  at the 12th decimal once the result is above about 10^11 (`√2` remembered, then `× 123456789012345`): the store rejected
+  its own lines. No tolerance is sound without the width of the interval (a subtraction with cancellation makes it as
+  wide as one likes relative to the value), and a loose one would hide corrupted results. Writing the exact
+  recalculation keeps rule 1 exact.
 
 ## Consequences (Conséquences)
 
@@ -165,7 +173,8 @@ the exact recomputation. On writing, the result column holds the canonical text 
   reference.
 - The display text and the reusable text are no longer the same string: the golden test checks both columns.
 - A version 1 file written by E06 cannot carry an interval: a line built from a remembered approximate value comes back
-  as the exact result of its canonical operand (a point of the original interval). E07 stores the intervals.
+  as the exact result of its canonical operand (a point of the original interval), and a power of such a value above
+  about 48 cannot be stored at all (rejected with a backup at the next load). E07 stores the intervals.
 - It supersedes decisions 1 and 5 of ADR 0001 (tolerated deviations, bounds) and decisions 4 and 5 of ADR 0002: the
   `rounding-policy` properties are replaced by the exactness, formatting and reuse properties (`docs/TESTS.md`), and every
   canonical text now fits the input bound by construction, so the extra length check of the input is gone.
