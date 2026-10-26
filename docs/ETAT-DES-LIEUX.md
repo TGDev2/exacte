@@ -208,8 +208,7 @@ Produced by `tools/baseline/Baseline.java` (how to regenerate: `tools/baseline/R
 - Messages covered: no operation, missing first/second, invalid first/second, first/second too long, division by zero, non-integer
   exponent, exponent out of range, `0` to a negative power, root of a negative, result over 1000 digits (product and power variants).
   The remaining message ("Le calcul n'a pas pu être effectué sur des nombres de cette taille.", `CalculatorEngine.java:11-12`) is a
-  defensive catch of `ArithmeticException`; none of the extreme inputs tried (1000-digit and 1000-decimal operands in every operation)
-  triggered it, so it has no golden line.
+  defensive catch of `ArithmeticException`; none of the extreme inputs tried triggered it, so it has no golden line. A seeded random run (seed 42, 120 s, throwaway program, 1,368,799 calculations over all six operations with operands of 1 to 1005 characters and exponents in -1000..999) produced 913,039 results and only the other error messages, never this one: it looks unreachable through the public inputs, but that is observed, not proven.
 - Differences from the brief's expectations, recorded as observed: `2 ^ 1000` is now an **error** (exponent limit 999); `1 000` with an
   ordinary space is now **accepted** (= 1001).
 - `testdata/legacy-v1/`: 11 history files (`nominal`, `rounded`, `legacy-float`, `crlf`, `bom`, `one-corrupted-line`, `inconsistent`,
