@@ -38,9 +38,14 @@ tasks.withType<JavaCompile>().configureEach {
 tasks.test {
     useJUnitPlatform()
 
-    // Forward the switch that turns "no display" into a failure for the `ui` tests (used by CI),
-    // e.g. `gradlew check -Dcalc.ui.required=true`. Off by default: without a display they are skipped.
-    systemProperty("calc.ui.required", System.getProperty("calc.ui.required", "false"))
+    // Turns "no display" into a failure for the `ui` tests (used by CI) instead of skipping them:
+    // `gradlew check -PrequireUiTests=true`, or the REQUIRE_UI_TESTS environment variable.
+    // `-Dcalc.ui.required=true` is still accepted. Off by default: without a display they are skipped.
+    val requireUiTests = providers.gradleProperty("requireUiTests")
+        .orElse(providers.environmentVariable("REQUIRE_UI_TESTS"))
+        .orElse(providers.systemProperty("calc.ui.required"))
+        .orElse("false")
+    systemProperty("calc.ui.required", requireUiTests.get())
 
     // `-Djava.awt.headless=true` given to Gradle only reaches the Gradle JVM, never the forked test JVM:
     // forward it explicitly so `gradlew check -Djava.awt.headless=true` really runs the tests without a display.
