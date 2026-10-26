@@ -57,7 +57,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>Main</mainClass>
+                            <mainClass>calc.Main</mainClass>
                         </manifest>
                     </archive>
                 </configuration>

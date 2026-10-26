@@ -33,10 +33,11 @@ Ce projet ne cherche pas à impressionner par un catalogue d'opérations. Il che
 
 Le projet est volontairement compact, mais les responsabilités sont séparées :
 
-- `Calcul/CalculatorEngine.java` : validation et exécution des calculs
-- `Graphique/CalculatorPresenter.java` : logique d'interaction, gestion d'historique, statut, focus et préparation du workflow suivant
-- `Graphique/CalculatorFrame.java` : rendu Swing et branchement des actions utilisateur
-- `Calcul/FileCalculationHistoryStore.java` : persistance locale de l'historique hors de l'interface graphique
+- `calc/Main.java` : point d'entrée, assemble moteur, persistance, présentateur et fenêtre
+- `calc/engine/CalculatorEngine.java` : validation et exécution des calculs
+- `calc/ui/CalculatorPresenter.java` : logique d'interaction, gestion d'historique, statut, focus et préparation du workflow suivant
+- `calc/ui/CalculatorFrame.java` : rendu Swing et branchement des actions utilisateur
+- `calc/engine/FileCalculationHistoryStore.java` : persistance locale de l'historique hors de l'interface graphique
 
 Cette séparation permet de tester les parcours d'usage critiques sans dépendre d'une vérification manuelle de l'UI.
 

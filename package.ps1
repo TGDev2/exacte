@@ -39,7 +39,7 @@ Copy-Item -LiteralPath $builtJarPath -Destination $jarPath
     --dest $distributionDirectory `
     --input $packageInputDirectory `
     --main-jar calc.jar `
-    --main-class Main `
+    --main-class calc.Main `
     --app-version 1.0.0 `
     --vendor "Calc" `
     --description "Calculatrice fiable Java Swing"
