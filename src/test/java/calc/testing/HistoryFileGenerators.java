@@ -94,19 +94,11 @@ public final class HistoryFileGenerators {
                 .as((number, body, bom) -> {
                     StringBuilder content = new StringBuilder(bom ? BYTE_ORDER_MARK : "");
                     content.append("#calc-history v").append(number).append("\n");
-                    List<ExpectedRejection> rejections = new ArrayList<>();
-                    int lineNumber = 1;
                     for (Line line : body) {
-                        lineNumber++;
                         content.append(line.text()).append("\n");
-                        if (!line.text().isBlank()) {
-                            rejections.add(new ExpectedRejection(lineNumber, Cause.UNSUPPORTED_FORMAT_VERSION));
-                        }
                     }
-                    if (rejections.isEmpty()) {
-                        rejections.add(new ExpectedRejection(1, Cause.UNSUPPORTED_FORMAT_VERSION));
-                    }
-                    return new HistoryFile(content.toString().getBytes(StandardCharsets.UTF_8), List.of(), rejections, "future version v" + number);
+                    // Nothing is read from such a file and nothing is rejected: the reader reports the version.
+                    return new HistoryFile(content.toString().getBytes(StandardCharsets.UTF_8), List.of(), List.of(), "future version v" + number);
                 });
     }
 

@@ -1,7 +1,7 @@
 package calc;
 
 import calc.engine.CalculatorEngine;
-import calc.engine.FileCalculationHistoryStore;
+import calc.persistence.JsonHistoryStore;
 import calc.ui.CalculatorPresenter;
 import calc.ui.CalculatorFrame;
 import java.util.logging.Level;
@@ -15,9 +15,10 @@ public class Main {
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
             useSystemLookAndFeel();
-            CalculatorPresenter presenter = new CalculatorPresenter(
-                    new CalculatorEngine(),
-                    FileCalculationHistoryStore.forCurrentUser());
+            JsonHistoryStore historyStore = JsonHistoryStore.openForCurrentUser();
+            // The system releases the lock with the process; releasing it on a normal exit is only tidier.
+            Runtime.getRuntime().addShutdownHook(new Thread(historyStore::close, "history-lock-release"));
+            CalculatorPresenter presenter = new CalculatorPresenter(new CalculatorEngine(), historyStore);
             CalculatorFrame calculatorFrame = new CalculatorFrame(presenter);
             calculatorFrame.setVisible(true);
         });

@@ -1,7 +1,8 @@
 package calc.ui;
 
+import calc.engine.CalculationHistoryException;
 import calc.engine.CalculatorEngine;
-import calc.engine.FileCalculationHistoryStore;
+import calc.persistence.JsonHistoryStore;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -18,7 +19,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class CalculatorHistoryLoggingTest {
@@ -37,7 +40,7 @@ public class CalculatorHistoryLoggingTest {
         public void close() {
         }
     };
-    private final Logger storeLogger = Logger.getLogger("calc.engine.FileCalculationHistoryStore");
+    private final Logger storeLogger = Logger.getLogger("calc.persistence.JsonHistoryStore");
     private final Logger presenterLogger = Logger.getLogger("calc.ui.CalculatorPresenter");
 
     @BeforeEach
@@ -53,40 +56,52 @@ public class CalculatorHistoryLoggingTest {
     }
 
     @Test
-    void testSkippedLinesAreLoggedWithPathLineNumberAndReason(@TempDir Path tempDirectory) throws Exception {
-        Path historyFile = tempDirectory.resolve("history.tsv");
-        Files.writeString(historyFile, "ADDITION\t1\t2\t3\nbad-data\nADDITION\tabc\t2\t5\n", StandardCharsets.UTF_8);
+    void testRejectedEntriesAreLoggedWithPathPositionAndReasonButNotTheirContent(@TempDir Path tempDirectory) throws Exception {
+        Path historyFile = tempDirectory.resolve("history.json");
+        Files.writeString(historyFile, "{\"format\": \"calc-history\", \"version\": 2, \"entries\": [\n"
+                + "{\"op\": \"addition\", \"operands\": [\"1\", \"2\"], \"result\": {\"exact\": true, \"value\": \"3\"}},\n"
+                + "{\"op\": \"addition\", \"operands\": [\"123456\"], \"result\": {\"exact\": true, \"value\": \"1\"}},\n"
+                + "{\"op\": \"addition\", \"operands\": [\"abc\", \"2\"], \"result\": {\"exact\": true, \"value\": \"5\"}}]}\n",
+                StandardCharsets.UTF_8);
 
-        new FileCalculationHistoryStore(historyFile).loadHistory();
+        try (JsonHistoryStore store = JsonHistoryStore.open(tempDirectory)) {
+            store.loadHistory();
+        }
 
         List<LogRecord> warnings = warnings();
-        assertEquals(2, warnings.size(), "One warning per skipped line.");
+        assertEquals(2, warnings.size(), "One warning per rejected entry.");
         assertTrue(warnings.get(0).getMessage().contains(historyFile.toString()), "The warning must carry the file path.");
-        assertTrue(warnings.get(0).getMessage().contains("line 2"), "The warning must carry the line number.");
-        assertTrue(warnings.get(0).getMessage().contains("expected 4 columns but found 1"), "The warning must carry the reason.");
-        assertTrue(warnings.get(1).getMessage().contains("line 3"));
+        assertTrue(warnings.get(0).getMessage().contains("entry 2"), "The warning must carry the entry number.");
+        assertTrue(warnings.get(0).getMessage().contains("expected 2 operands"), "The warning must carry the reason.");
+        assertTrue(warnings.get(1).getMessage().contains("entry 3"));
+        assertFalse(warnings.stream().anyMatch(warning -> warning.getMessage().contains("123456") || warning.getMessage().contains("abc")),
+                "The content of an entry is never logged.");
     }
 
     @Test
     void testReadFailureIsLoggedWithPathAndCause(@TempDir Path tempDirectory) throws Exception {
-        Path historyFile = tempDirectory.resolve("history.tsv");
+        Path historyFile = tempDirectory.resolve("history.json");
         Files.write(historyFile, new byte[] {(byte) 0xFF, (byte) 0xFE, '\n'});
 
-        new CalculatorPresenter(new CalculatorEngine(), new FileCalculationHistoryStore(historyFile));
+        try (JsonHistoryStore store = JsonHistoryStore.open(tempDirectory)) {
+            new CalculatorPresenter(new CalculatorEngine(), store);
+        }
 
         LogRecord warning = warnings().get(0);
         assertTrue(warning.getMessage().contains(historyFile.toString()));
-        assertNotNull(warning.getThrown(), "The I/O cause must be logged.");
+        assertNotNull(warning.getThrown(), "The cause must be logged.");
     }
 
     @Test
     void testBackupFailureIsLoggedWithPathAndCause(@TempDir Path tempDirectory) throws Exception {
-        Path historyFile = tempDirectory.resolve("history.tsv");
+        Path historyFile = tempDirectory.resolve("history.json");
         Files.writeString(historyFile, "bad-data\n", StandardCharsets.UTF_8);
 
-        new FileCalculationHistoryStore(historyFile, Clock.systemDefaultZone(), (source, target) -> {
+        try (JsonHistoryStore store = JsonHistoryStore.open(tempDirectory, null, Clock.systemDefaultZone(), (source, target) -> {
             throw new IOException("simulated copy failure");
-        }).loadHistory();
+        }, Files::move)) {
+            assertThrows(CalculationHistoryException.class, store::loadHistory);
+        }
 
         LogRecord backupWarning = warnings().stream()
                 .filter(record -> record.getMessage().startsWith("Cannot back up"))
@@ -98,10 +113,12 @@ public class CalculatorHistoryLoggingTest {
 
     @Test
     void testPresenterLogsTheCauseWhenPersistingFails(@TempDir Path tempDirectory) throws Exception {
-        Path historyFile = tempDirectory.resolve("history.tsv");
+        Path historyFile = tempDirectory.resolve("history.json");
         Files.createDirectories(historyFile);
 
-        new CalculatorPresenter(new CalculatorEngine(), new FileCalculationHistoryStore(historyFile)).onCalculate("1", "1");
+        try (JsonHistoryStore store = JsonHistoryStore.open(tempDirectory)) {
+            new CalculatorPresenter(new CalculatorEngine(), store).onCalculate("1", "1");
+        }
 
         LogRecord presenterWarning = warnings().stream()
                 .filter(record -> "calc.ui.CalculatorPresenter".equals(record.getLoggerName()))
@@ -109,6 +126,26 @@ public class CalculatorHistoryLoggingTest {
                 .orElseThrow();
         assertNotNull(presenterWarning.getThrown(), "The presenter must log the persistence failure cause.");
         assertTrue(presenterWarning.getThrown().getMessage().contains(historyFile.toString()), "The cause message must carry the path.");
+    }
+
+    @Test
+    void testPathsMigrationAndLockAreLogged(@TempDir Path tempDirectory) throws Exception {
+        Files.writeString(tempDirectory.resolve("history.tsv"), "ADDITION\t1\t2\t3\n", StandardCharsets.UTF_8);
+        Logger lockLogger = Logger.getLogger("calc.persistence.StoreLock");
+        lockLogger.addHandler(handler);
+        try (JsonHistoryStore store = JsonHistoryStore.open(tempDirectory)) {
+            store.loadHistory();
+            try (JsonHistoryStore second = JsonHistoryStore.open(tempDirectory)) {
+                assertTrue(second.isReadOnly());
+            }
+        } finally {
+            lockLogger.removeHandler(handler);
+        }
+
+        List<String> messages = records.stream().map(LogRecord::getMessage).toList();
+        assertTrue(messages.stream().anyMatch(message -> message.startsWith("History directory: " + tempDirectory)), messages.toString());
+        assertTrue(messages.stream().anyMatch(message -> message.startsWith("Converted ") && message.contains("1 entries")), messages.toString());
+        assertTrue(messages.stream().anyMatch(message -> message.contains("history.lock") && message.contains("held by")), messages.toString());
     }
 
     private List<LogRecord> warnings() {

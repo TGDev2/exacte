@@ -3,7 +3,7 @@ package calc.ui;
 import calc.engine.CalculationException;
 import calc.engine.CalculationRecord;
 import calc.engine.CalculatorEngine;
-import calc.engine.FileCalculationHistoryStore;
+import calc.persistence.JsonHistoryStore;
 import calc.engine.InputField;
 import calc.engine.Operation;
 import java.math.BigInteger;
@@ -303,8 +303,11 @@ public class CalculatorSizeLimitsTest {
                 + "MULTIPLICATION\t4\t5\t20\n";
         Files.writeString(historyFile, content, StandardCharsets.UTF_8);
 
-        CalculatorPresenter presenter = new CalculatorPresenter(engine, new FileCalculationHistoryStore(historyFile));
-        CalculatorViewModel viewModel = assertTimeoutPreemptively(Duration.ofSeconds(2), presenter::createInitialView);
+        CalculatorViewModel viewModel;
+        try (JsonHistoryStore store = JsonHistoryStore.open(tempDirectory)) {
+            CalculatorPresenter presenter = new CalculatorPresenter(engine, store);
+            viewModel = assertTimeoutPreemptively(Duration.ofSeconds(2), presenter::createInitialView);
+        }
 
         assertEquals(2, viewModel.historyEntries().size(), "The valid lines around the oversized one should load.");
         assertEquals("1 + 2 = 3", viewModel.historyEntries().get(0).toString(), "First valid line restored.");

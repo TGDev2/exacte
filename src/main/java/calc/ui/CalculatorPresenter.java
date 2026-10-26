@@ -25,6 +25,14 @@ public class CalculatorPresenter {
     private static final String RESTORED_HISTORY_STATUS = "Historique restauré. Vous pouvez réutiliser un résultat précédent ou lancer un nouveau calcul.";
     private static final String UNAVAILABLE_HISTORY_STATUS = "L'historique précédent n'a pas pu être restauré. Vous pouvez continuer sans blocage.";
     private static final String BACKUP_NOTICE_PREFIX = "Copie de sauvegarde : ";
+    private static final String NEWER_VERSION_STATUS = "Historique créé par une version plus récente de Calc : ouvert en lecture seule.";
+    private static final String NEWER_VERSION_NOT_LOADED_STATUS =
+            "Historique créé par une version plus récente de Calc : il n'a pas pu être ouvert et ne sera pas modifié.";
+    private static final String IN_USE_STATUS = "Calc est déjà ouvert : l'historique de cette fenêtre ne sera pas enregistré.";
+    private static final String READ_ONLY_CALCULATION_STATUS =
+            "Calcul effectué. Le résultat est prêt pour le calcul suivant, mais l'historique est en lecture seule : il ne sera pas enregistré.";
+    private static final String READ_ONLY_CLEARED_STATUS =
+            "Historique effacé dans cette fenêtre. Il est en lecture seule : le fichier n'est pas modifié.";
 
     private final CalculatorEngine engine;
     private final CalculationHistoryStore historyStore;
@@ -104,7 +112,9 @@ public class CalculatorPresenter {
             focusTarget = selectedOperation.requiresSecondOperand() ? FocusTarget.SECOND_NUMBER : FocusTarget.FIRST_NUMBER;
             selectFocusedFieldText = !selectedOperation.requiresSecondOperand();
             if (persistHistory()) {
-                statusMessage = "Calcul effectué. Le résultat est prêt pour le calcul suivant et ajouté à l'historique.";
+                statusMessage = historyStore.isReadOnly()
+                        ? READ_ONLY_CALCULATION_STATUS
+                        : "Calcul effectué. Le résultat est prêt pour le calcul suivant et ajouté à l'historique.";
                 statusTone = StatusTone.SUCCESS;
             } else {
                 statusMessage = "Calcul effectué, mais l'historique n'a pas pu être enregistré.";
@@ -143,7 +153,7 @@ public class CalculatorPresenter {
         selectFocusedFieldText = false;
 
         if (persistHistory()) {
-            statusMessage = "Historique effacé.";
+            statusMessage = historyStore.isReadOnly() ? READ_ONLY_CLEARED_STATUS : "Historique effacé.";
             statusTone = StatusTone.INFO;
             return buildViewModel();
         }
@@ -335,41 +345,67 @@ public class CalculatorPresenter {
     }
 
     private void applyRestoreStatus(HistoryLoadResult loadResult) {
+        switch (loadResult.condition()) {
+            case NEWER_VERSION_READ_ONLY -> {
+                statusMessage = NEWER_VERSION_STATUS;
+                statusTone = StatusTone.ERROR;
+                return;
+            }
+            case NEWER_VERSION_NOT_LOADED -> {
+                statusMessage = NEWER_VERSION_NOT_LOADED_STATUS;
+                statusTone = StatusTone.ERROR;
+                return;
+            }
+            case IN_USE_READ_ONLY -> {
+                statusMessage = IN_USE_STATUS;
+                statusTone = StatusTone.ERROR;
+                return;
+            }
+            case NORMAL, MIGRATED -> {
+            }
+        }
+
         List<RejectedLine> rejections = loadResult.rejections();
         int restored = loadResult.records().size();
+        boolean migrated = loadResult.condition() == HistoryLoadResult.Condition.MIGRATED;
         if (rejections.isEmpty()) {
-            statusMessage = restored > 0 ? RESTORED_HISTORY_STATUS : EMPTY_HISTORY_STATUS;
-            statusTone = restored > 0 ? StatusTone.SUCCESS : StatusTone.INFO;
+            if (migrated) {
+                statusMessage = "Historique converti au nouveau format (" + restored + (restored > 1 ? " entrées)." : " entrée).");
+            } else {
+                statusMessage = restored > 0 ? RESTORED_HISTORY_STATUS : EMPTY_HISTORY_STATUS;
+            }
+            statusTone = restored > 0 || migrated ? StatusTone.SUCCESS : StatusTone.INFO;
             return;
         }
 
-        String ignored = describeIgnoredLines(rejections);
-        String summary = restored == 0
-                ? "Aucun calcul restauré, " + ignored + ". Vous pouvez continuer sans blocage."
-                : restored + (restored == 1 ? " calcul restauré, " : " calculs restaurés, ") + ignored + ".";
+        String ignored = describeIgnoredEntries(rejections);
+        String summary;
+        if (migrated) {
+            summary = "Historique converti au nouveau format (" + restored + (restored > 1 ? " entrées" : " entrée") + "), " + ignored + ".";
+        } else if (restored == 0) {
+            summary = "Aucun calcul restauré, " + ignored + ". Vous pouvez continuer sans blocage.";
+        } else {
+            summary = restored + (restored == 1 ? " calcul restauré, " : " calculs restaurés, ") + ignored + ".";
+        }
         statusMessage = withBackupNotice(summary, loadResult.backupFile());
         statusTone = StatusTone.ERROR;
     }
 
-    private static String describeIgnoredLines(List<RejectedLine> rejections) {
+    private static String describeIgnoredEntries(List<RejectedLine> rejections) {
         long inconsistent = rejections.stream().filter(line -> line.cause() == RejectedLine.Cause.INCONSISTENT_RESULT).count();
-        long newerFormat = rejections.stream()
-                .filter(line -> line.cause() == RejectedLine.Cause.UNSUPPORTED_FORMAT_VERSION)
-                .count();
-        long unreadable = rejections.size() - inconsistent - newerFormat;
+        long unreadable = rejections.size() - inconsistent;
 
         List<String> parts = new ArrayList<>();
-        addIgnoredLines(parts, unreadable, "illisible", "illisibles");
-        addIgnoredLines(parts, inconsistent, "incohérente", "incohérentes");
-        addIgnoredLines(parts, newerFormat, "d'un format plus récent", "d'un format plus récent");
+        addIgnoredEntries(parts, unreadable, "illisible", "illisibles");
+        addIgnoredEntries(parts, inconsistent, "incohérente", "incohérentes");
         return String.join(" et ", parts);
     }
 
-    private static void addIgnoredLines(List<String> parts, long count, String singular, String plural) {
+    private static void addIgnoredEntries(List<String> parts, long count, String singular, String plural) {
         if (count == 1) {
-            parts.add("1 ligne " + singular + " ignorée");
+            parts.add("1 entrée " + singular + " ignorée");
         } else if (count > 1) {
-            parts.add(count + " lignes " + plural + " ignorées");
+            parts.add(count + " entrées " + plural + " ignorées");
         }
     }
 
