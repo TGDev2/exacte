@@ -9,7 +9,10 @@ package calc.engine;
  * of 50 ms.
  */
 public final class CalculationLimits {
-    /** Longest operand the user may type, in characters, after trimming. Longer inputs are refused before parsing. */
+    /**
+     * Longest operand the user may type, in characters, after trimming. Longer inputs are refused before parsing. The
+     * canonical text of the operand (the one shown and stored, with a "0" before a bare decimal point) must fit too.
+     */
     public static final int MAX_INPUT_LENGTH = 1005;
 
     /**
