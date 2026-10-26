@@ -1,9 +1,9 @@
 package Calcul;
 
 public enum Operation {
-    ADDITION("Addition (+)", "+", true, "Utilisez des decimaux avec virgule ou point. Pas de notation scientifique."),
-    SUBTRACTION("Soustraction (-)", "-", true, "Utilisez des decimaux avec virgule ou point. Pas de notation scientifique."),
-    MULTIPLICATION("Multiplication (*)", "*", true, "Utilisez des decimaux avec virgule ou point. Pas de notation scientifique."),
+    ADDITION("Addition (+)", "+", true, "Virgule ou point. Le point est un separateur decimal. Pas de notation scientifique."),
+    SUBTRACTION("Soustraction (-)", "-", true, "Virgule ou point. Le point est un separateur decimal. Pas de notation scientifique."),
+    MULTIPLICATION("Multiplication (*)", "*", true, "Virgule ou point. Le point est un separateur decimal. Pas de notation scientifique."),
     DIVISION(
             "Division (/)",
             "/",

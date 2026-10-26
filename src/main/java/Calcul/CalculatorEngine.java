@@ -114,7 +114,12 @@ public class CalculatorEngine {
             throw new CalculationException(tooLongMessage, field);
         }
 
-        String normalizedInput = trimmedInput.replace(',', '.');
+        String compactInput = DecimalPolicy.removeThousandsSeparators(DecimalPolicy.stripEdgeSpaces(trimmedInput));
+        if (compactInput.isEmpty()) {
+            throw new CalculationException(missingMessage, field);
+        }
+
+        String normalizedInput = compactInput.replace(',', '.');
         if (!DecimalPolicy.isSupportedInput(normalizedInput)) {
             throw new CalculationException(invalidMessage, field);
         }

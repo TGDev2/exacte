@@ -141,6 +141,52 @@ public class CalculatorEngineTest {
                 "An integer exponent beyond the range must not be reported as non-integer.");
     }
 
+    @Test
+    void testThousandsSeparatorsAreAcceptedInTheIntegerPart() throws Exception {
+        assertEquals("1000", engine.calculate(Operation.ADDITION, "1 000", "0").getFormattedResult(), "A plain space groups thousands.");
+        assertEquals("1000,5", engine.calculate(Operation.ADDITION, "1 000,5", "0").getFormattedResult(), "A no-break space groups thousands.");
+        assertEquals(
+                "1000000",
+                engine.calculate(Operation.ADDITION, "1 000 000", "0").getFormattedResult(),
+                "A narrow no-break space groups thousands.");
+        assertEquals("12", engine.calculate(Operation.ADDITION, "12 ", "0").getFormattedResult(), "A trailing no-break space is trimmed.");
+        assertEquals("12", engine.calculate(Operation.ADDITION, " 	12  ", "0").getFormattedResult(), "Edge spaces and tabs are trimmed.");
+        assertEquals("-1000", engine.calculate(Operation.ADDITION, "-1 000", "0").getFormattedResult(), "A sign may precede grouped digits.");
+    }
+
+    @Test
+    void testMalformedGroupingIsRejectedWithTheExistingMessage() {
+        String expected = "Le premier nombre est invalide. Utilisez des chiffres, un signe et une virgule ou un point.";
+        for (String input : new String[] {"1 00", "1 0000", "1 000 00", "1,000.5", "1.000.000", "1e3", "٣", "1 000,5 000", "1	000", "1 000 ,5 0"}) {
+            CalculationException exception = assertThrows(
+                    CalculationException.class,
+                    () -> engine.calculate(Operation.ADDITION, input, "0"),
+                    "'" + input + "' should be rejected.");
+            assertEquals(expected, exception.getMessage(), "'" + input + "' should use the existing invalid message.");
+            assertEquals(InputField.FIRST, exception.getField(), "'" + input + "' should blame the first field.");
+        }
+    }
+
+    @Test
+    void testPointStaysADecimalSeparator() throws Exception {
+        assertEquals("1", engine.calculate(Operation.ADDITION, "1.000", "0").getFormattedResult(), "1.000 is one, not one thousand.");
+    }
+
+    @Test
+    void testBlankInputMadeOfNoBreakSpacesIsMissing() {
+        CalculationException exception = assertThrows(
+                CalculationException.class,
+                () -> engine.calculate(Operation.ADDITION, "  ", "0"),
+                "Only no-break spaces means no number was typed.");
+        assertEquals("Saisissez le premier nombre.", exception.getMessage(), "It should be reported as missing, not invalid.");
+    }
+
+    @Test
+    void testHistoryShowsTheNormalizedOperandWithoutSpaces() throws Exception {
+        CalculationRecord record = engine.calculate(Operation.ADDITION, "1 000,5", "2 000");
+        assertEquals("1000,5 + 2000 = 3000,5", record.toString(), "History should show operands without grouping spaces.");
+    }
+
     private void assertFieldOnError(InputField expected, Operation operation, String first, String second) {
         CalculationException exception = assertThrows(
                 CalculationException.class,

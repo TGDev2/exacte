@@ -3,6 +3,7 @@ package Calcul;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 final class DecimalPolicy {
@@ -15,7 +16,34 @@ final class DecimalPolicy {
 
     private static final Pattern SUPPORTED_DECIMAL_INPUT = Pattern.compile("[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)");
 
+    private static final String EDGE_SPACES = " \t  ";
+    private static final Pattern GROUPED_INTEGER_INPUT =
+            Pattern.compile("([+-]?\\d{1,3}(?:[   ]\\d{3})+)([.,]\\d*)?");
+    private static final Pattern THOUSANDS_SEPARATOR = Pattern.compile("[   ]");
+
     private DecimalPolicy() {
+    }
+
+    static String stripEdgeSpaces(String input) {
+        int start = 0;
+        int end = input.length();
+        while (start < end && EDGE_SPACES.indexOf(input.charAt(start)) >= 0) {
+            start++;
+        }
+        while (end > start && EDGE_SPACES.indexOf(input.charAt(end - 1)) >= 0) {
+            end--;
+        }
+        return input.substring(start, end);
+    }
+
+    // Spaces are only valid as \d{1,3}( \d{3})+ in the integer part; any other input is left for the regex to refuse.
+    static String removeThousandsSeparators(String input) {
+        Matcher matcher = GROUPED_INTEGER_INPUT.matcher(input);
+        if (!matcher.matches()) {
+            return input;
+        }
+        String integerPart = THOUSANDS_SEPARATOR.matcher(matcher.group(1)).replaceAll("");
+        return matcher.group(2) == null ? integerPart : integerPart + matcher.group(2);
     }
 
     static boolean isSupportedInput(String normalizedInput) {
