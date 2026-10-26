@@ -15,7 +15,7 @@ Later work reads the ADRs instead of guessing why things are the way they are.
 
 | Number | Title | Status |
 |---|---|---|
-| 0001 | Hardening: lossless history, atomic writes, bounds, typed errors | Accepted |
-| 0002 | Property-based tests and the length of the canonical text | Accepted |
+| 0001 | Hardening: lossless history, atomic writes, bounds, typed errors | Accepted, partly superseded by 0004 |
+| 0002 | Property-based tests and the length of the canonical text | Accepted, partly superseded by 0004 |
 | 0003 | Numeric representation: exact rationals and certified intervals | Accepted |
 | 0004 | Display rules, canonical text and the exact engine | Accepted |

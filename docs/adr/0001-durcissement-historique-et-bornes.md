@@ -2,7 +2,7 @@
 
 ## Status (Statut)
 
-Accepted. Date: 2026-10-26. Epic E03.
+Accepted. Date: 2026-10-26. Epic E03. Decisions 1 (tolerated deviations) and 5 (bounds) are superseded by 0004 (exact engine, E06).
 
 ## Context (Contexte)
 

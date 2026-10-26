@@ -14,15 +14,16 @@ Ce projet ne cherche pas à impressionner par un catalogue d'opérations. Il che
 ## Ce que l'application fait
 
 - Opérations prises en charge : addition, soustraction, multiplication, division, puissance (exposant entier), racine carrée
-- Saisie française souple : virgule ou point décimal, espaces de groupement des milliers (voir « Règles de saisie »)
+- Calcul exact : fractions exactes, et pour une racine non exacte une valeur approchée avec une borne d'erreur garantie (voir « Précision numérique »)
+- Saisie française souple : virgule ou point décimal, fraction `3/4`, notation scientifique `1,5e-7`, espaces insécables de groupement des milliers (voir « Règles de saisie »)
 - Messages d'erreur explicites et ciblés : le focus revient dans le champ fautif
 - Historique réutilisable
 - Historique persistant entre les sessions, protégé contre la perte de données (voir « Historique persistant »)
 - Enchaînement rapide des calculs : après un succès, le résultat revient dans le premier champ pour préparer le calcul suivant
-- Politique de précision explicite : le résultat affiché est celui qui sera réutilisé et persisté
+- Réutilisation sans perte : un résultat repris, enregistré ou rechargé garde sa valeur exacte (`1 / 3` repris puis `× 3` donne `1`)
 - Apparence native : l'application adopte le style du système (Windows, macOS, Linux) et retombe sur l'apparence Java par défaut si elle n'est pas disponible
 - Accessibilité : chaque champ est associé à son libellé, tous les composants ont un nom accessible et l'ordre de tabulation suit la lecture (nombres et opération, boutons de calcul, historique et ses boutons)
-- Résultat très long : le résultat est tronqué à l'écran sans élargir la fenêtre ; sa valeur complète s'affiche dans l'info-bulle
+- Affichage lisible : 12 chiffres significatifs, « … » quand des chiffres sont omis, « ≈ » pour une valeur approchée ; l'info-bulle du résultat donne la valeur exacte ou la borne d'erreur
 - Raccourcis utiles :
   - `Entrée` : calculer
   - `Échap` : effacer les champs
@@ -35,16 +36,18 @@ Le projet est volontairement compact, mais les responsabilités sont séparées 
 
 - `calc/Main.java` : point d'entrée, assemble moteur, persistance, présentateur et fenêtre
 - `calc.engine` : moteur de calcul et persistance, sans aucune dépendance à Swing
-  - `CalculatorEngine` : validation de la saisie et exécution des calculs
-  - `DecimalPolicy` (privé au package) : analyse de la saisie, arrondi, bornes, formatage ; seul endroit où ces règles sont écrites
-  - `CalculationLimits` : expose les bornes utiles à l'interface
-  - `Operation`, `InputField`, `CalculationRecord`, `CalculationException` (porte le champ fautif)
+  - `CalculatorEngine` : exécute les calculs avec le noyau exact et traduit chaque refus en message français ; `Operand` : texte saisi ou valeur déjà connue
+  - `OperandParser` (privé au package) : grammaire de saisie (décimal, fraction, notation scientifique, milliers)
+  - `CalculationLimits` : bornes du moteur, reprises de celles du noyau
+  - `Operation`, `InputField`, `CalculationRecord` (porte la valeur exacte ou l'intervalle), `CalculationException` (porte le champ fautif)
+  - `LegacyRounding` (privé au package) : anciennes règles d'arrondi, utilisées seulement pour vérifier les historiques de la version 1
   - `CalculationHistoryStore`, `FileCalculationHistoryStore`, `HistoryLoadResult`, `CalculationHistoryException` : persistance locale de l'historique
-- `calc.number` : noyau numérique exact, sans Swing, pas encore utilisé par le moteur (son intégration est prévue ensuite ; voir `docs/adr/0003-representation-numerique.md`)
+- `calc.number` : noyau numérique exact, sans Swing (voir `docs/adr/0003-representation-numerique.md`)
   - `Rational` : fraction exacte toujours réduite ; `CertifiedValue` : intervalle `[bas, haut]` exact ou approché avec garantie d'inclusion, racine certifiée
   - `NumericLimits` : bornes du noyau ; `NumericException` porte un code `NumericError`, sans texte destiné à l'utilisateur
+- `calc.format` : `ValueFormatter`, seul endroit où une valeur devient texte (modes Auto, Décimal, Fraction, Scientifique, texte canonique réutilisable ; voir `docs/adr/0004-regles-affichage.md`)
 - `calc.ui` : interface
-  - `CalculatorPresenter` : logique d'interaction, gestion d'historique, statut, focus et préparation du workflow suivant ; testable sans interface graphique
+  - `CalculatorPresenter` : logique d'interaction, gestion d'historique, statut, focus, préparation du workflow suivant et mémoire de la valeur placée dans chaque champ ; testable sans interface graphique
   - `CalculatorViewModel` (record immuable), `FocusTarget`, `ReuseTarget`, `StatusTone`, `OperationText` (libellés des opérations)
   - `CalculatorFrame` : rendu Swing et branchement des actions utilisateur
 
@@ -81,18 +84,18 @@ Le workflow `.github/workflows/ci.yml` lance `gradlew check -PrequireUiTests=tru
 Détails, reproduction en local et lecture des artefacts : [docs/CI.md](docs/CI.md).
 ## Vérification
 
-Le projet fournit 187 tests JUnit 5 (`src/test/java/calc/engine` et `calc/ui`) couvrant notamment :
+Le projet fournit des tests JUnit 5 et des propriétés jqwik (`src/test/java`, voir [docs/TESTS.md](docs/TESTS.md)) couvrant notamment :
 
 - calculs binaires et unaires valides, avec virgule et point
 - erreurs de saisie ciblées, avec le champ fautif et le focus correspondant
 - division par zéro, racine d'un nombre négatif, exposants invalides
-- règle d'arrondi (cas décimaux sensibles `0,1 + 0,2`, `1 / 3`, petits quotients, racines, puissances négatives, chaînage)
-- bornes de taille (saisie de 1005 caractères, résultats de 1000 chiffres, estimation des puissances, absence de gel)
-- saisie des milliers (espaces, espaces insécables) et refus des formes ambiguës
+- exactitude et règles d'affichage (`0,1 + 0,2`, `1 / 3` réutilisé puis `× 3`, petits quotients jamais affichés `0`, racines certifiées, puissances négatives, chaînage)
+- bornes de taille (saisie de 4100 caractères, 4096 bits par composante, puissances refusées avant calcul, absence de gel)
+- saisie des fractions, de la notation scientifique et des milliers (espaces insécables), refus de l'espace ordinaire et des formes ambiguës
 - historique : restauration partielle, copies `.bak`, BOM, ancien format sans en-tête, version inconnue non écrasée, mode protégé, écriture atomique et échec d'écriture
 - workflow après un calcul réussi, réutilisation d'un résultat d'historique, statuts affichés
 - vérification Swing des raccourcis, du changement unaire/binaire, de la réutilisation depuis l'UI et de l'accessibilité (mnémoniques distincts, libellés associés, noms accessibles, ordre de tabulation, info-bulle du résultat long)
-- non-régression : 70 cas de référence (`src/test/resources/golden/engine-v1.tsv`) rejoués contre le moteur et le présentateur, sortie par sortie (affichage, valeur réutilisable ou message d'erreur) ; les historiques de référence se trouvent dans `src/test/resources/legacy/v1`
+- non-régression : 70 cas de référence (`src/test/resources/golden/engine-v2.tsv`) rejoués contre le moteur et le présentateur, sortie par sortie (affichage, valeur réutilisable ou message d'erreur) ; chaque écart avec la version 1 (`engine-v1.tsv`) est justifié dans [docs/changements-comportement-E06.md](docs/changements-comportement-E06.md) ; les historiques de référence se trouvent dans `src/test/resources/legacy/v1`
 - tests par propriétés et de robustesse (jqwik) : arithmétique comparée à un oracle indépendant, erreurs, aller-retour et fuzzing de l'historique, fuzzing de la saisie, séquences aléatoires d'actions du présentateur ; voir [docs/TESTS.md](docs/TESTS.md)
 
 Commande :
@@ -126,9 +129,9 @@ L'historique est stocké localement sur le poste utilisateur :
 - sous Windows : `%APPDATA%\Calc\history.tsv`
 - en repli (variable `APPDATA` absente) : `~\.calc\history.tsv`
 
-**Format.** Fichier texte UTF-8 dont la première ligne est l'en-tête de version `#calc-history v1`, suivie d'une ligne par calcul : quatre colonnes séparées par une tabulation (opération, premier nombre, second nombre, résultat). Un fichier sans en-tête (ancien format) reste lisible et reçoit l'en-tête à la sauvegarde suivante. Un BOM UTF-8 en début de fichier est toléré. Au rechargement, chaque ligne est recalculée par le moteur et le résultat stocké est comparé au recalcul : la valeur stockée n'est pas crue sur parole.
+**Format.** Fichier texte UTF-8 dont la première ligne est l'en-tête de version `#calc-history v1`, suivie d'une ligne par calcul : quatre colonnes séparées par une tabulation (opération, premier nombre, second nombre, résultat). Un fichier sans en-tête (ancien format) reste lisible et reçoit l'en-tête à la sauvegarde suivante. Un BOM UTF-8 en début de fichier est toléré. La colonne résultat contient le texte canonique (`0,3`, `1/3`, `1e1000`). Au rechargement, chaque ligne est recalculée exactement par le moteur et le résultat stocké est comparé au recalcul : la valeur stockée n'est pas crue sur parole.
 
-**Restauration partielle.** Une ligne invalide (nombre de colonnes incorrect, opération inconnue, saisie refusée par le moteur, trop longue, résultat illisible) ou incohérente (le résultat stocké diffère du recalcul : `ADDITION 1 2 5`) est ignorée et comptée avec sa cause ; les autres lignes sont restaurées. Sont tolérés le résultat arrondi selon la politique actuelle et la dérive flottante des plus anciennes versions (`0.30000000000000004`). Le statut l'indique avec le ton erreur, par exemple « 12 calculs restaurés, 1 ligne illisible ignorée. Copie de sauvegarde : … ». Le contenu de l'historique n'est jamais écrit dans les journaux, seulement le chemin du fichier, le numéro de ligne et la cause.
+**Restauration partielle.** Une ligne invalide (nombre de colonnes incorrect, opération inconnue, saisie refusée par le moteur, trop longue, résultat illisible) ou incohérente (le résultat stocké diffère du recalcul : `ADDITION 1 2 5`) est ignorée et comptée avec sa cause ; les autres lignes sont restaurées. Sont tolérés le résultat arrondi selon les anciennes politiques de la version 1 (12 chiffres significatifs avec au moins 12 décimales, ou 12 décimales) et la dérive flottante des plus anciennes versions (`0.30000000000000004`). Le statut l'indique avec le ton erreur, par exemple « 12 calculs restaurés, 1 ligne illisible ignorée. Copie de sauvegarde : … ». Le contenu de l'historique n'est jamais écrit dans les journaux, seulement le chemin du fichier, le numéro de ligne et la cause.
 
 **Copies `.bak`.** Chaque fois que le fichier est partiellement lu, illisible ou d'une version inconnue, il est d'abord copié à côté de l'original sous `history.tsv.AAAAMMJJ-HHMMSS.bak` (suffixe `-1`, `-2`… si le nom existe déjà). Une copie existante n'est jamais écrasée ni supprimée automatiquement.
 
@@ -140,32 +143,31 @@ Si le fichier est absent ou invalide, l'application reste utilisable et le statu
 
 ## Précision numérique
 
-La calculatrice applique une règle unique de bout en bout :
+Le moteur calcule avec un noyau exact (`docs/adr/0003-representation-numerique.md`) et affiche selon des règles uniques (`docs/adr/0004-regles-affichage.md`) :
 
-- un résultat réussi est formaté, réutilisé pour le calcul suivant et persisté avec la même valeur
-- additions, soustractions et multiplications restent exactes sur les décimaux saisis
-- un résultat exact n'est jamais arrondi : division terminante (même au-delà de 12 décimales, `1 / 1048576 = 0,00000095367431640625`), racine carrée exacte, puissance exacte
-- un résultat approché (division non terminante, racine carrée non exacte, puissance négative non terminante) est arrondi une seule fois avec `HALF_UP` à au moins 12 décimales et au moins 12 chiffres significatifs, c'est-à-dire à `max(12, 11 − e)` décimales où `e` est l'exposant du premier chiffre significatif : `1 / 3 = 0,333333333333`, `√2 = 1,414213562373`, `1 / 3000000000000 = 0,000000000000333333333333` ; un résultat non nul n'est donc jamais affiché `0`
-- les puissances acceptent uniquement un exposant entier compris entre `-999` et `999` (`2,0` est accepté comme `2`, `1,5` est refusé) ; `0` à une puissance négative est refusé
-
-Cette politique évite qu'un nombre soit affiché d'une façon, réutilisé avec une autre valeur, puis restauré différemment après relance.
+- chaque résultat est exact (fraction exacte : `1 / 3` vaut exactement un tiers), ou approché avec une borne d'erreur garantie : seule une racine carrée non exacte est approchée, et la vraie valeur est certainement dans l'intervalle calculé
+- l'affichage montre 12 chiffres significatifs arrondis au plus proche, suivis de « … » si des chiffres sont omis : `1 / 3 = 0,333333333333…` ; hors de `[10⁻⁶, 10¹⁵[`, il passe en notation scientifique : `1 / 3000000000000 = 3,33333333333… × 10⁻¹³` ; une valeur non nulle n'est jamais affichée `0`
+- une valeur approchée est précédée de « ≈ » et ne montre que les chiffres garantis : `√2 ≈ 1,41421356237…`, erreur au plus `± 2,1 × 10⁻²⁵` ; `√(9/4) = 1,5` reste exact
+- la valeur réutilisée n'est jamais le texte affiché mais le texte canonique, relu exactement : `1/3`, `0,3`, `1e1000` ; tant que le champ n'est pas modifié, la calculatrice réutilise même directement la valeur mémorisée, intervalle compris
+- les puissances acceptent uniquement un exposant entier exact compris entre `-4096` et `4096` (`2,0` est accepté comme `2`, `0,5` est refusé) ; `0` à une puissance négative est refusé
 
 ## Bornes de taille
 
-Pour que l'interface ne gèle jamais, les tailles sont bornées avant tout calcul coûteux :
+Pour que l'interface ne gèle jamais, les tailles sont bornées avant tout calcul coûteux, par les limites du noyau exact :
 
-- une saisie (après suppression des espaces de début et de fin) ne dépasse pas 1005 caractères, et son texte canonique non plus (`.5` s'écrit `0,5` dans l'historique : une saisie de 1005 caractères sans partie entière est donc refusée)
-- tout résultat tient en 1000 chiffres affichables au plus (`max(précision, échelle) ≤ 1000`), sinon le calcul est refusé avec un message
-- pour une puissance, la taille est estimée avant le calcul (`max(précision, échelle)` de la base multiplié par `|exposant|`, borné à 1000), exposants négatifs compris : `2 ^ 999` (301 chiffres) est accepté, mais élever ce résultat à la puissance `999` est refusé immédiatement
-- l'exposant d'une puissance est un entier compris entre `-999` et `999`
+- une saisie (après suppression des espaces de début et de fin) ne dépasse pas 4100 caractères ; tout texte canonique d'une valeur tient dans cette borne
+- un numérateur ou un dénominateur, saisi ou calculé, tient en 4096 bits (environ 1233 chiffres), sinon le calcul est refusé avec un message
+- une puissance trop grande est refusée avant le calcul : `2 ^ 999` est accepté, mais élever ce résultat à la puissance `999` est refusé immédiatement
+- l'exposant d'une puissance est compris entre `-4096` et `4096`, celui de la notation scientifique entre `-9999` et `9999`
 
-Ces valeurs sont définies une seule fois, dans `CalculationLimits`. Elles sont justifiées par une mesure (voir `docs/adr/0001-durcissement-historique-et-bornes.md`) : au pire, un calcul accepté ou refusé prend environ 8 ms à froid, pour un budget de 50 ms.
+Ces valeurs sont définies dans `NumericLimits` et exposées par `CalculationLimits`. Elles sont justifiées par des mesures (voir `docs/adr/0003-representation-numerique.md`) ; un test garde chaque calcul le plus lourd sous un budget de 50 ms.
 
 ## Règles de saisie
 
 - la virgule et le point sont tous deux des séparateurs décimaux ; le point n'est jamais un séparateur de milliers : `1.000` vaut `1`
-- la notation scientifique n'est pas prise en charge
-- un espace, une espace insécable (U+00A0) ou une espace fine insécable (U+202F) peut grouper les milliers de la partie entière, uniquement sous la forme `1 000`, `12 345 678`, `1 000,5` ; `1 00`, `1 0000`, `1,000.5` et `1.000.000` sont refusés
+- une fraction s'écrit `p/q`, sans espace (`3/4`, `-1,5/4`) ; la notation scientifique s'écrit `1,5e-7` ou `3E2`
+- une espace insécable (U+00A0) ou une espace fine insécable (U+202F) peut grouper les milliers de la partie entière, uniquement sous la forme `1 000`, `12 345 678`, `1 000,5` ; `1 00`, `1 0000`, `1,000.5` et `1.000.000` sont refusés
+- l'espace ordinaire est refusé à l'intérieur d'un nombre, avec un message qui propose l'espace insécable
 - les espaces en début et fin de saisie sont ignorées
 - le résultat est toujours affiché sans groupement, avec une virgule décimale
 
@@ -195,5 +197,6 @@ Le script lance `gradlew.bat run` : Gradle compile le projet puis démarre l'app
 - **Messages d'erreur dans le moteur** : les messages destinés à l'utilisateur sont écrits en français dans le moteur ; il n'y a pas d'internationalisation.
 - **Deux opérandes** : le modèle de calcul est « nombre, opération, nombre » ; il n'y a pas de saisie d'expression (parenthèses, priorités).
 - **Packaging Windows uniquement** : l'application portable est produite pour Windows et n'est pas signée ; il n'y a ni installeur ni release automatisée. Sous Linux et macOS, l'application se lance avec `java -jar build/libs/calc.jar` après `./gradlew jar`.
-- **Arithmétique décimale** : les calculs utilisent des décimaux, sans fractions exactes. Un résultat approché est arrondi puis réutilisé tel qu'affiché, donc un enchaînement peut être légèrement inexact (`1 / 3 = 0,333333333333`, puis `× 3 = 0,999999999999` et non `1`).
+- **Historique et valeurs approchées** : le format de fichier actuel ne stocke pas d'intervalle ; une entrée calculée à partir d'une valeur approchée réutilisée est rechargée comme le résultat exact de son opérande enregistré (un point de l'intervalle affiché). Le format de la version suivante stockera les intervalles.
+- **Mode d'affichage** : la fenêtre affiche le mode Auto ; les modes Décimal, Fraction et Scientifique existent dans le moteur d'affichage mais ne sont pas encore proposés dans l'interface.
 - Les tests UI couvrent les parcours critiques, pas un rendu graphique pixel par pixel.

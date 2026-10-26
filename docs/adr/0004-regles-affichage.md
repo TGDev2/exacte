@@ -68,7 +68,7 @@ text under 30 characters.
 
 For an approximate value, `± r` with `r` the radius of the interval around its centre (the true value is in
 `[centre - r, centre + r]`), rounded **up** to two significant digits so that it stays a bound, in scientific notation
-(`± 8,3 × 10⁻²⁵` for `√2`).
+(`± 2,1 × 10⁻²⁵` for `√2`).
 
 ### 5. Canonical text (the reusable text)
 
@@ -79,7 +79,7 @@ The canonical text is read back by the input grammar and gives back **exactly** 
 - other exact values: the shortest of the positional decimal (if finite), the exact scientific notation (`1e1000`, if
   finite) and the fraction (`1/3`); on a tie the decimal, then the scientific notation;
 - approximate value: the decimal with the fewest significant digits that lies inside the interval (`√2` gives
-  `1,4142135623730950488017`), positional up to 40 characters, scientific beyond; `0` when the interval contains 0.
+  `1,414213562373095048801689`), positional up to 40 characters, scientific beyond; `0` when the interval contains 0.
 
 Every canonical text of a value within the core limits fits the input bound (4100 characters): the longest is a
 fraction of two 4096-bit components, about 2470 characters.
@@ -99,7 +99,7 @@ After trimming (ASCII spaces and controls, plus no-break spaces and tabs at the 
 characters, then the grammar of `Rational.parse`: decimal with a comma or a point, optional scientific exponent `e`/`E`
 (`1,5e-7`, exponent between -9999 and 9999), or a fraction `p/q` of two such decimals. In the integer part of each
 member, groups of three digits may be separated by a no-break space (U+00A0) or a narrow no-break space (U+202F):
-`1 000 000,5`. **An ordinary space inside a number is refused**, with a dedicated message when the text would be valid
+`1 000 000,5`. **An ordinary space inside a number is refused**, with a dedicated message when the text would be valid
 with no-break spaces: in the coming expression language (E09) a space separates tokens, and `1 000` would be ambiguous.
 This is a deliberate change: version 1 accepted `1 000`.
 
@@ -159,12 +159,15 @@ the exact recomputation. On writing, the result column holds the canonical text 
 ## Consequences (Conséquences)
 
 - `1 / 3` reused and multiplied by 3 gives exactly `1`; `1 / 3000000000000` is `3,33333333333… × 10⁻¹³`; `√2` is
-  `≈ 1,41421356237…` with `± 8,3 × 10⁻²⁵`; `√(9/4)` is exactly `1,5`.
+  `≈ 1,41421356237…` with `± 2,1 × 10⁻²⁵`; `√(9/4)` is exactly `1,5`.
 - Many displayed texts change (« … », « ≈ », scientific notation, larger bounds); every change against the version 1
   golden file is listed and classified in `docs/changements-comportement-E06.md`, and `golden/engine-v2.tsv` is the new
   reference.
 - The display text and the reusable text are no longer the same string: the golden test checks both columns.
 - A version 1 file written by E06 cannot carry an interval: a line built from a remembered approximate value comes back
   as the exact result of its canonical operand (a point of the original interval). E07 stores the intervals.
+- It supersedes decisions 1 and 5 of ADR 0001 (tolerated deviations, bounds) and decisions 4 and 5 of ADR 0002: the
+  `rounding-policy` properties are replaced by the exactness, formatting and reuse properties (`docs/TESTS.md`), and every
+  canonical text now fits the input bound by construction, so the extra length check of the input is gone.
 - The 12-digit rule of the input hints and the README changed; the mode selector, the badge and the display of the
   bound in the window are E08 (the window only shows the Auto text and puts the bound or the fraction in its tooltip).

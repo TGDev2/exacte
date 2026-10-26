@@ -2,7 +2,7 @@
 
 ## Status (Statut)
 
-Accepted. Date: 2026-10-26. Epic E04.
+Accepted. Date: 2026-10-26. Epic E04. Decisions 4 (rounding-policy properties) and 5 (canonical text within the bound) are superseded by 0004 (exact engine, E06).
 
 ## Context (Contexte)
 
