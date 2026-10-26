@@ -2,5 +2,5 @@ $ErrorActionPreference = "Stop"
 
 $projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-& (Join-Path $projectRoot "mvnw.cmd") -B verify
+& (Join-Path $projectRoot "gradlew.bat") check @args
 exit $LASTEXITCODE

@@ -3,10 +3,10 @@
 `Baseline.java` is a standalone program (default package, no dependency). It calls the **existing** engine, presenter and
 history store as they are and writes:
 
-- `testdata/golden/engine-v1.tsv` and `.gitattributes` - one line per engine case (70 cases: 47 OK, 23 ERROR);
-- `testdata/legacy-v1/*.tsv`, `testdata/legacy-v1/README.md` and `testdata/legacy-v1/.gitattributes`.
+- `src/test/resources/golden/engine-v1.tsv` and `.gitattributes` - one line per engine case (70 cases: 47 OK, 23 ERROR);
+- `src/test/resources/legacy/v1/*.tsv`, `src/test/resources/legacy/v1/README.md` and `src/test/resources/legacy/v1/.gitattributes`.
 
-It is not part of the production code and is not built by Maven.
+It is not part of the production code and is not built by Gradle.
 
 ## Regenerate
 
@@ -18,7 +18,7 @@ javac -encoding UTF-8 -d $out (Get-ChildItem src\main\java\calc\engine, src\main
 java -cp $out Baseline .
 ```
 
-The only argument is the root under which `testdata/` is written. Run it twice (second time with another root) and compare
+The only argument is the root under which `src/test/resources/` is written. Run it twice (second time with another root) and compare
 with `diff -r` to check determinism: the output does not depend on the clock, the temp folder or the console encoding
 (everything is written as UTF-8 bytes, LF line endings except `crlf.tsv`).
 

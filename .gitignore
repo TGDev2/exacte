@@ -1,3 +1,15 @@
+# Build outputs
+build/
+.gradle/
 out/
 dist/
 target/
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+nbproject/

@@ -1,22 +1,29 @@
 $ErrorActionPreference = "Stop"
 
 $projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$builtJarPath = Join-Path $projectRoot "target\calc.jar"
+$builtJarPath = Join-Path $projectRoot "build\libs\calc.jar"
 $distributionDirectory = Join-Path $projectRoot "dist"
 $packageInputDirectory = Join-Path $distributionDirectory "input"
 $jarPath = Join-Path $packageInputDirectory "calc.jar"
 $appImageDirectory = Join-Path $distributionDirectory "Calc"
 $portableArchivePath = Join-Path $distributionDirectory "Calc-portable.zip"
 
-foreach ($tool in @("java", "jpackage")) {
-    if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) {
-        throw "L'outil requis '$tool' est introuvable dans le PATH."
-    }
-}
+$gradlew = Join-Path $projectRoot "gradlew.bat"
 
-& (Join-Path $projectRoot "mvnw.cmd") -B verify
+& $gradlew check jar
 if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
+}
+
+# jpackage must come from the JDK that compiled the jar (the Gradle toolchain), not from the PATH:
+# the runtime image bundled in the app has to be able to run the classes.
+$toolchainHome = (& $gradlew -q printToolchainHome | Where-Object { $_.Trim() } | Select-Object -Last 1)
+if ($LASTEXITCODE -ne 0 -or -not $toolchainHome) {
+    exit 1
+}
+$jpackage = Join-Path $toolchainHome.Trim() "bin\jpackage.exe"
+if (-not (Test-Path -LiteralPath $jpackage)) {
+    throw "L'outil requis 'jpackage' est introuvable dans le JDK $toolchainHome."
 }
 
 if (Test-Path -LiteralPath $distributionDirectory) {
@@ -33,7 +40,7 @@ New-Item -ItemType Directory -Path $packageInputDirectory -Force | Out-Null
 
 Copy-Item -LiteralPath $builtJarPath -Destination $jarPath
 
-& jpackage `
+& $jpackage `
     --type app-image `
     --name Calc `
     --dest $distributionDirectory `
