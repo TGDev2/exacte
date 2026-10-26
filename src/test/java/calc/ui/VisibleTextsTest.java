@@ -22,7 +22,7 @@ import org.junit.jupiter.api.Test;
 class VisibleTextsTest {
     private static final Path SOURCES = Path.of("src", "main", "java", "calc");
     private static final List<String> VISIBLE_TEXT_SOURCES = List.of(
-            "ui", "engine/CalculatorEngine.java", "engine/NumericMessages.java", "engine/OperandParser.java",
+            "ui", "engine/CalculatorEngine.java", "engine/NumericMessages.java", "engine/OperandParser.java", "expression",
             "persistence/JsonHistoryStore.java");
     private static final Pattern LITERAL = Pattern.compile("\"((?:[^\"\\\\\\n]|\\\\.)*)\"");
     private static final Pattern FAULTY_FORMS = Pattern.compile(
