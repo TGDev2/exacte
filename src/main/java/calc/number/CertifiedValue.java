@@ -16,9 +16,11 @@ import java.util.Objects;
  *       Every exact result is the exact rational; nothing exact is ever rounded.</li>
  *   <li><b>Bounded size.</b> Every bound has at most {@link NumericLimits#MAX_COMPONENT_BITS} bits per component;
  *       an operation whose result would need more throws {@link NumericError#SIZE_LIMIT_EXCEEDED}. Each bound of an
- *       approximate result is a binary number with at most {@link NumericLimits#BOUND_SIGNIFICANT_BITS} significant
- *       bits: bounds that would need more are rounded outward, the lower one down and the upper one up, to a grid
- *       whose step is relative to their magnitude.</li>
+ *       approximate result of {@code add}, {@code subtract}, {@code multiply}, {@code divide}, {@code pow} and
+ *       {@code sqrt} is a binary number with at most {@link NumericLimits#BOUND_SIGNIFICANT_BITS} significant bits:
+ *       bounds that would need more are rounded outward, the lower one down and the upper one up, to a grid whose step
+ *       is relative to their magnitude. {@link #between(Rational, Rational)} and {@link #negate()} keep the bounds they
+ *       are given, exactly.</li>
  * </ul>
  *
  * <p>Domain errors are {@link NumericException}s carrying a {@link NumericError} code. A bound order mistake in
@@ -53,11 +55,12 @@ public final class CertifiedValue {
     public static CertifiedValue between(Rational lower, Rational upper) throws NumericException {
         Objects.requireNonNull(lower, "lower");
         Objects.requireNonNull(upper, "upper");
+        // Checked first: the comparison multiplies the components.
+        Rational.withinLimits(lower);
+        Rational.withinLimits(upper);
         if (lower.compareTo(upper) > 0) {
             throw new IllegalArgumentException("lower bound above upper bound: " + lower + " > " + upper);
         }
-        Rational.withinLimits(lower);
-        Rational.withinLimits(upper);
         return new CertifiedValue(lower, upper);
     }
 

@@ -134,6 +134,9 @@ class CertifiedValueTest {
                 assertThrows(NumericException.class, () -> CertifiedValue.exact(Rational.of(TWO_POWER_4095.shiftLeft(1)))).error());
         assertEquals(NumericError.SIZE_LIMIT_EXCEEDED, assertThrows(NumericException.class,
                 () -> CertifiedValue.between(Rational.ZERO, Rational.of(TWO_POWER_4095.shiftLeft(1)))).error());
+        // The size is checked before the order of the bounds.
+        assertEquals(NumericError.SIZE_LIMIT_EXCEEDED, assertThrows(NumericException.class,
+                () -> CertifiedValue.between(Rational.of(TWO_POWER_4095.shiftLeft(1)), Rational.ZERO)).error());
     }
 
     @Test
