@@ -23,7 +23,7 @@ Mesures sur la machine de développement (Windows 11, JDK 21, démon Gradle chau
 
 | | Avant E04 | Après E04 | Après E05 | Après E06 |
 |---|---|---|---|---|
-| Tests exécutés | 249 | 304 (dont 50 propriétés et 4 exemples jqwik) | 437 (dont 75 propriétés et 4 exemples jqwik) | 462 (dont 86 propriétés et 5 exemples jqwik) |
+| Tests exécutés | 249 | 304 (dont 50 propriétés et 4 exemples jqwik) | 437 (dont 75 propriétés et 4 exemples jqwik) | 468 (dont 86 propriétés et 5 exemples jqwik) |
 | Essais jqwik | - | 43 405 (42 905 contrôles : le reste est écarté par des hypothèses) | 74 405 (73 736 contrôles), dont 31 000 pour `calc.number` | 84 205 (83 637 contrôles) |
 | Durée de `check` | 4,4 s | 19,9 s, 19,9 s et 20,1 s sur trois exécutions | 21,6 s et 21,2 s sur deux exécutions | 29,7 s et 29,1 s sur deux exécutions |
 
@@ -204,7 +204,7 @@ Ces propriétés remplacent `RoundingPolicyProperties` (étiquette `rounding-pol
 (`+ − × ÷` sur des décimaux et des fractions), enchaînées par le présentateur (résultat repris dans le premier champ, ou
 résultat de l'historique placé dans le second), reste exacte à chaque pas et finit sur la valeur de `FractionOracle`.
 
-**Exemples** : `CalculatorDisplayRulesTest` (valeurs de référence, racines près d'un milieu d'arrondi, 3000 divisions et
+**Exemples** : `ValueFormatterTest` (les quatre modes, les champs du résultat, repli et bascule de notation), `CalculatorDisplayRulesTest` (valeurs de référence, racines près d'un milieu d'arrondi, 3000 divisions et
 2000 racines tirées au hasard avec graine fixe), `CalculatorEngineTest` (cas explicites de l'Epic : `1 ÷ 3000000000000`,
 `3 ^ -30`, `√2`, `√(9/4)`, `2 ^ 0,5`, espaces insécables, un message par code d'erreur du noyau),
 `CalculatorPresenterTest` (`1 ÷ 3` réutilisé puis `× 3` = `1`, valeur mémorisée tant que le texte du champ ne change pas).
