@@ -40,3 +40,10 @@ Results of `2 ^ 999` and `2 ^ -999` are stored as `len=<characters> sha256=<hex>
 They are the reference of what version 1 of the application does. Later Epics turn them into non-regression tests, so a
 diff on them means the observable behaviour changed. Change them only through a documented decision (an ADR in
 `docs/adr/`) that names the intended behaviour change, regenerate with this program, and review the diff line by line.
+
+## After E06
+
+`Baseline.java` captured version 1 and must not be run on the exact engine of E06: it would overwrite `engine-v1.tsv` and
+the observed behaviours of `legacy/v1/README.md` with the new outputs. The reference outputs of the exact engine are
+`engine-v2.tsv`, produced by `tools/golden-v2` from the same inputs. The `legacy/v1` files themselves are unchanged and
+still load with the same number of entries (`CalculatorHistoryLegacyFilesTest`).
