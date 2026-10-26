@@ -1,7 +1,12 @@
 package calc.ui;
 
-import calc.engine.CalculationRecord;
 import calc.engine.Operation;
+import calc.format.DisplayMode;
+import calc.ui.widget.DisplayModeSelector;
+import calc.ui.widget.ExactnessBadge;
+import calc.ui.widget.HistoryLine;
+import calc.ui.widget.HistoryLineRenderer;
+import calc.ui.widget.Palette;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
@@ -39,9 +44,10 @@ import javax.swing.border.EmptyBorder;
 public final class CalculatorFrame extends JFrame {
     private static final long serialVersionUID = 1L;
 
-    private static final Color SUCCESS_COLOR = new Color(18, 93, 56);
-    private static final Color ERROR_COLOR = new Color(163, 44, 44);
-    private static final Color INFO_COLOR = new Color(60, 60, 60);
+    private static final Color SUCCESS_COLOR = Palette.SUCCESS;
+    private static final Color ERROR_COLOR = Palette.ERROR;
+    private static final Color INFO_COLOR = Palette.INFO;
+    static final String NEXT_MODE_ACTION = "next-display-mode";
     private static final String NO_RESULT = "--";
     private static final String RESULT_DESCRIPTION = "Résultat du dernier calcul";
     private static final int RESULT_MAX_PREFERRED_WIDTH = 360;
@@ -57,10 +63,14 @@ public final class CalculatorFrame extends JFrame {
     private final JLabel operationLabel;
     private final JComboBox<Operation> operationSelector;
     private final JLabel inputHintLabel;
+    private final JLabel modeLabel;
+    private final DisplayModeSelector modeSelector;
+    private final ExactnessBadge exactnessBadge;
     private final JLabel resultValueLabel;
+    private final JLabel resultFractionLabel;
     private final JLabel statusLabel;
-    private final DefaultListModel<CalculationRecord> historyModel;
-    private final JList<CalculationRecord> historyList;
+    private final DefaultListModel<HistoryLine> historyModel;
+    private final JList<HistoryLine> historyList;
     private final JButton calculateButton;
     private final JButton clearButton;
     private final JButton clearHistoryButton;
@@ -81,6 +91,10 @@ public final class CalculatorFrame extends JFrame {
         operationSelector = new JComboBox<>(Operation.values());
         operationSelector.setRenderer(new OperationRenderer());
         inputHintLabel = new JLabel();
+        modeLabel = new JLabel("Affichage");
+        modeSelector = new DisplayModeSelector();
+        exactnessBadge = new ExactnessBadge();
+        resultFractionLabel = new JLabel(" ");
         resultValueLabel = new JLabel(NO_RESULT, SwingConstants.RIGHT) {
             // A result text can be long (Décimal mode, error messages): let the layout shrink the label (ellipsis)
             // instead of letting the text widen the window.
@@ -98,6 +112,7 @@ public final class CalculatorFrame extends JFrame {
         statusLabel = new JLabel();
         historyModel = new DefaultListModel<>();
         historyList = new JList<>(historyModel);
+        HistoryLineRenderer.install(historyList);
         calculateButton = new JButton("Calculer");
         clearButton = new JButton("Effacer");
         clearHistoryButton = new JButton("Effacer historique");
@@ -139,7 +154,7 @@ public final class CalculatorFrame extends JFrame {
         title.setFont(title.getFont().deriveFont(Font.BOLD, 22f));
 
         JLabel subtitle = new JLabel(
-                "<html>Entrée calcule, Échap efface, Ctrl+R reprend le dernier résultat. "
+                "<html>Entrée calcule, Échap efface, Ctrl+R reprend le dernier résultat, Ctrl+M change le mode d'affichage. "
                         + "Le résultat se prépare automatiquement pour le calcul suivant.</html>");
         subtitle.setForeground(INFO_COLOR);
 
@@ -206,16 +221,32 @@ public final class CalculatorFrame extends JFrame {
 
         resultValueLabel.setFont(resultValueLabel.getFont().deriveFont(Font.BOLD, 24f));
         statusLabel.setForeground(INFO_COLOR);
+        resultFractionLabel.setForeground(INFO_COLOR);
 
         JLabel helper = new JLabel(
                 "<html>Le résultat est réutilisé et enregistré sans perte, même si l'affichage est abrégé.<br>"
-                        + "12 chiffres significatifs ; « … » : chiffres omis ; « ≈ » : valeur approchée<br>"
-                        + "garantie (borne d'erreur dans l'infobulle).</html>");
+                        + "12 chiffres significatifs ; « … » : chiffres omis ; « ≈ » : valeur approchée garantie "
+                        + "(borne d'erreur dans l'infobulle).</html>");
         helper.setForeground(INFO_COLOR);
 
-        panel.add(resultValueLabel, BorderLayout.CENTER);
+        JPanel modeRow = new JPanel(new BorderLayout(8, 0));
+        JPanel modeChoice = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        modeChoice.add(modeLabel);
+        modeChoice.add(modeSelector);
+        modeRow.add(modeChoice, BorderLayout.WEST);
+        modeRow.add(exactnessBadge, BorderLayout.EAST);
+
+        JPanel top = new JPanel(new BorderLayout(0, 6));
+        top.add(modeRow, BorderLayout.NORTH);
+        top.add(helper, BorderLayout.CENTER);
+
+        JPanel value = new JPanel(new BorderLayout(0, 2));
+        value.add(resultValueLabel, BorderLayout.CENTER);
+        value.add(resultFractionLabel, BorderLayout.SOUTH);
+
+        panel.add(top, BorderLayout.NORTH);
+        panel.add(value, BorderLayout.CENTER);
         panel.add(statusLabel, BorderLayout.SOUTH);
-        panel.add(helper, BorderLayout.NORTH);
         return panel;
     }
 
@@ -254,6 +285,9 @@ public final class CalculatorFrame extends JFrame {
         reuseAsSecondButton.addActionListener(event -> applyViewModel(
                 presenter.onReuseHistoryResult(ReuseTarget.SECOND_NUMBER, firstNumberField.getText(), secondNumberField.getText())));
 
+        modeSelector.onModeChosen(mode -> applyViewModel(
+                presenter.onDisplayModeChanged(mode, firstNumberField.getText(), secondNumberField.getText())));
+
         operationSelector.addActionListener(event -> {
             if (applyingViewModel) {
                 return;
@@ -278,11 +312,18 @@ public final class CalculatorFrame extends JFrame {
         InputMap inputMap = getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
         inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "clear-fields");
         inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_R, InputEvent.CTRL_DOWN_MASK), "reuse-last-result");
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_M, InputEvent.CTRL_DOWN_MASK), NEXT_MODE_ACTION);
 
         getRootPane().getActionMap().put("clear-fields", new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent event) {
                 applyViewModel(presenter.onClearFields(firstNumberField.getText(), secondNumberField.getText()));
+            }
+        });
+        getRootPane().getActionMap().put(NEXT_MODE_ACTION, new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent event) {
+                applyViewModel(presenter.onNextDisplayMode(firstNumberField.getText(), secondNumberField.getText()));
             }
         });
         getRootPane().getActionMap().put("reuse-last-result", new AbstractAction() {
@@ -309,12 +350,13 @@ public final class CalculatorFrame extends JFrame {
             secondNumberField.getAccessibleContext().setAccessibleName(viewModel.secondInputLabel());
             secondNumberField.setToolTipText(viewModel.secondInputTooltip());
             inputHintLabel.setText(viewModel.inputHint());
-            showResult(viewModel.resultValue(), viewModel.resultExact(), viewModel.resultDetail());
+            modeSelector.showMode(viewModel.displayMode());
+            showResult(viewModel);
             setStatusMessage(viewModel.statusMessage(), resolveStatusColor(viewModel.statusTone()));
 
             historyModel.clear();
-            for (CalculationRecord record : viewModel.historyEntries()) {
-                historyModel.addElement(record);
+            for (HistoryLine line : viewModel.historyLines()) {
+                historyModel.addElement(line);
             }
 
             if (viewModel.selectedHistoryIndex() >= 0) {
@@ -374,13 +416,28 @@ public final class CalculatorFrame extends JFrame {
         statusLabel.setText(message);
     }
 
-    private void showResult(String value, boolean exact, String detail) {
+    private void showResult(CalculatorViewModel viewModel) {
+        String value = viewModel.resultValue();
+        String detail = viewModel.resultDetail();
+        boolean exact = viewModel.resultExact();
         resultValueLabel.setText(value);
-        resultValueLabel.setToolTipText(NO_RESULT.equals(value) ? null : toTooltip(value, detail));
+        resultValueLabel.setToolTipText(viewModel.resultShown() ? toTooltip(value, detail) : null);
         resultValueLabel.getAccessibleContext().setAccessibleName(
                 "Résultat : " + value + (exact ? "" : " (valeur approchée)"));
         resultValueLabel.getAccessibleContext().setAccessibleDescription(
                 detail.isEmpty() ? RESULT_DESCRIPTION : RESULT_DESCRIPTION + ". " + detail);
+
+        if (viewModel.resultShown()) {
+            exactnessBadge.showExactness(exact, detail);
+        } else {
+            exactnessBadge.clearBadge();
+        }
+
+        String fraction = viewModel.resultFraction();
+        // A blank text rather than a hidden label: its line stays reserved, so showing a fraction never resizes the window.
+        resultFractionLabel.setText(fraction.isEmpty() ? " " : "Fraction exacte : " + fraction);
+        resultFractionLabel.getAccessibleContext().setAccessibleName(
+                fraction.isEmpty() ? "Fraction exacte" : "Fraction exacte : " + fraction);
     }
 
     // The result, then its detail (error bound or exact value), cut into lines of TOOLTIP_LINE_LENGTH characters.
@@ -410,6 +467,7 @@ public final class CalculatorFrame extends JFrame {
         label(firstNumberLabel, KeyEvent.VK_P, firstNumberField);
         label(operationLabel, KeyEvent.VK_O, operationSelector);
         label(secondNumberLabel, KeyEvent.VK_S, secondNumberField);
+        label(modeLabel, KeyEvent.VK_A, modeSelector);
 
         calculateButton.setMnemonic(KeyEvent.VK_C);
         reuseLastResultButton.setMnemonic(KeyEvent.VK_R);
@@ -423,6 +481,7 @@ public final class CalculatorFrame extends JFrame {
         describe(operationSelector, "Opération", "Choix de l'opération à effectuer");
         describe(historyList, "Historique des calculs", "Liste des calculs précédents, à sélectionner pour les réutiliser");
         describe(resultValueLabel, "Résultat", RESULT_DESCRIPTION);
+        describe(resultFractionLabel, "Fraction exacte", "Fraction exacte du résultat, quand l'affichage est arrondi");
     }
 
     private static void label(JLabel label, int mnemonic, JComponent target) {
@@ -441,6 +500,10 @@ public final class CalculatorFrame extends JFrame {
         firstNumberLabel.setName("firstNumberLabel");
         secondNumberLabel.setName("secondNumberLabel");
         operationLabel.setName("operationLabel");
+        modeLabel.setName("modeLabel");
+        modeSelector.setName("displayModeSelector");
+        exactnessBadge.setName("exactnessBadge");
+        resultFractionLabel.setName("resultFractionLabel");
         operationSelector.setName("operationSelector");
         inputHintLabel.setName("inputHintLabel");
         resultValueLabel.setName("resultValueLabel");

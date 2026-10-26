@@ -10,17 +10,23 @@ import calc.engine.InputField;
 import calc.engine.Operand;
 import calc.engine.Operation;
 import calc.engine.RejectedLine;
+import calc.format.DisplayMode;
 import calc.format.FormattedValue;
+import calc.format.ValueFormatter;
 import calc.number.CertifiedValue;
+import calc.ui.widget.HistoryLine;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class CalculatorPresenter {
     private static final Logger LOGGER = Logger.getLogger(CalculatorPresenter.class.getName());
+    private static final String NO_RESULT = "--";
     private static final String EMPTY_HISTORY_STATUS = "Historique vide. Saisissez un calcul puis appuyez sur Entrée ou cliquez sur Calculer.";
     private static final String RESTORED_HISTORY_STATUS = "Historique restauré. Vous pouvez réutiliser un résultat précédent ou lancer un nouveau calcul.";
     private static final String UNAVAILABLE_HISTORY_STATUS = "L'historique précédent n'a pas pu être restauré. Vous pouvez continuer sans blocage.";
@@ -36,14 +42,18 @@ public class CalculatorPresenter {
 
     private final CalculatorEngine engine;
     private final CalculationHistoryStore historyStore;
+    private final DisplayModeStore modeStore;
     private final List<CalculationRecord> history;
+    // The history entries formatted in the current display mode; emptied when the mode changes or the history is cleared.
+    private final Map<CalculationRecord, HistoryLine> historyLines = new IdentityHashMap<>();
 
     private Operation selectedOperation;
     private String firstInput;
     private String secondInput;
-    private String resultValue;
-    private boolean resultExact;
-    private String resultDetail;
+    private DisplayMode displayMode;
+    // The value of the result on show and its text in the current display mode; null while there is no result.
+    private CertifiedValue shownResult;
+    private FormattedValue shownFormatted;
     // The value put in each field and the text written for it; dropped as soon as the text is changed.
     private FieldValue firstBinding;
     private FieldValue secondBinding;
@@ -58,8 +68,14 @@ public class CalculatorPresenter {
     }
 
     public CalculatorPresenter(CalculatorEngine engine, CalculationHistoryStore historyStore) {
+        this(engine, historyStore, DisplayModeStore.noop());
+    }
+
+    public CalculatorPresenter(CalculatorEngine engine, CalculationHistoryStore historyStore, DisplayModeStore modeStore) {
         this.engine = Objects.requireNonNull(engine);
         this.historyStore = Objects.requireNonNull(historyStore);
+        this.modeStore = Objects.requireNonNull(modeStore);
+        displayMode = initialDisplayMode(modeStore);
         history = new ArrayList<>();
         selectedOperation = Operation.ADDITION;
         firstInput = "";
@@ -97,6 +113,28 @@ public class CalculatorPresenter {
         return buildViewModel();
     }
 
+    /** Shows the result and the history in {@code mode}, without calculating anything again; the mode is remembered. */
+    public CalculatorViewModel onDisplayModeChanged(DisplayMode mode, String currentFirstInput, String currentSecondInput) {
+        syncInputs(currentFirstInput, currentSecondInput);
+        if (mode != null && mode != displayMode) {
+            displayMode = mode;
+            historyLines.clear();
+            if (shownResult != null) {
+                shownFormatted = ValueFormatter.format(shownResult, displayMode);
+            }
+            saveDisplayMode();
+        }
+        focusTarget = FocusTarget.NONE;
+        selectFocusedFieldText = false;
+        return buildViewModel();
+    }
+
+    /** Same as {@link #onDisplayModeChanged} with the mode that follows the current one (the first after the last). */
+    public CalculatorViewModel onNextDisplayMode(String currentFirstInput, String currentSecondInput) {
+        DisplayMode[] modes = DisplayMode.values();
+        return onDisplayModeChanged(modes[(displayMode.ordinal() + 1) % modes.length], currentFirstInput, currentSecondInput);
+    }
+
     public CalculatorViewModel onCalculate(String currentFirstInput, String currentSecondInput) {
         syncInputs(currentFirstInput, currentSecondInput);
         try {
@@ -104,7 +142,7 @@ public class CalculatorPresenter {
                     selectedOperation, operand(firstBinding, firstInput), operand(secondBinding, secondInput));
             history.add(record);
             selectedHistoryIndex = history.size() - 1;
-            showResult(record.getFormatted());
+            showResult(record.getResult());
             firstBinding = bind(record);
             firstInput = firstBinding.text();
             secondInput = "";
@@ -148,6 +186,7 @@ public class CalculatorPresenter {
     public CalculatorViewModel onClearHistory() {
         List<CalculationRecord> previousHistory = new ArrayList<>(history);
         history.clear();
+        historyLines.clear();
         selectedHistoryIndex = -1;
         focusTarget = FocusTarget.NONE;
         selectFocusedFieldText = false;
@@ -262,27 +301,59 @@ public class CalculatorPresenter {
         return new FieldValue(record.getReusableValue(), record.getResult());
     }
 
-    private void showResult(FormattedValue result) {
-        resultValue = result.text();
-        resultExact = result.exact();
-        resultDetail = describe(result);
+    private void showResult(CertifiedValue result) {
+        shownResult = result;
+        shownFormatted = ValueFormatter.format(result, displayMode);
     }
 
     private void clearResult() {
-        resultValue = "--";
-        resultExact = true;
-        resultDetail = "";
+        shownResult = null;
+        shownFormatted = null;
     }
 
-    // Secondary information on the result: the error bound of an approximate value, the exact value behind a cut text.
+    private static DisplayMode initialDisplayMode(DisplayModeStore store) {
+        try {
+            DisplayMode stored = store.load();
+            return stored != null ? stored : DisplayMode.AUTO;
+        } catch (RuntimeException exception) {
+            LOGGER.log(Level.WARNING, "Cannot read the display mode, using Auto", exception);
+            return DisplayMode.AUTO;
+        }
+    }
+
+    private void saveDisplayMode() {
+        try {
+            modeStore.save(displayMode);
+        } catch (RuntimeException exception) {
+            LOGGER.log(Level.WARNING, "Cannot remember the display mode", exception);
+        }
+    }
+
+    // Explains the exactness mark: the error bound of an approximate value, the exact value behind a cut text.
     private static String describe(FormattedValue result) {
         if (!result.exact()) {
-            return "Valeur approchée, erreur au plus " + result.errorBound().orElseThrow();
+            return "Erreur maximale : " + result.errorBound().orElseThrow();
         }
         if (result.truncated()) {
-            return "Valeur exacte : " + result.exactFraction().orElse(result.canonical());
+            return "Valeur exacte : " + result.exactFraction().orElse(result.canonical()) + " (affichage arrondi)";
         }
         return "";
+    }
+
+    // The exact fraction is secondary information when the main text cuts the value and does not already show it.
+    private static String secondaryFraction(FormattedValue result) {
+        return result.exactFraction()
+                .filter(fraction -> result.truncated() && !fraction.equals(result.text()))
+                .orElse("");
+    }
+
+    private HistoryLine historyLine(CalculationRecord record) {
+        return historyLines.computeIfAbsent(record, entry -> {
+            FormattedValue formatted = displayMode == DisplayMode.AUTO
+                    ? entry.getFormatted()
+                    : ValueFormatter.format(entry.getResult(), displayMode);
+            return new HistoryLine(entry.getExpression(), formatted.text(), formatted.exact(), describe(formatted));
+        });
     }
 
     private CalculationRecord resolveSelectedOrLatestRecord() {
@@ -318,12 +389,18 @@ public class CalculatorPresenter {
                         ? "Saisissez le second nombre."
                         : "Ce champ n'est pas utilisé pour la racine carrée.",
                 OperationText.inputHint(selectedOperation),
-                resultValue,
-                resultExact,
-                resultDetail,
+                displayMode,
+                shownFormatted != null,
+                shownFormatted != null ? shownFormatted.text() : NO_RESULT,
+                shownFormatted == null || shownFormatted.exact(),
+                shownFormatted != null && shownFormatted.truncated(),
+                shownFormatted != null ? shownFormatted.errorBound().orElse("") : "",
+                shownFormatted != null ? secondaryFraction(shownFormatted) : "",
+                shownFormatted != null ? describe(shownFormatted) : "",
                 statusMessage,
                 statusTone,
                 history,
+                history.stream().map(this::historyLine).toList(),
                 selectedHistoryIndex,
                 focusTarget,
                 selectFocusedFieldText);

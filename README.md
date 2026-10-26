@@ -23,12 +23,15 @@ Ce projet ne cherche pas à impressionner par un catalogue d'opérations. Il che
 - Réutilisation sans perte : un résultat repris, enregistré ou rechargé garde sa valeur exacte (`1 / 3` repris puis `× 3` donne `1`)
 - Apparence native : l'application adopte le style du système (Windows, macOS, Linux) et retombe sur l'apparence Java par défaut si elle n'est pas disponible
 - Accessibilité : chaque champ est associé à son libellé, tous les composants ont un nom accessible et l'ordre de tabulation suit la lecture (nombres et opération, boutons de calcul, historique et ses boutons)
-- Affichage lisible : 12 chiffres significatifs, « … » quand des chiffres sont omis, « ≈ » pour une valeur approchée ; l'info-bulle du résultat donne la valeur exacte ou la borne d'erreur
+- Affichage lisible : 12 chiffres significatifs, « … » quand des chiffres sont omis, « ≈ » pour une valeur approchée
+- Exactitude visible : un badge « Exact » ou « ≈ Approché » accompagne le résultat (le texte dit toujours ce que la couleur dit) ; son info-bulle donne « Erreur maximale : ± … » pour une valeur approchée, ou « Valeur exacte : 1/3 (affichage arrondi) » quand le texte est arrondi, et la fraction exacte est rappelée sous le résultat
+- Mode d'affichage : le sélecteur « Affichage » (Auto, Décimal, Fraction, Scientifique) met en forme le résultat et l'historique sans recalculer ni modifier aucune valeur ; le choix est mémorisé entre deux lancements (préférences Java `java.util.prefs`, nœud `/calc/display`) et, si les préférences sont inaccessibles, l'application démarre en mode Auto
 - Raccourcis utiles :
   - `Entrée` : calculer
   - `Échap` : effacer les champs
   - `Ctrl+R` : reprendre le dernier résultat
-  - `Alt` + lettre soulignée : atteindre un champ ou activer un bouton (`Alt+P` premier nombre, `Alt+O` opération, `Alt+S` second nombre, `Alt+C` calculer, `Alt+R` reprendre dernier résultat, `Alt+E` effacer, `Alt+1` / `Alt+2` vers nombre 1 / 2, `Alt+H` effacer l'historique). Sous Windows, les lettres soulignées n'apparaissent qu'après un appui sur `Alt`.
+  - `Ctrl+M` : passer au mode d'affichage suivant (Auto, Décimal, Fraction, Scientifique, puis Auto) ; aucune autre liaison de la fenêtre ni des composants Swing n'utilise cette combinaison (contrôlé par un test avec l'apparence Java et l'apparence Windows ; non contrôlé sous macOS et Linux), et sous macOS la combinaison utilise `Ctrl`, pas `Cmd` : `Cmd+M` (minimiser) n'est pas touché
+  - `Alt` + lettre soulignée : atteindre un champ ou activer un bouton (`Alt+P` premier nombre, `Alt+O` opération, `Alt+S` second nombre, `Alt+A` mode d'affichage, `Alt+C` calculer, `Alt+R` reprendre dernier résultat, `Alt+E` effacer, `Alt+1` / `Alt+2` vers nombre 1 / 2, `Alt+H` effacer l'historique). Sous Windows, les lettres soulignées n'apparaissent qu'après un appui sur `Alt`.
 
 ## Architecture
 
@@ -48,7 +51,9 @@ Le projet est volontairement compact, mais les responsabilités sont séparées 
 - `calc.format` : `ValueFormatter`, seul endroit où une valeur devient texte (modes Auto, Décimal, Fraction, Scientifique, texte canonique réutilisable ; voir `docs/adr/0004-regles-affichage.md`)
 - `calc.ui` : interface
   - `CalculatorPresenter` : logique d'interaction, gestion d'historique, statut, focus, préparation du workflow suivant et mémoire de la valeur placée dans chaque champ ; testable sans interface graphique
-  - `CalculatorViewModel` (record immuable), `FocusTarget`, `ReuseTarget`, `StatusTone`, `OperationText` (libellés des opérations)
+  - `CalculatorViewModel` (record immuable, textes déjà prêts à afficher), `FocusTarget`, `ReuseTarget`, `StatusTone`, `OperationText` (libellés des opérations)
+  - `DisplayModeStore` / `PreferencesDisplayModeStore` : mémorisation du mode d'affichage (`java.util.prefs`, erreurs tolérées et journalisées)
+  - `calc.ui.widget` : composants Swing réutilisables, sans dépendance à la fenêtre : `DisplayModeSelector` (liste déroulante des modes), `ExactnessBadge` (« Exact » / « ≈ Approché » et son info-bulle), `HistoryLine` + `HistoryLineRenderer` (ligne d'historique déjà formatée et son rendu), `Palette` et `Contrast` (couleurs et rapport de contraste WCAG)
   - `CalculatorFrame` : rendu Swing et branchement des actions utilisateur
 
 Cette séparation permet de tester les parcours d'usage critiques sans dépendre d'une vérification manuelle de l'UI.
@@ -94,7 +99,9 @@ Le projet fournit des tests JUnit 5 et des propriétés jqwik (`src/test/java`, 
 - saisie des fractions, de la notation scientifique et des milliers (espaces insécables), refus de l'espace ordinaire et des formes ambiguës
 - historique : restauration partielle, copies `.bak`, BOM, ancien format sans en-tête, version inconnue non écrasée, mode protégé, écriture atomique et échec d'écriture
 - workflow après un calcul réussi, réutilisation d'un résultat d'historique, statuts affichés
-- vérification Swing des raccourcis, du changement unaire/binaire, de la réutilisation depuis l'UI et de l'accessibilité (mnémoniques distincts, libellés associés, noms accessibles, ordre de tabulation, info-bulle du résultat long)
+- vérification Swing des raccourcis, du changement unaire/binaire, de la réutilisation depuis l'UI et de l'accessibilité (mnémoniques distincts, libellés associés, noms accessibles, ordre de tabulation, info-bulle du résultat long) ; sélecteur de mode, badge d'exactitude, rendu de l'historique selon le mode, raccourci `Ctrl+M` sans conflit, mode mémorisé
+- accents des textes visibles : un test lit les littéraux des sources qui portent des textes affichés et refuse les formes sans accent connues
+- contrastes : chaque couleur de texte de statut et de badge atteint au moins 4,5:1 sur son fond
 - non-régression : 70 cas de référence (`src/test/resources/golden/engine-v2.tsv`) rejoués contre le moteur et le présentateur, sortie par sortie (affichage, valeur réutilisable ou message d'erreur) ; chaque écart avec la version 1 (`engine-v1.tsv`) est justifié dans [docs/changements-comportement-E06.md](docs/changements-comportement-E06.md) ; les historiques de référence se trouvent dans `src/test/resources/legacy/v1`
 - tests par propriétés et de robustesse (jqwik) : arithmétique comparée à un oracle indépendant, erreurs, aller-retour et fuzzing de l'historique, fuzzing de la saisie, séquences aléatoires d'actions du présentateur ; voir [docs/TESTS.md](docs/TESTS.md)
 
@@ -202,5 +209,4 @@ Le script lance `gradlew.bat run` : Gradle compile le projet puis démarre l'app
 - **Deux opérandes** : le modèle de calcul est « nombre, opération, nombre » ; il n'y a pas de saisie d'expression (parenthèses, priorités).
 - **Packaging Windows uniquement** : l'application portable est produite pour Windows et n'est pas signée ; il n'y a ni installeur ni release automatisée. Sous Linux et macOS, l'application se lance avec `java -jar build/libs/calc.jar` après `./gradlew jar`.
 - **Historique et valeurs approchées** : le format de fichier actuel ne stocke pas d'intervalle ; une entrée calculée à partir d'une valeur approchée réutilisée est rechargée comme le résultat exact de son opérande enregistré (un point de l'intervalle affiché). Une puissance d'une telle valeur au-delà d'environ 48 ne peut pas être enregistrée : la ligne est écartée, avec une copie de sauvegarde, au rechargement suivant. Le format de la version suivante stockera les intervalles.
-- **Mode d'affichage** : la fenêtre affiche le mode Auto ; les modes Décimal, Fraction et Scientifique existent dans le moteur d'affichage mais ne sont pas encore proposés dans l'interface.
 - Les tests UI couvrent les parcours critiques, pas un rendu graphique pixel par pixel.
