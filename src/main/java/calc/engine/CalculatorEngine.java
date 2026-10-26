@@ -1,140 +1,86 @@
 package calc.engine;
 
-import java.math.BigDecimal;
+import calc.number.CertifiedValue;
+import calc.number.NumericError;
+import calc.number.NumericException;
 
+/**
+ * Computes one operation with the exact numeric core ({@code calc.number}): every result is exact, or approximate with a
+ * certified interval (a root that is not exact). Each refusal of the core is translated into a French message and the
+ * {@link InputField} it concerns (docs/adr/0004-regles-affichage.md).
+ */
 public class CalculatorEngine {
-    private static final BigDecimal MAX_ABSOLUTE_EXPONENT = BigDecimal.valueOf(DecimalPolicy.MAX_ABSOLUTE_INTEGER_EXPONENT);
-    private static final String TOO_MANY_DIGITS_MESSAGE =
-            "Le résultat dépasse " + DecimalPolicy.MAX_DISPLAY_DIGITS + " chiffres (réduisez les nombres saisis).";
-    private static final String TOO_MANY_DIGITS_POWER_MESSAGE =
-            "Le résultat dépasse " + DecimalPolicy.MAX_DISPLAY_DIGITS + " chiffres (réduisez l'exposant ou la base).";
+    private static final String TOO_LARGE_MESSAGE =
+            "Le résultat dépasse la taille maximale d'un calcul exact (réduisez les nombres saisis).";
+    private static final String TOO_LARGE_POWER_MESSAGE =
+            "Le résultat dépasse la taille maximale d'un calcul exact (réduisez l'exposant ou la base).";
     private static final String UNEXPECTED_ARITHMETIC_MESSAGE =
             "Le calcul n'a pas pu être effectué sur des nombres de cette taille.";
 
+    /** Both operands are typed texts. */
     public CalculationRecord calculate(Operation operation, String firstInput, String secondInput) throws CalculationException {
+        return calculate(operation, Operand.typed(firstInput), Operand.typed(secondInput));
+    }
+
+    /**
+     * The operands are typed texts or values already known. The first operand is checked before the second; the second
+     * is not read for a unary operation.
+     */
+    public CalculationRecord calculate(Operation operation, Operand first, Operand second) throws CalculationException {
         if (operation == null) {
             throw new CalculationException("Choisissez une opération.", InputField.NONE);
         }
-
-        BigDecimal firstValue = parseNumber(
-                firstInput,
-                "Saisissez le premier nombre.",
-                "Le premier nombre est invalide. Utilisez des chiffres, un signe et une virgule ou un point.",
-                "Le premier nombre est trop long (" + DecimalPolicy.MAX_INPUT_LENGTH + " caractères maximum).",
-                InputField.FIRST);
-
-        BigDecimal secondValue = BigDecimal.ZERO;
-        if (operation.requiresSecondOperand()) {
-            secondValue = parseNumber(
-                    secondInput,
-                    "Saisissez le second nombre.",
-                    "Le second nombre est invalide. Utilisez des chiffres, un signe et une virgule ou un point.",
-                    "Le second nombre est trop long (" + DecimalPolicy.MAX_INPUT_LENGTH + " caractères maximum).",
-                    InputField.SECOND);
-        }
-
-        BigDecimal resultValue = apply(operation, firstValue, secondValue);
-        String firstDisplay = DecimalPolicy.format(firstValue);
-        String secondDisplay = operation.requiresSecondOperand() ? DecimalPolicy.format(secondValue) : "";
-        return new CalculationRecord(operation, firstDisplay, secondDisplay, resultValue);
-    }
-
-    private BigDecimal apply(Operation operation, BigDecimal firstValue, BigDecimal secondValue) throws CalculationException {
-        BigDecimal result;
+        CertifiedValue firstValue = first.resolve(InputField.FIRST);
+        CertifiedValue secondValue = operation.requiresSecondOperand() ? second.resolve(InputField.SECOND) : null;
         try {
-            result = compute(operation, firstValue, secondValue);
+            return new CalculationRecord(operation, firstValue, secondValue, compute(operation, firstValue, secondValue));
+        } catch (NumericException exception) {
+            throw translate(operation, exception.error());
         } catch (ArithmeticException exception) {
             throw new CalculationException(UNEXPECTED_ARITHMETIC_MESSAGE, InputField.NONE);
         }
-        if (DecimalPolicy.exceedsDisplayDigits(result)) {
-            throw new CalculationException(TOO_MANY_DIGITS_MESSAGE, InputField.NONE);
-        }
-        return result;
     }
 
-    private BigDecimal compute(Operation operation, BigDecimal firstValue, BigDecimal secondValue) throws CalculationException {
-        switch (operation) {
-            case ADDITION:
-                return DecimalPolicy.normalize(firstValue.add(secondValue));
-            case SUBTRACTION:
-                return DecimalPolicy.normalize(firstValue.subtract(secondValue));
-            case MULTIPLICATION:
-                return DecimalPolicy.normalize(firstValue.multiply(secondValue));
-            case DIVISION:
-                if (secondValue.compareTo(BigDecimal.ZERO) == 0) {
-                    throw new CalculationException("Le second nombre doit être différent de 0 pour une division.", InputField.SECOND);
-                }
-                return DecimalPolicy.divide(firstValue, secondValue);
-            case POWER:
-                return applyPower(firstValue, secondValue);
-            case ROOT:
-                if (firstValue.signum() < 0) {
-                    throw new CalculationException("La racine carrée d'un nombre négatif n'est pas définie en réel.", InputField.FIRST);
-                }
-                return DecimalPolicy.sqrt(firstValue);
-            default:
-                throw new CalculationException("Opération non prise en charge.", InputField.NONE);
-        }
+    private static CertifiedValue compute(Operation operation, CertifiedValue first, CertifiedValue second)
+            throws NumericException {
+        return switch (operation) {
+            case ADDITION -> first.add(second);
+            case SUBTRACTION -> first.subtract(second);
+            case MULTIPLICATION -> first.multiply(second);
+            case DIVISION -> first.divide(second);
+            case POWER -> first.pow(second);
+            case ROOT -> first.sqrt();
+        };
     }
 
-    private BigDecimal applyPower(BigDecimal firstValue, BigDecimal secondValue) throws CalculationException {
-        if (!DecimalPolicy.isIntegerValue(secondValue)) {
-            throw new CalculationException("L'exposant doit être un entier.", InputField.SECOND);
-        }
-        if (secondValue.abs().compareTo(MAX_ABSOLUTE_EXPONENT) > 0) {
-            throw new CalculationException(
-                    "L'exposant doit être compris entre -"
-                            + DecimalPolicy.MAX_ABSOLUTE_INTEGER_EXPONENT
-                            + " et "
-                            + DecimalPolicy.MAX_ABSOLUTE_INTEGER_EXPONENT
-                            + ".",
+    private static CalculationException translate(Operation operation, NumericError error) {
+        boolean power = operation == Operation.POWER;
+        return switch (error) {
+            case DIVISION_BY_ZERO -> power
+                    ? new CalculationException("0 ne peut pas être élevé à une puissance négative.", InputField.FIRST)
+                    : new CalculationException("Le second nombre doit être différent de 0 pour une division.", InputField.SECOND);
+            case DIVISOR_MAY_BE_ZERO -> power
+                    ? new CalculationException("Le premier nombre est une valeur approchée qui peut valoir 0 : il ne peut pas"
+                            + " être élevé à une puissance négative.", InputField.FIRST)
+                    : new CalculationException("Le second nombre est une valeur approchée qui peut valoir 0 : la division"
+                            + " est impossible.", InputField.SECOND);
+            case ROOT_OF_NEGATIVE -> new CalculationException(
+                    "La racine carrée d'un nombre négatif n'est pas définie en réel.", InputField.FIRST);
+            case ROOT_OF_POSSIBLY_NEGATIVE -> new CalculationException(
+                    "Le premier nombre est une valeur approchée qui peut être négative : sa racine carrée n'est pas définie.",
+                    InputField.FIRST);
+            case EXPONENT_NOT_INTEGER -> new CalculationException("L'exposant doit être un entier.", InputField.SECOND);
+            case EXPONENT_NOT_EXACT -> new CalculationException(
+                    "L'exposant est une valeur approchée : il doit être un entier exact.", InputField.SECOND);
+            case EXPONENT_OUT_OF_RANGE -> new CalculationException(
+                    "L'exposant doit être compris entre -" + CalculationLimits.MAX_ABSOLUTE_INTEGER_EXPONENT
+                            + " et " + CalculationLimits.MAX_ABSOLUTE_INTEGER_EXPONENT + ".",
                     InputField.SECOND);
-        }
-
-        int exponent = secondValue.intValueExact();
-        BigDecimal base = DecimalPolicy.normalize(firstValue);
-        if (base.signum() == 0 && exponent < 0) {
-            throw new CalculationException("0 ne peut pas être élevé à une puissance négative.", InputField.FIRST);
-        }
-        long estimatedDigits = (long) Math.max(base.precision(), base.scale()) * Math.abs(exponent);
-        if (estimatedDigits > DecimalPolicy.MAX_DISPLAY_DIGITS) {
-            throw new CalculationException(TOO_MANY_DIGITS_POWER_MESSAGE, InputField.SECOND);
-        }
-        return DecimalPolicy.pow(base, exponent);
-    }
-
-    private BigDecimal parseNumber(String input, String missingMessage, String invalidMessage, String tooLongMessage, InputField field)
-            throws CalculationException {
-        if (input == null || input.trim().isEmpty()) {
-            throw new CalculationException(missingMessage, field);
-        }
-
-        String trimmedInput = input.trim();
-        if (trimmedInput.length() > DecimalPolicy.MAX_INPUT_LENGTH) {
-            throw new CalculationException(tooLongMessage, field);
-        }
-
-        String compactInput = DecimalPolicy.removeThousandsSeparators(DecimalPolicy.stripEdgeSpaces(trimmedInput));
-        if (compactInput.isEmpty()) {
-            throw new CalculationException(missingMessage, field);
-        }
-
-        String normalizedInput = compactInput.replace(',', '.');
-        if (!DecimalPolicy.isSupportedInput(normalizedInput)) {
-            throw new CalculationException(invalidMessage, field);
-        }
-
-        BigDecimal value;
-        try {
-            value = DecimalPolicy.parseNormalizedInput(normalizedInput);
-        } catch (NumberFormatException exception) {
-            throw new CalculationException(invalidMessage, field);
-        }
-        // The history stores the canonical text, which gains a "0" before a bare decimal point (".5" -> "0,5"):
-        // it must fit the bound too, or a saved entry would be refused as too long when it is read back.
-        if (DecimalPolicy.format(value).length() > DecimalPolicy.MAX_INPUT_LENGTH) {
-            throw new CalculationException(tooLongMessage, field);
-        }
-        return value;
+            case SIZE_LIMIT_EXCEEDED -> power
+                    ? new CalculationException(TOO_LARGE_POWER_MESSAGE, InputField.SECOND)
+                    : new CalculationException(TOO_LARGE_MESSAGE, InputField.NONE);
+            // Only parsing raises it, and operands are parsed before computing.
+            case MALFORMED_INPUT -> new CalculationException(UNEXPECTED_ARITHMETIC_MESSAGE, InputField.NONE);
+        };
     }
 }

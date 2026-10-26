@@ -72,7 +72,7 @@ public class CalculatorHistoryPersistenceTest {
     }
 
     @Test
-    void testRoundedResultStaysStableAcrossPersistence(@TempDir Path tempDirectory) throws Exception {
+    void testExactResultStaysExactAcrossPersistence(@TempDir Path tempDirectory) throws Exception {
         Path historyFile = tempDirectory.resolve("history.tsv");
 
         CalculatorPresenter firstSession = new CalculatorPresenter(
@@ -87,15 +87,14 @@ public class CalculatorHistoryPersistenceTest {
         CalculatorViewModel restoredView = secondSession.createInitialView();
 
         assertEquals(
-                "1 / 3 = 0,333333333333",
+                "1 / 3 = 0,333333333333…",
                 restoredView.historyEntries().get(0).toString(),
-                "Rounded values should keep the same readable precision after relaunch.");
+                "The entry reads the same after relaunch.");
 
         CalculatorViewModel reusedView = secondSession.onReuseLastResult("", "");
-        assertEquals(
-                "0,333333333333",
-                reusedView.firstInput(),
-                "The reused value after relaunch should match the displayed rounded result exactly.");
+        assertEquals("1/3", reusedView.firstInput(), "The reused value after relaunch is still the exact value.");
+        secondSession.onOperationChanged(Operation.MULTIPLICATION, reusedView.firstInput(), "");
+        assertEquals("1", secondSession.onCalculate(reusedView.firstInput(), "3").resultValue(), "(1 / 3) * 3 is still exactly 1.");
     }
 
     @Test

@@ -12,17 +12,23 @@ import net.jqwik.api.Tuple;
  *
  * <p>Every valid generator returns a {@link DecimalText}: the text the user would type and the value it denotes, built
  * from the same parts. The value therefore never comes from the production parser, so it can serve as an oracle.
- * The generators only know the input grammar documented in the README (sign, digits, comma or point, thousands
- * separators, edge spaces) and the public length bound.
+ * The generators only know the input grammar of docs/adr/0004-regles-affichage.md (sign, digits, comma or point,
+ * no-break spaces between groups of thousands, edge spaces, scientific exponent, fraction) and the public bounds.
  */
 public final class DecimalGenerators {
     /** The longest operand the calculator accepts, in characters (the public bound of the input length). */
-    public static final int MAX_LENGTH = 1005;
+    public static final int MAX_LENGTH = 4100;
+
+    /**
+     * The most digits a decimal may have, whatever the place of its separator, and still fit the exact core: below
+     * {@code 10^1233} and with at most 1233 decimals, its numerator and its denominator stay within 4096 bits.
+     */
+    public static final int MAX_DIGITS = 1233;
 
     public static final char NO_BREAK_SPACE = (char) 0x00A0;
     public static final char NARROW_NO_BREAK_SPACE = (char) 0x202F;
 
-    private static final char[] GROUPING_SEPARATORS = {' ', NO_BREAK_SPACE, NARROW_NO_BREAK_SPACE};
+    private static final char[] GROUPING_SEPARATORS = {NO_BREAK_SPACE, NARROW_NO_BREAK_SPACE};
     private static final char[] EDGE_SPACES = {' ', '\t', NO_BREAK_SPACE, NARROW_NO_BREAK_SPACE};
     private static final int SHORT_DIGITS = 30;
     private static final int OPERAND_DIGITS = 40;
@@ -41,9 +47,9 @@ public final class DecimalGenerators {
     private DecimalGenerators() {
     }
 
-    /** Valid decimals of any length up to the input bound, with the edge lengths (1 digit, the maximum) over-represented. */
+    /** Valid decimals of any size the core accepts, with the edge lengths (1 digit, the input bound) over-represented. */
     public static Arbitrary<DecimalText> decimals() {
-        return Arbitraries.frequencyOf(Tuple.of(8, decimals(MAX_LENGTH)), Tuple.of(1, atTheBound()));
+        return Arbitraries.frequencyOf(Tuple.of(8, decimals(MAX_DIGITS + 3)), Tuple.of(1, atTheBound()));
     }
 
     /** Valid decimals of at most {@code maxLength} characters, canonical text included (at least 4). */
@@ -52,7 +58,7 @@ public final class DecimalGenerators {
             throw new IllegalArgumentException("maxLength must be at least 4");
         }
         // Room for a sign, a separator and the "0" the canonical text puts before a bare decimal point.
-        int maxDigits = maxLength - 3;
+        int maxDigits = Math.min(maxLength - 3, MAX_DIGITS);
         Arbitrary<Integer> digitCount = Arbitraries.frequencyOf(
                 Tuple.of(10, Arbitraries.integers().between(1, Math.min(SHORT_DIGITS, maxDigits))),
                 Tuple.of(2, Arbitraries.integers().between(1, maxDigits)),
@@ -61,36 +67,22 @@ public final class DecimalGenerators {
     }
 
     /**
-     * The longest valid decimals, in every shape (with or without sign, integer part, decimal separator): the text
-     * is {@link #MAX_LENGTH} characters long, or one less when it has no integer digit, so that its canonical text
-     * (which gains a "0" before the bare decimal point) is {@link #MAX_LENGTH} characters long at most.
+     * Valid decimals of exactly {@link #MAX_LENGTH} characters, in every shape (with or without sign, integer part,
+     * decimal separator): {@link #MAX_DIGITS} digits padded with zeros that do not change the size of the value, leading
+     * zeros in the integer part or trailing zeros in the fractional part.
      */
     public static Arbitrary<DecimalText> atTheBound() {
-        return Combinators.combine(signs(), separators(), Arbitraries.of(true, true, false), Arbitraries.integers().between(0, MAX_LENGTH),
-                        Arbitraries.strings().withCharRange('0', '9').ofLength(MAX_LENGTH))
-                .as((sign, separator, withSeparator, split, allDigits) -> {
-                    boolean bare = withSeparator && split == 0;
-                    int digitCount = MAX_LENGTH - sign.length() - (withSeparator ? 1 : 0) - (bare ? 1 : 0);
-                    String digits = allDigits.substring(0, digitCount);
-                    int integerLength = withSeparator ? (bare ? 0 : Math.min(split, digitCount)) : digitCount;
-                    String fraction = withSeparator ? digits.substring(integerLength) : "";
-                    String text = sign + digits.substring(0, integerLength) + (withSeparator ? String.valueOf(separator) : "") + fraction;
-                    return parsed(text, sign, digits.substring(0, integerLength), fraction);
-                });
-    }
-
-    /**
-     * Valid decimals of {@link #MAX_LENGTH} characters with no integer digit (".5", "-,5"): they are the one shape whose
-     * canonical text ("0,5") is longer than what was typed, so the calculator refuses them as too long.
-     */
-    public static Arbitrary<DecimalText> bareDecimalPointAtTheBound() {
-        // No "+" sign: the canonical text drops it, which pays for the added "0".
-        return Combinators.combine(Arbitraries.of("", "-"), separators(), Arbitraries.strings().withCharRange('0', '9').ofLength(MAX_LENGTH),
-                        Arbitraries.chars().range('1', '9'))
-                .as((sign, separator, allDigits, lastDigit) -> {
-                    // The last digit is not a zero: trailing zeros are dropped from the canonical text, which would shorten it.
-                    String fraction = allDigits.substring(0, MAX_LENGTH - sign.length() - 2) + lastDigit;
-                    return parsed(sign + separator + fraction, sign, "", fraction);
+        return Combinators.combine(signs(), separators(), Arbitraries.of(true, true, false), Arbitraries.integers().between(0, MAX_DIGITS),
+                        Arbitraries.strings().withCharRange('0', '9').ofLength(MAX_DIGITS), Arbitraries.of(true, false))
+                .as((sign, separator, withSeparator, split, digits, padTheIntegerPart) -> {
+                    String integerDigits = withSeparator ? digits.substring(0, split) : digits;
+                    String fractionDigits = withSeparator ? digits.substring(split) : "";
+                    String zeros = "0".repeat(MAX_LENGTH - sign.length() - digits.length() - (withSeparator ? 1 : 0));
+                    boolean leadingZeros = padTheIntegerPart || !withSeparator;
+                    String integerPart = leadingZeros ? zeros + integerDigits : integerDigits;
+                    String fractionPart = leadingZeros ? fractionDigits : fractionDigits + zeros;
+                    String text = sign + integerPart + (withSeparator ? String.valueOf(separator) : "") + fractionPart;
+                    return parsed(text, sign, integerPart, fractionPart);
                 });
     }
 
@@ -109,12 +101,25 @@ public final class DecimalGenerators {
                 });
     }
 
-    /** Valid decimals whose integer part is written with thousands separators (space, no-break or narrow no-break space). */
+    /** Valid decimals whose integer part is written with thousands separators (no-break or narrow no-break space). */
     public static Arbitrary<DecimalText> grouped() {
+        return grouped(Arbitraries.of(GROUPING_SEPARATORS[0], GROUPING_SEPARATORS[1]));
+    }
+
+    /**
+     * Decimals grouped like {@link #grouped()} but with at least one ordinary space between the groups: refused, since
+     * a space separates the tokens of an expression (docs/adr/0004-regles-affichage.md, section 7).
+     */
+    public static Arbitrary<String> groupedWithOrdinarySpaces() {
+        return grouped(Arbitraries.of(' ', ' ', NO_BREAK_SPACE, NARROW_NO_BREAK_SPACE))
+                .map(DecimalText::text)
+                .filter(text -> text.indexOf(' ') >= 0);
+    }
+
+    private static Arbitrary<DecimalText> grouped(Arbitrary<Character> groupSeparator) {
         Arbitrary<Integer> groups = Arbitraries.integers().between(1, 6);
         Arbitrary<String> head = Arbitraries.strings().withCharRange('0', '9').ofMinLength(1).ofMaxLength(3);
         Arbitrary<String> fraction = Arbitraries.strings().withCharRange('0', '9').ofMaxLength(12);
-        Arbitrary<Character> groupSeparator = Arbitraries.of(GROUPING_SEPARATORS[0], GROUPING_SEPARATORS[1], GROUPING_SEPARATORS[2]);
         return groups.flatMap(count -> Combinators.combine(
                         signs(),
                         head,
@@ -173,12 +178,13 @@ public final class DecimalGenerators {
     }
 
     /**
-     * Texts that are certainly not a valid operand and not blank: a letter, a non-ASCII digit, a scientific exponent,
-     * two decimal separators, a misplaced sign or a lone sign or separator.
+     * Texts that are certainly not a valid operand and not blank: a letter, a non-ASCII digit, an exponent without
+     * digits, two decimal separators, a misplaced sign or fraction bar, or a lone sign or separator.
      */
     public static Arbitrary<String> invalidDecimals() {
         Arbitrary<String> valid = decimals(40).map(DecimalText::text);
-        Arbitrary<Character> letters = Arbitraries.chars().alpha();
+        // Not e or E: inserted in a number, they make a valid scientific notation.
+        Arbitrary<Character> letters = Arbitraries.chars().alpha().filter(letter -> letter != 'e' && letter != 'E');
         // Arabic-Indic, Extended Arabic-Indic, Devanagari, fullwidth and mathematical double-struck digits.
         Arbitrary<String> nonAsciiDigit = Arbitraries.of(0x0663, 0x06F5, 0x0967, 0xFF15, 0x1D7D8)
                 .map(codePoint -> new String(Character.toChars(codePoint)));
@@ -186,14 +192,39 @@ public final class DecimalGenerators {
                 .as((text, letter, position) -> insert(text, letter.toString(), position));
         Arbitrary<String> digitInserted = Combinators.combine(valid, nonAsciiDigit, Arbitraries.integers().between(0, 40))
                 .as(DecimalGenerators::insert);
-        Arbitrary<String> exponent = Combinators.combine(valid, Arbitraries.of("e", "E"), Arbitraries.integers().between(-9, 99))
-                .as((text, marker, power) -> text + marker + power);
+        Arbitrary<String> exponent = Combinators.combine(valid, Arbitraries.of("e", "E", "e+", "E-", "e1,5", "e."))
+                .as((text, marker) -> text + marker);
+        Arbitrary<String> misplacedBar = Combinators.combine(valid, Arbitraries.of("/", "//", "/1/2", "/,"))
+                .as((text, bar) -> text + bar);
         Arbitrary<String> twoSeparators = Combinators.combine(Arbitraries.of(".", ","), Arbitraries.of(".", ","))
                 .as((first, second) -> "1" + first + "2" + second + "3");
         Arbitrary<String> trailingSign = valid.map(text -> text + "-");
         Arbitrary<String> doubledSign = Arbitraries.of("+-5", "--5", "++5", "-+5", "5+", "+ 5", "- 5");
-        Arbitrary<String> lone = Arbitraries.of("+", "-", ".", ",", "+.", "-,", ".,", "..", ",,", "+-", "e", "NaN", "Infinity");
-        return Arbitraries.oneOf(letterInserted, digitInserted, exponent, twoSeparators, trailingSign, doubledSign, lone);
+        Arbitrary<String> lone = Arbitraries.of("+", "-", ".", ",", "+.", "-,", ".,", "..", ",,", "+-", "e", "e5", "/", "/2", "NaN", "Infinity");
+        return Arbitraries.oneOf(letterInserted, digitInserted, exponent, misplacedBar, twoSeparators, trailingSign, doubledSign, lone);
+    }
+
+    /** Decimals in scientific notation ({@code -1,5e-7}, {@code 3E+2}), with an exponent small enough for any mantissa. */
+    public static Arbitrary<DecimalText> scientific() {
+        return Combinators.combine(decimals(30), Arbitraries.of("e", "E"), Arbitraries.of("", "+", "-"), Arbitraries.integers().between(0, 300))
+                .as((mantissa, marker, sign, exponent) -> new DecimalText(
+                        mantissa.text() + marker + sign + exponent,
+                        mantissa.value().scaleByPowerOfTen("-".equals(sign) ? -exponent : exponent)));
+    }
+
+    /** A typed fraction and the value it stands for. */
+    public record FractionText(String text, FractionOracle value) {
+        @Override
+        public String toString() {
+            return "'" + text + "'";
+        }
+    }
+
+    /** Fractions {@code p/q} of two decimals ({@code 1/3}, {@code -0,5/1,25}), the denominator not zero. */
+    public static Arbitrary<FractionText> fractions() {
+        return Combinators.combine(decimals(20), nonZero(decimals(20)))
+                .as((top, bottom) -> new FractionText(top.text() + "/" + bottom.text(),
+                        FractionOracle.of(top.value()).divide(FractionOracle.of(bottom.value()))));
     }
 
     /**

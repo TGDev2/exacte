@@ -3,7 +3,7 @@ package calc.testing;
 import calc.engine.CalculationRecord;
 import calc.engine.Operation;
 import calc.engine.RejectedLine.Cause;
-import java.math.BigDecimal;
+import calc.number.Rational;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -18,7 +18,7 @@ import net.jqwik.api.Tuple;
  * <p>The structured files come with what the loader must make of them: the entries to restore, in order, and the
  * line number and cause of every rejection. The on-disk format they write is the documented one: an optional
  * {@code #calc-history v1} header, then one line per entry with four tab-separated columns (operation name, first
- * operand, second operand, result in plain notation with a point).
+ * operand, second operand, result as its canonical text: docs/adr/0004-regles-affichage.md, section 9).
  */
 public final class HistoryFileGenerators {
     public static final String HEADER = "#calc-history v1";
@@ -181,14 +181,14 @@ public final class HistoryFileGenerators {
         return Arbitraries.oneOf(wrongColumnCount(), unknownOperation(), invalidOperand(), unreadableResult(), inconsistentResult());
     }
 
-    /** The stored form of a record: the four columns, the result in plain notation with a point. */
+    /** The stored form of a record: the four columns. */
     public static String storedLine(CalculationRecord record, String result) {
         return record.getOperation().name() + "\t" + record.getFirstValue() + "\t" + record.getSecondValue() + "\t" + result;
     }
 
     /** The result column the application writes for a record. */
     public static String storedResult(CalculationRecord record) {
-        return ArithmeticOracle.stored(record.getResultValue());
+        return record.getReusableValue();
     }
 
     private static Arbitrary<Line> wrongColumnCount() {
@@ -216,7 +216,7 @@ public final class HistoryFileGenerators {
     private static Arbitrary<Line> invalidOperand() {
         Arbitrary<String> notANumber = Arbitraries.oneOf(
                 DecimalGenerators.invalidDecimals(),
-                Arbitraries.of("", "abc", "1e3", "1,000.5", "NaN", ".", "-", "1".repeat(DecimalGenerators.MAX_LENGTH + 1)));
+                Arbitraries.of("", "abc", "1e", "1 000", "1,000.5", "1/0", "NaN", ".", "-", "1".repeat(DecimalGenerators.MAX_LENGTH + 1)));
         Arbitrary<Line> badFirst = Combinators.combine(RecordGenerators.operations(), notANumber, DecimalGenerators.decimals(20))
                 .as((operation, bad, second) -> operandLine(operation, bad, second.text()));
         Arbitrary<Line> badSecond = Combinators.combine(binaryOperations(), DecimalGenerators.decimals(20), notANumber)
@@ -225,7 +225,7 @@ public final class HistoryFileGenerators {
                 .as((first, zero) -> operandLine(Operation.DIVISION, first.text(), zero.text()));
         Arbitrary<Line> negativeRoot = DecimalGenerators.nonZero(DecimalGenerators.decimals(20))
                 .map(value -> operandLine(Operation.ROOT, "-" + value.text().replaceAll("^[+-]", ""), ""));
-        Arbitrary<Line> badExponent = Combinators.combine(DecimalGenerators.decimals(20), Arbitraries.of("1,5", "0.5", "1000", "-1000", "99999999999", "2.0000001"))
+        Arbitrary<Line> badExponent = Combinators.combine(DecimalGenerators.decimals(20), Arbitraries.of("1,5", "0.5", "5000", "-5000", "99999999999", "2.0000001"))
                 .as((base, exponent) -> operandLine(Operation.POWER, base.text(), exponent));
         return Arbitraries.oneOf(badFirst, badSecond, divisionByZero, negativeRoot, badExponent);
     }
@@ -239,14 +239,14 @@ public final class HistoryFileGenerators {
     }
 
     private static Arbitrary<Line> unreadableResult() {
-        Arbitrary<String> garbage = Arbitraries.of("", " ", "abc", "1,5", "1e", "NaN", "0x10", "--1", "1E999999999", "9".repeat(1200));
+        Arbitrary<String> garbage = Arbitraries.of("", " ", "abc", "1,5.2", "1e", "1/0", "NaN", "0x10", "--1", "1E999999999", "9".repeat(1300));
         return Combinators.combine(RecordGenerators.records(), garbage)
                 .as((record, result) -> Line.rejected(storedLine(record, result), Cause.UNREADABLE_RESULT));
     }
 
     private static Arbitrary<Line> inconsistentResult() {
         return RecordGenerators.records().map(record -> Line.rejected(
-                storedLine(record, record.getResultValue().add(BigDecimal.ONE).toPlainString()), Cause.INCONSISTENT_RESULT));
+                storedLine(record, record.getResult().midpoint().add(Rational.ONE).toString()), Cause.INCONSISTENT_RESULT));
     }
 
     private static Arbitrary<HistoryFile> fileOf(Arbitrary<List<Line>> lines, Arbitrary<String> header, Arbitrary<String> terminator) {

@@ -4,6 +4,7 @@ import calc.engine.CalculationException;
 import calc.engine.CalculationRecord;
 import calc.engine.CalculatorEngine;
 import calc.engine.InputField;
+import calc.engine.Operand;
 import calc.engine.Operation;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -93,7 +94,7 @@ public class CalculatorPresenterTest {
         CalculatorViewModel viewModel = presenter.onOperationChanged(Operation.POWER, "2", "3");
 
         assertEquals(
-                "L'exposant doit être entier entre -999 et 999.",
+                "L'exposant doit être entier entre -4096 et 4096.",
                 viewModel.inputHint(),
                 "The UI model should explain the supported exponent range.");
     }
@@ -143,7 +144,7 @@ public class CalculatorPresenterTest {
         CalculatorViewModel viewModel = presenter.onCalculate("2", "99999999999");
 
         assertEquals(
-                "L'exposant doit être compris entre -999 et 999.",
+                "L'exposant doit être compris entre -4096 et 4096.",
                 viewModel.statusMessage(),
                 "A huge integer exponent is out of range, not non-integer.");
     }
@@ -163,7 +164,7 @@ public class CalculatorPresenterTest {
     void testFocusFollowsTheTypedFieldNotTheMessageText() {
         CalculatorEngine engine = new CalculatorEngine() {
             @Override
-            public CalculationRecord calculate(Operation operation, String firstInput, String secondInput)
+            public CalculationRecord calculate(Operation operation, Operand firstInput, Operand secondInput)
                     throws CalculationException {
                 throw new CalculationException("texte quelconque", InputField.SECOND);
             }
@@ -180,7 +181,7 @@ public class CalculatorPresenterTest {
     void testErrorWithoutFieldFocusesFirstOperand() {
         CalculatorEngine engine = new CalculatorEngine() {
             @Override
-            public CalculationRecord calculate(Operation operation, String firstInput, String secondInput)
+            public CalculationRecord calculate(Operation operation, Operand firstInput, Operand secondInput)
                     throws CalculationException {
                 throw new CalculationException("texte quelconque", InputField.NONE);
             }
@@ -190,5 +191,64 @@ public class CalculatorPresenterTest {
         CalculatorViewModel viewModel = presenter.onCalculate("1", "2");
 
         assertEquals(FocusTarget.FIRST_NUMBER, viewModel.focusTarget(), "A NONE error falls back to the first operand.");
+    }
+
+    @Test
+    void testOneThirdReusedThenTimesThreeIsExactlyOne() {
+        CalculatorPresenter presenter = new CalculatorPresenter(new CalculatorEngine());
+        presenter.onOperationChanged(Operation.DIVISION, "", "");
+
+        CalculatorViewModel third = presenter.onCalculate("1", "3");
+        assertEquals("0,333333333333…", third.resultValue(), "The display shows twelve digits and « … ».");
+        assertEquals("1/3", third.firstInput(), "The field receives the exact value, not the display.");
+        assertTrue(third.resultExact());
+        assertEquals("Valeur exacte : 1/3", third.resultDetail());
+
+        presenter.onOperationChanged(Operation.MULTIPLICATION, third.firstInput(), "");
+        CalculatorViewModel product = presenter.onCalculate(third.firstInput(), "3");
+        assertEquals("1", product.resultValue(), "(1 / 3) * 3 is exactly 1, not 0,999999999999.");
+        assertTrue(product.resultExact());
+        assertEquals("1/3 * 3 = 1", product.historyEntries().get(1).toString());
+
+        // The same through the history: the first result put back in the first field, then multiplied by 3.
+        presenter.onHistorySelectionChanged(0);
+        CalculatorViewModel reused = presenter.onReuseHistoryResult(ReuseTarget.FIRST_NUMBER, product.firstInput(), "");
+        assertEquals("1/3", reused.firstInput());
+        assertEquals("1", presenter.onCalculate(reused.firstInput(), "3").resultValue());
+    }
+
+    @Test
+    void testARememberedApproximateValueIsUsedUntilItsTextChanges() {
+        CalculatorPresenter presenter = new CalculatorPresenter(new CalculatorEngine());
+        presenter.onOperationChanged(Operation.ROOT, "", "");
+        CalculatorViewModel root = presenter.onCalculate("2", "");
+        assertEquals("≈ 1,41421356237…", root.resultValue());
+        assertFalse(root.resultExact());
+        assertEquals("Valeur approchée, erreur au plus ± 2,1 × 10⁻²⁵", root.resultDetail());
+
+        presenter.onOperationChanged(Operation.POWER, root.firstInput(), "");
+        CalculatorViewModel square = presenter.onCalculate(root.firstInput(), "2");
+        assertEquals("≈ 2,00000000000…", square.resultValue(), "The square of the remembered interval is still approximate.");
+        assertFalse(square.resultExact());
+
+        // A text changed by the user is read as typed: the link to the interval is gone.
+        CalculatorViewModel typed = presenter.onCalculate(root.firstInput() + "0", "2");
+        assertTrue(typed.resultExact(), "The typed decimal is exact, and so is its square.");
+        assertEquals(StatusTone.SUCCESS, typed.statusTone());
+    }
+
+    @Test
+    void testAFieldEmptiedByTheOperationForgetsItsValue() {
+        CalculatorPresenter presenter = new CalculatorPresenter(new CalculatorEngine());
+        presenter.onOperationChanged(Operation.ROOT, "", "");
+        CalculatorViewModel root = presenter.onCalculate("2", "");
+        presenter.onOperationChanged(Operation.ADDITION, root.firstInput(), "");
+        CalculatorViewModel inSecond = presenter.onReuseHistoryResult(ReuseTarget.SECOND_NUMBER, "1", "");
+        assertEquals(root.firstInput(), inSecond.secondInput());
+
+        presenter.onOperationChanged(Operation.ROOT, "1", inSecond.secondInput());
+        presenter.onOperationChanged(Operation.ADDITION, "1", "");
+        CalculatorViewModel sum = presenter.onCalculate("1", root.firstInput());
+        assertTrue(sum.resultExact(), "The second field was emptied by the unary operation: the same text typed again is exact.");
     }
 }

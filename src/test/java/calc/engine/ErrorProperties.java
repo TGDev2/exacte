@@ -2,12 +2,14 @@ package calc.engine;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import calc.testing.DecimalGenerators;
 import calc.testing.DecimalGenerators.DecimalText;
 import java.math.BigDecimal;
 import net.jqwik.api.Arbitraries;
 import net.jqwik.api.Arbitrary;
+import net.jqwik.api.Combinators;
 import net.jqwik.api.Example;
 import net.jqwik.api.ForAll;
 import net.jqwik.api.Property;
@@ -30,8 +32,23 @@ class ErrorProperties {
     }
 
     @Provide
-    Arbitrary<DecimalText> bareDecimalPointsAtTheBound() {
-        return DecimalGenerators.bareDecimalPointAtTheBound();
+    Arbitrary<String> tooPrecise() {
+        // More decimals than the 4096-bit denominator of the core can hold, the last one not a zero; still within the length.
+        return Combinators.combine(Arbitraries.of("", "-", "0"), DecimalGenerators.separators(), Arbitraries.integers().between(1300, 4090),
+                        Arbitraries.chars().range('1', '9'))
+                .as((prefix, separator, decimals, last) -> prefix + separator + "0".repeat(decimals - 1) + last);
+    }
+
+    @Provide
+    Arbitrary<String> groupedWithOrdinarySpaces() {
+        return DecimalGenerators.groupedWithOrdinarySpaces();
+    }
+
+    @Provide
+    Arbitrary<String> scientificOutOfRange() {
+        return Combinators.combine(DecimalGenerators.decimals(10).map(DecimalText::text), Arbitraries.of("e", "E"), Arbitraries.of("", "+", "-"),
+                        Arbitraries.integers().between(10_000, 999_999_999))
+                .as((mantissa, marker, sign, exponent) -> mantissa + marker + sign + exponent);
     }
 
     @Provide
@@ -54,13 +71,13 @@ class ErrorProperties {
 
     @Provide
     Arbitrary<DecimalText> outOfRangeExponents() {
-        return Arbitraries.bigIntegers().between(BigDecimal.valueOf(1000).toBigInteger(), new BigDecimal("1E30").toBigInteger())
+        return Arbitraries.bigIntegers().between(BigDecimal.valueOf(4097).toBigInteger(), new BigDecimal("1E30").toBigInteger())
                 .flatMap(magnitude -> Arbitraries.of("", "-").map(sign -> new DecimalText(sign + magnitude, new BigDecimal(sign + magnitude))));
     }
 
     @Provide
     Arbitrary<DecimalText> inRangeNegativeExponents() {
-        return Arbitraries.integers().between(1, 999).map(magnitude -> new DecimalText("-" + magnitude, BigDecimal.valueOf(-magnitude)));
+        return Arbitraries.integers().between(1, 4096).map(magnitude -> new DecimalText("-" + magnitude, BigDecimal.valueOf(-magnitude)));
     }
 
     @Provide
@@ -84,28 +101,52 @@ class ErrorProperties {
                 "Le second nombre doit être différent de 0 pour une division.");
     }
 
-    /**
-     * The canonical text of ".5" is "0,5", one character longer. The history stores the canonical text, so a number
-     * of the maximum length with no integer digit is refused: saved, it could not be read back.
-     */
     @Property
-    void aBareDecimalPointOfTheMaximumLengthIsTooLong(@ForAll("bareDecimalPointsAtTheBound") DecimalText input, @ForAll("operands") DecimalText other) {
-        String message = " nombre est trop long (" + CalculationLimits.MAX_INPUT_LENGTH + " caractères maximum).";
-        assertEquals(DecimalGenerators.MAX_LENGTH, input.text().length());
-        assertRefusal(Operation.ADDITION, input.text(), other.text(), InputField.FIRST, "Le premier" + message);
-        assertRefusal(Operation.ADDITION, other.text(), input.text(), InputField.SECOND, "Le second" + message);
+    void tooManyDecimalsForTheCoreBlameTheirField(@ForAll("tooPrecise") String input, @ForAll("operands") DecimalText other) {
+        String message = " nombre est trop grand ou a trop de décimales pour un calcul exact.";
+        assertRefusal(Operation.ADDITION, input, other.text(), InputField.FIRST, "Le premier" + message);
+        assertRefusal(Operation.ADDITION, other.text(), input, InputField.SECOND, "Le second" + message);
     }
 
     /**
-     * Regression of a defect found by the round-trip property: the square root of this 1005-character operand was
-     * accepted and saved as "0,777...", which is 1006 characters, so the entry was refused as too long and lost when
-     * the history was loaded again.
+     * Regression of a defect found by the round-trip property (E04): the square root of a 1005-character operand with no
+     * integer digit was saved as "0,777...", one character longer than the input bound, and lost when the history was
+     * loaded again. Now the bound holds every canonical text: the operand with the most decimals the core accepts is
+     * calculated, and its canonical text reads back to the same value.
      */
     @Example
-    void aBareDecimalPointOfTheMaximumLengthIsNoLongerAcceptedThenLost() {
-        String operand = "," + "7".repeat(CalculationLimits.MAX_INPUT_LENGTH - 1);
-        assertRefusal(Operation.ROOT, operand, "", InputField.FIRST,
-                "Le premier nombre est trop long (" + CalculationLimits.MAX_INPUT_LENGTH + " caractères maximum).");
+    void aBareDecimalPointWithTheMostDecimalsIsAcceptedAndReadsBack() throws CalculationException {
+        String operand = "," + "7".repeat(DecimalGenerators.MAX_DIGITS);
+        CalculationRecord record = engine.calculate(Operation.ROOT, operand, "");
+        assertTrue(record.getFirstValue().length() <= CalculationLimits.MAX_INPUT_LENGTH, "The canonical operand fits the bound.");
+        CalculationRecord again = engine.calculate(Operation.ROOT, record.getFirstValue(), "");
+        assertEquals(record.getResult(), again.getResult(), "The canonical operand reads back to the same value.");
+    }
+
+    @Property
+    void anOrdinarySpaceBetweenGroupsIsRefusedWithItsOwnMessage(
+            @ForAll("groupedWithOrdinarySpaces") String grouped, @ForAll("operands") DecimalText other) {
+        String message = " nombre contient une espace : séparez les milliers par une espace insécable ou supprimez l'espace.";
+        assertRefusal(Operation.ADDITION, grouped, other.text(), InputField.FIRST, "Le premier" + message);
+        assertRefusal(Operation.ADDITION, other.text(), grouped, InputField.SECOND, "Le second" + message);
+    }
+
+    @Property
+    void aScientificExponentOutOfRangeBlamesItsField(@ForAll("scientificOutOfRange") String input, @ForAll("operands") DecimalText other) {
+        assertRefusal(Operation.ADDITION, input, other.text(), InputField.FIRST,
+                "L'exposant de la notation scientifique du premier nombre doit être compris entre -9999 et 9999.");
+        assertRefusal(Operation.ADDITION, other.text(), input, InputField.SECOND,
+                "L'exposant de la notation scientifique du second nombre doit être compris entre -9999 et 9999.");
+    }
+
+    @Property
+    void aFractionWithAZeroDenominatorBlamesItsField(@ForAll("operands") DecimalText top, @ForAll("zeros") DecimalText zero,
+                                                     @ForAll("operands") DecimalText other) {
+        String fraction = top.text() + "/" + zero.text();
+        assertRefusal(Operation.MULTIPLICATION, fraction, other.text(), InputField.FIRST,
+                "Le premier nombre est une fraction dont le dénominateur vaut 0.");
+        assertRefusal(Operation.MULTIPLICATION, other.text(), fraction, InputField.SECOND,
+                "Le second nombre est une fraction dont le dénominateur vaut 0.");
     }
 
     @Property
@@ -122,7 +163,7 @@ class ErrorProperties {
     @Property
     void anExponentOutOfRangeBlamesTheSecondNumber(@ForAll("operands") DecimalText base, @ForAll("outOfRangeExponents") DecimalText exponent) {
         assertRefusal(Operation.POWER, base.text(), exponent.text(), InputField.SECOND,
-                "L'exposant doit être compris entre -999 et 999.");
+                "L'exposant doit être compris entre -4096 et 4096.");
     }
 
     @Property

@@ -7,8 +7,11 @@ import calc.engine.CalculationRecord;
 import calc.engine.CalculatorEngine;
 import calc.engine.HistoryLoadResult;
 import calc.engine.InputField;
+import calc.engine.Operand;
 import calc.engine.Operation;
 import calc.engine.RejectedLine;
+import calc.format.FormattedValue;
+import calc.number.CertifiedValue;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -31,6 +34,11 @@ public class CalculatorPresenter {
     private String firstInput;
     private String secondInput;
     private String resultValue;
+    private boolean resultExact;
+    private String resultDetail;
+    // The value put in each field and the text written for it; dropped as soon as the text is changed.
+    private FieldValue firstBinding;
+    private FieldValue secondBinding;
     private String statusMessage;
     private StatusTone statusTone;
     private int selectedHistoryIndex;
@@ -48,7 +56,7 @@ public class CalculatorPresenter {
         selectedOperation = Operation.ADDITION;
         firstInput = "";
         secondInput = "";
-        resultValue = "--";
+        clearResult();
         statusMessage = EMPTY_HISTORY_STATUS;
         statusTone = StatusTone.INFO;
         selectedHistoryIndex = -1;
@@ -67,6 +75,7 @@ public class CalculatorPresenter {
         }
         if (!selectedOperation.requiresSecondOperand()) {
             secondInput = "";
+            secondBinding = null;
         }
 
         if (!selectedOperation.requiresSecondOperand()) {
@@ -83,12 +92,15 @@ public class CalculatorPresenter {
     public CalculatorViewModel onCalculate(String currentFirstInput, String currentSecondInput) {
         syncInputs(currentFirstInput, currentSecondInput);
         try {
-            CalculationRecord record = engine.calculate(selectedOperation, firstInput, secondInput);
+            CalculationRecord record = engine.calculate(
+                    selectedOperation, operand(firstBinding, firstInput), operand(secondBinding, secondInput));
             history.add(record);
             selectedHistoryIndex = history.size() - 1;
-            resultValue = record.getFormattedResult();
-            firstInput = record.getFormattedResult();
+            showResult(record.getFormatted());
+            firstBinding = bind(record);
+            firstInput = firstBinding.text();
             secondInput = "";
+            secondBinding = null;
             focusTarget = selectedOperation.requiresSecondOperand() ? FocusTarget.SECOND_NUMBER : FocusTarget.FIRST_NUMBER;
             selectFocusedFieldText = !selectedOperation.requiresSecondOperand();
             if (persistHistory()) {
@@ -100,7 +112,7 @@ public class CalculatorPresenter {
             }
             return buildViewModel();
         } catch (CalculationException exception) {
-            resultValue = "--";
+            clearResult();
             statusMessage = exception.getMessage();
             statusTone = StatusTone.ERROR;
             focusTarget = resolveFocusTargetForError(exception);
@@ -113,7 +125,9 @@ public class CalculatorPresenter {
         syncInputs(currentFirstInput, currentSecondInput);
         firstInput = "";
         secondInput = "";
-        resultValue = "--";
+        firstBinding = null;
+        secondBinding = null;
+        clearResult();
         statusMessage = "Champs effacés. Vous pouvez saisir un nouveau calcul.";
         statusTone = StatusTone.INFO;
         focusTarget = FocusTarget.FIRST_NUMBER;
@@ -170,12 +184,14 @@ public class CalculatorPresenter {
         }
 
         if (target == ReuseTarget.FIRST_NUMBER) {
-            firstInput = record.getFormattedResult();
+            firstBinding = bind(record);
+            firstInput = firstBinding.text();
             focusTarget = selectedOperation.requiresSecondOperand() ? FocusTarget.SECOND_NUMBER : FocusTarget.FIRST_NUMBER;
             selectFocusedFieldText = !selectedOperation.requiresSecondOperand();
             statusMessage = "Le résultat historique a été placé pour le calcul en cours.";
         } else {
-            secondInput = record.getFormattedResult();
+            secondBinding = bind(record);
+            secondInput = secondBinding.text();
             focusTarget = FocusTarget.SECOND_NUMBER;
             selectFocusedFieldText = true;
             statusMessage = "Le résultat historique a été copié dans le second nombre.";
@@ -196,7 +212,9 @@ public class CalculatorPresenter {
         }
 
         selectedHistoryIndex = history.size() - 1;
-        firstInput = record.getFormattedResult();
+        firstBinding = bind(record);
+        firstInput = firstBinding.text();
+        secondBinding = null;
         if (selectedOperation.requiresSecondOperand()) {
             secondInput = "";
             focusTarget = FocusTarget.SECOND_NUMBER;
@@ -217,6 +235,44 @@ public class CalculatorPresenter {
         if (!selectedOperation.requiresSecondOperand()) {
             secondInput = "";
         }
+        firstBinding = keptIfUnchanged(firstBinding, firstInput);
+        secondBinding = keptIfUnchanged(secondBinding, secondInput);
+    }
+
+    private static FieldValue keptIfUnchanged(FieldValue binding, String text) {
+        return binding != null && binding.text().equals(text) ? binding : null;
+    }
+
+    // A field still holding the text written for a value is calculated with that value, interval included.
+    private static Operand operand(FieldValue binding, String text) {
+        return binding != null ? Operand.known(binding.value()) : Operand.typed(text);
+    }
+
+    private static FieldValue bind(CalculationRecord record) {
+        return new FieldValue(record.getReusableValue(), record.getResult());
+    }
+
+    private void showResult(FormattedValue result) {
+        resultValue = result.text();
+        resultExact = result.exact();
+        resultDetail = describe(result);
+    }
+
+    private void clearResult() {
+        resultValue = "--";
+        resultExact = true;
+        resultDetail = "";
+    }
+
+    // Secondary information on the result: the error bound of an approximate value, the exact value behind a cut text.
+    private static String describe(FormattedValue result) {
+        if (!result.exact()) {
+            return "Valeur approchée, erreur au plus " + result.errorBound().orElseThrow();
+        }
+        if (result.truncated()) {
+            return "Valeur exacte : " + result.exactFraction().orElse(result.canonical());
+        }
+        return "";
     }
 
     private CalculationRecord resolveSelectedOrLatestRecord() {
@@ -253,6 +309,8 @@ public class CalculatorPresenter {
                         : "Ce champ n'est pas utilisé pour la racine carrée.",
                 OperationText.inputHint(selectedOperation),
                 resultValue,
+                resultExact,
+                resultDetail,
                 statusMessage,
                 statusTone,
                 history,
@@ -317,6 +375,9 @@ public class CalculatorPresenter {
 
     private static String withBackupNotice(String message, Path backupFile) {
         return backupFile != null ? message + " " + BACKUP_NOTICE_PREFIX + backupFile : message;
+    }
+
+    private record FieldValue(String text, CertifiedValue value) {
     }
 
     private boolean persistHistory() {

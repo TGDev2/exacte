@@ -1,6 +1,6 @@
 package calc.engine;
 
-import java.math.BigDecimal;
+import calc.testing.RecordGenerators;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -20,7 +20,7 @@ public class FileCalculationHistoryFormatTest {
         Path historyFile = tempDirectory.resolve("history.tsv");
         FileCalculationHistoryStore store = new FileCalculationHistoryStore(historyFile);
 
-        store.saveHistory(List.of(new CalculationRecord(Operation.ADDITION, "1", "2", new BigDecimal("3"))));
+        store.saveHistory(List.of(RecordGenerators.calculated(Operation.ADDITION, "1", "2")));
 
         assertFalse(Files.exists(tempDirectory.resolve("history.tsv.tmp")), "No temporary file must survive a successful save.");
         List<String> lines = Files.readAllLines(historyFile, StandardCharsets.UTF_8);
@@ -38,7 +38,7 @@ public class FileCalculationHistoryFormatTest {
 
         assertThrows(
                 CalculationHistoryException.class,
-                () -> store.saveHistory(List.of(new CalculationRecord(Operation.ADDITION, "1", "1", new BigDecimal("2")))));
+                () -> store.saveHistory(List.of(RecordGenerators.calculated(Operation.ADDITION, "1", "1"))));
 
         assertArrayEquals(originalBytes, Files.readAllBytes(historyFile), "The original file must survive a failed write.");
         assertEquals(
@@ -63,7 +63,8 @@ public class FileCalculationHistoryFormatTest {
 
         List<String> lines = Files.readAllLines(historyFile, StandardCharsets.UTF_8);
         assertEquals("#calc-history v1", lines.get(0), "The next save must add the version header.");
-        assertEquals("ADDITION\t0,1\t0,2\t0.3", lines.get(1));
+        // The result column is rewritten as the canonical text (docs/adr/0004-regles-affichage.md, section 9).
+        assertEquals("ADDITION\t0,1\t0,2\t0,3", lines.get(1));
     }
 
     @Test
@@ -82,7 +83,7 @@ public class FileCalculationHistoryFormatTest {
 
         assertThrows(
                 CalculationHistoryException.class,
-                () -> store.saveHistory(List.of(new CalculationRecord(Operation.ADDITION, "9", "9", new BigDecimal("18")))),
+                () -> store.saveHistory(List.of(RecordGenerators.calculated(Operation.ADDITION, "9", "9"))),
                 "A future format version must permanently block writes.");
         assertArrayEquals(originalBytes, Files.readAllBytes(historyFile), "No write may ever replace the newer-format file.");
     }

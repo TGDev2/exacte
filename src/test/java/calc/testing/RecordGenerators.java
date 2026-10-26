@@ -3,6 +3,7 @@ package calc.testing;
 import calc.engine.CalculationException;
 import calc.engine.CalculationRecord;
 import calc.engine.CalculatorEngine;
+import calc.engine.Operand;
 import calc.engine.Operation;
 import calc.testing.DecimalGenerators.DecimalText;
 import java.util.Optional;
@@ -53,16 +54,17 @@ public final class RecordGenerators {
                 Tuple.of(2, expression(Operation.MULTIPLICATION, operand, operand)),
                 Tuple.of(2, expression(Operation.DIVISION, operand, nonZero)),
                 Tuple.of(2, expression(Operation.POWER, operand, exponent)),
-                Tuple.of(2, expression(Operation.ROOT, nonNegative, operand)));
+                Tuple.of(2, expression(Operation.ROOT, nonNegative, operand)),
+                Tuple.of(1, fractionExpression(Operation.DIVISION)),
+                Tuple.of(1, fractionExpression(Operation.MULTIPLICATION)));
     }
 
     /**
-     * Calculations whose operands go up to the input bound: the results are often refused for being too long. A few
-     * operands are bare decimal points of the maximum length, which the calculator refuses as too long.
+     * Calculations whose operands go up to the input bound: the results are often refused for being too large.
      */
     public static Arbitrary<Expression> longExpressions() {
         Arbitrary<DecimalText> operand = Arbitraries.frequencyOf(
-                Tuple.of(9, DecimalGenerators.decimals()), Tuple.of(1, DecimalGenerators.bareDecimalPointAtTheBound()));
+                Tuple.of(9, DecimalGenerators.decimals()), Tuple.of(1, DecimalGenerators.atTheBound()));
         Arbitrary<DecimalText> nonZero = DecimalGenerators.nonZero(operand);
         Arbitrary<DecimalText> nonNegative = operand.filter(decimal -> decimal.value().signum() >= 0);
         return Arbitraries.frequencyOf(
@@ -84,6 +86,41 @@ public final class RecordGenerators {
                         .map(RecordGenerators::tryCalculate).filter(Optional::isPresent).map(Optional::get)));
     }
 
+    /**
+     * Entries calculated from a remembered approximate value, as the presenter makes them: the square root of an operand,
+     * kept as a value, then used as the first or the second operand of another operation (powers up to 40, so that the
+     * exact recalculation from its canonical point stays within the core limits).
+     */
+    public static Arbitrary<CalculationRecord> rememberedRootRecords() {
+        Arbitrary<DecimalText> radicands = DecimalGenerators.nonZero(DecimalGenerators.decimals(20))
+                .map(decimal -> new DecimalText(decimal.text().replaceFirst("^[+-]", ""), decimal.value().abs()));
+        Arbitrary<String> others = Arbitraries.oneOf(DecimalGenerators.decimals(20).map(DecimalText::text),
+                DecimalGenerators.integers(2).map(DecimalText::text), Arbitraries.of("123456789012345", "1e15", "1e-30"));
+        Arbitrary<Operation> operations = Arbitraries.of(Operation.class);
+        return Combinators.combine(radicands, operations, others, Arbitraries.of(true, false), Arbitraries.integers().between(-40, 40))
+                .as((radicand, operation, other, rootFirst, exponent) -> {
+                    try {
+                        CalculatorEngine engine = new CalculatorEngine();
+                        Operand root = Operand.known(engine.calculate(Operation.ROOT, radicand.text(), "").getResult());
+                        if (operation == Operation.POWER) {
+                            return Optional.of(engine.calculate(operation, root, Operand.typed(String.valueOf(exponent))));
+                        }
+                        return Optional.of(rootFirst
+                                ? engine.calculate(operation, root, Operand.typed(other))
+                                : engine.calculate(operation, Operand.typed(other), root));
+                    } catch (CalculationException refused) {
+                        return Optional.<CalculationRecord>empty();
+                    }
+                })
+                .filter(Optional::isPresent).map(Optional::get);
+    }
+
+    /** The record the public engine makes of a calculation that it must accept. */
+    public static CalculationRecord calculated(Operation operation, String first, String second) {
+        return tryCalculate(new Expression(operation, first, second))
+                .orElseThrow(() -> new AssertionError("The engine should accept " + operation + " " + first + " " + second));
+    }
+
     /** The record the public engine makes of an expression, empty when the engine refuses it. */
     public static Optional<CalculationRecord> tryCalculate(Expression expression) {
         try {
@@ -95,5 +132,11 @@ public final class RecordGenerators {
 
     private static Arbitrary<Expression> expression(Operation operation, Arbitrary<DecimalText> first, Arbitrary<DecimalText> second) {
         return Combinators.combine(first, second).as((a, b) -> new Expression(operation, a.text(), b.text()));
+    }
+
+    // Fractions typed as such: their results are exact values with an infinite decimal expansion (1/3), shown with « … ».
+    private static Arbitrary<Expression> fractionExpression(Operation operation) {
+        return Combinators.combine(DecimalGenerators.fractions(), DecimalGenerators.fractions())
+                .as((a, b) -> new Expression(operation, a.text(), b.text()));
     }
 }

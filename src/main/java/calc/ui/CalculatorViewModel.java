@@ -4,6 +4,11 @@ import calc.engine.CalculationRecord;
 import calc.engine.Operation;
 import java.util.List;
 
+/**
+ * Immutable state handed to the view. {@code resultValue} is the Auto text of the result (it carries the « ≈ » or « … »
+ * marker), {@code resultExact} says whether the result is exact, {@code resultDetail} gives the error bound of an
+ * approximate result or the exact value behind a cut text (empty otherwise).
+ */
 public record CalculatorViewModel(
         Operation selectedOperation,
         String firstInput,
@@ -13,6 +18,8 @@ public record CalculatorViewModel(
         String secondInputTooltip,
         String inputHint,
         String resultValue,
+        boolean resultExact,
+        String resultDetail,
         String statusMessage,
         StatusTone statusTone,
         List<CalculationRecord> historyEntries,

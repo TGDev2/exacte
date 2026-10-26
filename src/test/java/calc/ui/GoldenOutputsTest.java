@@ -1,6 +1,7 @@
 package calc.ui;
 
 import calc.engine.CalculationException;
+import calc.engine.CalculationRecord;
 import calc.engine.CalculatorEngine;
 import calc.engine.Operation;
 import java.io.IOException;
@@ -22,13 +23,14 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Replays {@code golden/engine-v1.tsv}, the reference outputs captured before the build migration
- * (see tools/baseline/README.md), and checks that the engine and the presenter still produce exactly
- * the same displayed value, reusable value or error message for every line.
+ * Replays {@code golden/engine-v2.tsv}, the reference outputs of the exact engine (E06), and checks that the engine and
+ * the presenter still produce exactly the same displayed value, reusable value or error message for every line. The file
+ * has the same 70 inputs as {@code golden/engine-v1.tsv} (version 1, kept for the record); every difference between the
+ * two is listed and justified in docs/changements-comportement-E06.md (regenerate both with tools/golden-v2).
  */
 @DisplayName("Sorties de référence du moteur")
 class GoldenOutputsTest {
-    private static final String RESOURCE = "/golden/engine-v1.tsv";
+    private static final String RESOURCE = "/golden/engine-v2.tsv";
     private static final int EXPECTED_CASES = 70;
     private static final Pattern UNICODE_ESCAPE = Pattern.compile("<U\\+([0-9A-F]{4})>");
     private static final Pattern REPEAT = Pattern.compile("<rep:(\\d+):([^>]*)>");
@@ -75,9 +77,10 @@ class GoldenOutputsTest {
         }
 
         assertEquals("OK", goldenCase.outcome(), "Unknown outcome in the golden file.");
-        String display = engine.calculate(operation, first, second).getFormattedResult();
+        CalculationRecord record = engine.calculate(operation, first, second);
+        String display = record.getFormattedResult();
         String reusable = reusableValue(operation, first, second);
-        assertEquals(display, reusable, "The displayed result is the value that gets reused.");
+        assertEquals(record.getReusableValue(), reusable, "The presenter reuses the canonical text of the result.");
         assertEquals(goldenCase.display(), comparable(goldenCase.display(), display), "The displayed result should be unchanged.");
         assertEquals(goldenCase.reusable(), comparable(goldenCase.reusable(), reusable), "The reusable value should be unchanged.");
     }

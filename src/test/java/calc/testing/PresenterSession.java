@@ -10,7 +10,9 @@ import calc.engine.CalculationException;
 import calc.engine.CalculationRecord;
 import calc.engine.CalculatorEngine;
 import calc.engine.InputField;
+import calc.engine.Operand;
 import calc.engine.Operation;
+import calc.number.CertifiedValue;
 import calc.ui.CalculatorPresenter;
 import calc.ui.CalculatorViewModel;
 import calc.ui.FocusTarget;
@@ -30,13 +32,18 @@ import java.util.List;
  * <ol>
  *   <li>the history only grows on a successful calculation, by exactly one entry, and only an explicit clearing
  *       removes entries;
- *   <li>the reusable value of every entry equals the result displayed for it, and the displayed result of the last
+ *   <li>the reusable text of every entry reads back to its value (exactly when the value is exact, inside its
+ *       interval otherwise), an exact decimal is displayed by the Auto rule, and the reusable text of the last
  *       calculation is the text put in the first field;
  *   <li>the second field is enabled if and only if the operation is binary;
  *   <li>the selected history index is -1 or a valid index;
  *   <li>the presenter never throws;
  *   <li>(extra) the persisted history is the displayed one, and the focus never targets a disabled field.
  * </ol>
+ *
+ * <p>The session also models the lossless reuse (docs/adr/0004-regles-affichage.md, section 6): a field that the presenter
+ * filled with a result keeps that value, interval included, until an action sees a different text in it. The expected
+ * result of a calculation is computed with that model.
  */
 public final class PresenterSession {
     private final MemoryHistoryStore store = new MemoryHistoryStore();
@@ -45,6 +52,8 @@ public final class PresenterSession {
     private CalculatorViewModel view = presenter.createInitialView();
     private String firstField = "";
     private String secondField = "";
+    private Bound firstBound;
+    private Bound secondBound;
     private final List<String> trace = new ArrayList<>();
 
     public PresenterSession() {
@@ -70,6 +79,7 @@ public final class PresenterSession {
         trace.add("changeOperation(" + operation + ")");
         List<CalculationRecord> before = history();
         view = presenter.onOperationChanged(operation, firstField, secondField);
+        dropChangedBindings(operation);
         assertEquals(operation, view.selectedOperation(), "The chosen operation is selected.");
         assertEquals(firstField, view.firstInput(), "Changing the operation keeps the first field.");
         assertEquals(operation.requiresSecondOperand() ? secondField : "", view.secondInput(),
@@ -83,8 +93,9 @@ public final class PresenterSession {
         List<CalculationRecord> before = history();
         CalculationRecord expected = null;
         CalculationException refusal = null;
+        dropChangedBindings(operation);
         try {
-            expected = probe.calculate(operation, firstField, secondField);
+            expected = probe.calculate(operation, operand(firstBound, firstField), operand(secondBound, secondField));
         } catch (CalculationException exception) {
             refusal = exception;
         }
@@ -96,11 +107,12 @@ public final class PresenterSession {
             assertEquals(before.size() + 1, after.size(), "A successful calculation adds exactly one entry to the history.");
             CalculationRecord added = after.get(after.size() - 1);
             assertEquals(expected.toString(), added.toString(), "The entry is the calculation that was asked for.");
-            assertEquals(0, expected.getResultValue().compareTo(added.getResultValue()), "The entry holds the computed value.");
+            assertEquals(expected.getResult(), added.getResult(), "The entry holds the computed value.");
             assertEquals(added.getFormattedResult(), view.resultValue(), "The displayed result is the entry's result.");
-            assertEquals(0, ArithmeticOracle.parse(view.resultValue()).compareTo(added.getResultValue()),
-                    "The reusable value of the last calculation is the displayed result.");
-            assertEquals(view.resultValue(), view.firstInput(), "The result is ready to be reused as the first operand.");
+            assertEquals(added.isExact(), view.resultExact(), "The view says whether the result is exact.");
+            assertEquals(added.getReusableValue(), view.firstInput(), "The result is ready to be reused as the first operand.");
+            firstBound = new Bound(view.firstInput(), added.getResult());
+            secondBound = null;
             assertEquals(after.size() - 1, view.selectedHistoryIndex(), "The new entry is selected.");
             assertEquals(StatusTone.SUCCESS, view.statusTone(), "A successful calculation reports a success.");
             finish(before, 1);
@@ -119,6 +131,8 @@ public final class PresenterSession {
         trace.add("clearFields");
         List<CalculationRecord> before = history();
         view = presenter.onClearFields(firstField, secondField);
+        firstBound = null;
+        secondBound = null;
         assertEquals("", view.firstInput());
         assertEquals("", view.secondInput());
         assertEquals("--", view.resultValue());
@@ -129,13 +143,16 @@ public final class PresenterSession {
         trace.add("reuseLast");
         List<CalculationRecord> before = history();
         String firstBefore = firstField;
+        dropChangedBindings(view.selectedOperation());
         view = presenter.onReuseLastResult(firstField, secondField);
         if (before.isEmpty()) {
             assertEquals(StatusTone.ERROR, view.statusTone(), "Reusing with an empty history is reported as an error.");
             assertEquals(firstBefore, view.firstInput(), "Nothing to reuse leaves the first field alone.");
         } else {
             CalculationRecord last = before.get(before.size() - 1);
-            assertEquals(last.getFormattedResult(), view.firstInput(), "The last result is put in the first field.");
+            assertEquals(last.getReusableValue(), view.firstInput(), "The last result is put in the first field.");
+            firstBound = new Bound(view.firstInput(), last.getResult());
+            secondBound = null;
             assertEquals("", view.secondInput());
             assertEquals(before.size() - 1, view.selectedHistoryIndex(), "The last entry is selected.");
             assertEquals(StatusTone.SUCCESS, view.statusTone());
@@ -150,6 +167,7 @@ public final class PresenterSession {
         Operation operation = view.selectedOperation();
         String firstBefore = firstField;
         String secondBefore = operation.requiresSecondOperand() ? secondField : "";
+        dropChangedBindings(operation);
         view = presenter.onReuseHistoryResult(target, firstField, secondField);
         if (before.isEmpty()) {
             assertEquals(StatusTone.ERROR, view.statusTone(), "Reusing with an empty history is reported as an error.");
@@ -160,10 +178,12 @@ public final class PresenterSession {
         } else {
             CalculationRecord record = selected >= 0 && selected < before.size() ? before.get(selected) : before.get(before.size() - 1);
             if (target == ReuseTarget.FIRST_NUMBER) {
-                assertEquals(record.getFormattedResult(), view.firstInput(), "The selected result is put in the first field.");
+                assertEquals(record.getReusableValue(), view.firstInput(), "The selected result is put in the first field.");
+                firstBound = new Bound(view.firstInput(), record.getResult());
                 assertEquals(secondBefore, view.secondInput());
             } else {
-                assertEquals(record.getFormattedResult(), view.secondInput(), "The selected result is put in the second field.");
+                assertEquals(record.getReusableValue(), view.secondInput(), "The selected result is put in the second field.");
+                secondBound = new Bound(view.secondInput(), record.getResult());
                 assertEquals(firstBefore, view.firstInput());
             }
             assertEquals(StatusTone.SUCCESS, view.statusTone());
@@ -188,6 +208,25 @@ public final class PresenterSession {
         assertEquals(-1, view.selectedHistoryIndex(), "Nothing is selected in an empty history.");
         checkInvariants(before, -before.size());
         syncFields();
+    }
+
+    /** A value the presenter put in a field, with the text it wrote there. */
+    private record Bound(String text, CertifiedValue value) {
+    }
+
+    // What the presenter does when an action reads the fields: a binding whose text changed is dropped.
+    private void dropChangedBindings(Operation operation) {
+        String second = operation.requiresSecondOperand() ? secondField : "";
+        if (firstBound != null && !firstBound.text().equals(firstField)) {
+            firstBound = null;
+        }
+        if (secondBound != null && !secondBound.text().equals(second)) {
+            secondBound = null;
+        }
+    }
+
+    private static Operand operand(Bound bound, String text) {
+        return bound != null ? Operand.known(bound.value()) : Operand.typed(text);
     }
 
     private void finish(List<CalculationRecord> before, int growth) {
@@ -216,12 +255,16 @@ public final class PresenterSession {
             }
         }
 
-        // 2. The reusable value of each entry is the value displayed for it.
+        // 2. The reusable text of each entry reads back to its value; an exact decimal follows the Auto display rule.
         for (CalculationRecord record : now) {
-            assertEquals(ArithmeticOracle.display(record.getResultValue()), record.getFormattedResult(),
-                    () -> "Display of " + record + " after " + trace);
-            assertEquals(0, ArithmeticOracle.parse(record.getFormattedResult()).compareTo(record.getResultValue()),
+            CertifiedValue readBack = readBack(record.getReusableValue());
+            assertTrue(readBack.isExact() && record.getResult().contains(readBack.lower()),
                     () -> "Reusable value of " + record + " after " + trace);
+            if (record.isExact()) {
+                assertEquals(record.getResult(), readBack, () -> "Exact reusable value of " + record + " after " + trace);
+                record.getResult().lower().toExactDecimal().ifPresent(decimal -> assertEquals(ArithmeticOracle.auto(decimal),
+                        record.getFormattedResult(), () -> "Display of " + record + " after " + trace));
+            }
         }
 
         // 3. The second field is enabled if and only if the operation is binary.
@@ -247,6 +290,14 @@ public final class PresenterSession {
         assertFalse(view.statusMessage().isBlank(), "The status always says something.");
         if (view.focusTarget() == FocusTarget.SECOND_NUMBER) {
             assertTrue(view.secondInputEnabled(), () -> "The focus never targets the disabled second field, after " + trace);
+        }
+    }
+
+    private CertifiedValue readBack(String text) {
+        try {
+            return probe.calculate(Operation.ADDITION, text, "0").getResult();
+        } catch (CalculationException exception) {
+            throw new AssertionError("The reusable text '" + text + "' is refused: " + exception.getMessage(), exception);
         }
     }
 
