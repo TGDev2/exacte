@@ -5,6 +5,7 @@ import calc.format.FormattedValue;
 import calc.format.ValueFormatter;
 import calc.number.CertifiedValue;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * One calculation: the operation, the canonical texts of its operands and the result as a value of the numeric core.
@@ -14,6 +15,8 @@ public class CalculationRecord {
     private static final String APPROXIMATE_PREFIX = "≈ ";
 
     private final Operation operation;
+    private final CertifiedValue firstOperand;
+    private final CertifiedValue secondOperand;
     private final String firstValue;
     private final String secondValue;
     private final CertifiedValue result;
@@ -25,6 +28,8 @@ public class CalculationRecord {
     public CalculationRecord(Operation operation, CertifiedValue firstOperand, CertifiedValue secondOperand,
                              CertifiedValue result) {
         this.operation = Objects.requireNonNull(operation);
+        this.firstOperand = firstOperand;
+        this.secondOperand = operation.requiresSecondOperand() ? secondOperand : null;
         this.firstValue = ValueFormatter.canonical(Objects.requireNonNull(firstOperand));
         this.secondValue = operation.requiresSecondOperand() ? ValueFormatter.canonical(Objects.requireNonNull(secondOperand)) : "";
         this.result = Objects.requireNonNull(result);
@@ -62,6 +67,16 @@ public class CalculationRecord {
      */
     public boolean hasApproximateOperand() {
         return approximateOperand;
+    }
+
+    /** The first operand as a value, interval included. */
+    public CertifiedValue getFirstOperand() {
+        return firstOperand;
+    }
+
+    /** The second operand as a value, interval included; empty for a unary operation. */
+    public Optional<CertifiedValue> getSecondOperand() {
+        return Optional.ofNullable(secondOperand);
     }
 
     public Operation getOperation() {
