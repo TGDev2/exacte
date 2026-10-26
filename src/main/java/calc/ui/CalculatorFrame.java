@@ -36,7 +36,9 @@ import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.border.EmptyBorder;
 
-public class CalculatorFrame extends JFrame {
+public final class CalculatorFrame extends JFrame {
+    private static final long serialVersionUID = 1L;
+
     private static final Color SUCCESS_COLOR = new Color(18, 93, 56);
     private static final Color ERROR_COLOR = new Color(163, 44, 44);
     private static final Color INFO_COLOR = new Color(60, 60, 60);
@@ -44,6 +46,8 @@ public class CalculatorFrame extends JFrame {
     private static final int RESULT_MAX_PREFERRED_WIDTH = 360;
     private static final int TOOLTIP_LINE_LENGTH = 60;
 
+    // The frame is never serialized: the presenter is deliberately not Serializable.
+    @SuppressWarnings("serial")
     private final CalculatorPresenter presenter;
     private final JTextField firstNumberField;
     private final JTextField secondNumberField;

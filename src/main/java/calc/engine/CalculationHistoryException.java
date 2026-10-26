@@ -3,6 +3,8 @@ package calc.engine;
 import java.nio.file.Path;
 
 public class CalculationHistoryException extends Exception {
+    private static final long serialVersionUID = 1L;
+
     private final transient Path backupFile;
 
     public CalculationHistoryException(String message, Throwable cause) {
