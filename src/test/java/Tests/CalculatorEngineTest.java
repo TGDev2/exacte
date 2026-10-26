@@ -40,7 +40,7 @@ public class CalculatorEngineTest {
                 () -> engine.calculate(Operation.DIVISION, "8", "0"),
                 "Division by zero should return a targeted error.");
         assertEquals(
-                "Le second nombre doit etre different de 0 pour une division.",
+                "Le second nombre doit être différent de 0 pour une division.",
                 exception.getMessage(),
                 "Division by zero should return a targeted error.");
     }
@@ -52,7 +52,7 @@ public class CalculatorEngineTest {
                 () -> engine.calculate(Operation.ROOT, "-4", ""),
                 "Negative root should return a targeted error.");
         assertEquals(
-                "La racine carree d'un nombre negatif n'est pas definie en reel.",
+                "La racine carrée d'un nombre négatif n'est pas définie en réel.",
                 exception.getMessage(),
                 "Negative root should return a targeted error.");
     }
@@ -88,7 +88,7 @@ public class CalculatorEngineTest {
                 () -> engine.calculate(Operation.POWER, "9", "0,5"),
                 "Fractional powers should be rejected explicitly to keep the supported scope predictable.");
         assertEquals(
-                "L'exposant doit etre un entier.",
+                "L'exposant doit être un entier.",
                 exception.getMessage(),
                 "Fractional powers should be rejected explicitly to keep the supported scope predictable.");
     }
@@ -136,7 +136,7 @@ public class CalculatorEngineTest {
                 () -> engine.calculate(Operation.POWER, "2", "99999999999"),
                 "An out-of-range integer exponent should be rejected.");
         assertEquals(
-                "L'exposant doit etre un entier compris entre -999 et 999.",
+                "L'exposant doit être un entier compris entre -999 et 999.",
                 exception.getMessage(),
                 "An integer exponent beyond the range must not be reported as non-integer.");
     }

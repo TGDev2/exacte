@@ -159,7 +159,7 @@ public class CalculatorHistoryBackupTest {
         CalculatorViewModel view = presenter.onCalculate("1", "1");
 
         assertEquals(StatusTone.ERROR, view.getStatusTone());
-        assertEquals("Calcul effectue, mais l'historique n'a pas pu etre enregistre.", view.getStatusMessage());
+        assertEquals("Calcul effectué, mais l'historique n'a pas pu être enregistré.", view.getStatusMessage());
         assertFalse(view.getStatusMessage().contains("simulated"), "No technical detail in the interface.");
         assertArrayEquals(originalBytes, Files.readAllBytes(historyFile), "The original file must survive a refused save.");
     }

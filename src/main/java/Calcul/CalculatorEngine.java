@@ -5,22 +5,22 @@ import java.math.BigDecimal;
 public class CalculatorEngine {
     private static final BigDecimal MAX_ABSOLUTE_EXPONENT = BigDecimal.valueOf(DecimalPolicy.MAX_ABSOLUTE_INTEGER_EXPONENT);
     private static final String TOO_MANY_DIGITS_MESSAGE =
-            "Le resultat depasse " + DecimalPolicy.MAX_DISPLAY_DIGITS + " chiffres (reduisez les nombres saisis).";
+            "Le résultat dépasse " + DecimalPolicy.MAX_DISPLAY_DIGITS + " chiffres (réduisez les nombres saisis).";
     private static final String TOO_MANY_DIGITS_POWER_MESSAGE =
-            "Le resultat depasse " + DecimalPolicy.MAX_DISPLAY_DIGITS + " chiffres (reduisez l'exposant ou la base).";
+            "Le résultat dépasse " + DecimalPolicy.MAX_DISPLAY_DIGITS + " chiffres (réduisez l'exposant ou la base).";
     private static final String UNEXPECTED_ARITHMETIC_MESSAGE =
-            "Le calcul n'a pas pu etre effectue sur des nombres de cette taille.";
+            "Le calcul n'a pas pu être effectué sur des nombres de cette taille.";
 
     public CalculationRecord calculate(Operation operation, String firstInput, String secondInput) throws CalculationException {
         if (operation == null) {
-            throw new CalculationException("Choisissez une operation.", InputField.NONE);
+            throw new CalculationException("Choisissez une opération.", InputField.NONE);
         }
 
         BigDecimal firstValue = parseNumber(
                 firstInput,
                 "Saisissez le premier nombre.",
                 "Le premier nombre est invalide. Utilisez des chiffres, un signe et une virgule ou un point.",
-                "Le premier nombre est trop long (" + DecimalPolicy.MAX_INPUT_LENGTH + " caracteres maximum).",
+                "Le premier nombre est trop long (" + DecimalPolicy.MAX_INPUT_LENGTH + " caractères maximum).",
                 InputField.FIRST);
 
         BigDecimal secondValue = BigDecimal.ZERO;
@@ -29,7 +29,7 @@ public class CalculatorEngine {
                     secondInput,
                     "Saisissez le second nombre.",
                     "Le second nombre est invalide. Utilisez des chiffres, un signe et une virgule ou un point.",
-                    "Le second nombre est trop long (" + DecimalPolicy.MAX_INPUT_LENGTH + " caracteres maximum).",
+                    "Le second nombre est trop long (" + DecimalPolicy.MAX_INPUT_LENGTH + " caractères maximum).",
                     InputField.SECOND);
         }
 
@@ -62,28 +62,28 @@ public class CalculatorEngine {
                 return DecimalPolicy.normalize(firstValue.multiply(secondValue));
             case DIVISION:
                 if (secondValue.compareTo(BigDecimal.ZERO) == 0) {
-                    throw new CalculationException("Le second nombre doit etre different de 0 pour une division.", InputField.SECOND);
+                    throw new CalculationException("Le second nombre doit être différent de 0 pour une division.", InputField.SECOND);
                 }
                 return DecimalPolicy.divide(firstValue, secondValue);
             case POWER:
                 return applyPower(firstValue, secondValue);
             case ROOT:
                 if (firstValue.signum() < 0) {
-                    throw new CalculationException("La racine carree d'un nombre negatif n'est pas definie en reel.", InputField.FIRST);
+                    throw new CalculationException("La racine carrée d'un nombre négatif n'est pas définie en réel.", InputField.FIRST);
                 }
                 return DecimalPolicy.sqrt(firstValue);
             default:
-                throw new CalculationException("Operation non prise en charge.", InputField.NONE);
+                throw new CalculationException("Opération non prise en charge.", InputField.NONE);
         }
     }
 
     private BigDecimal applyPower(BigDecimal firstValue, BigDecimal secondValue) throws CalculationException {
         if (!DecimalPolicy.isIntegerValue(secondValue)) {
-            throw new CalculationException("L'exposant doit etre un entier.", InputField.SECOND);
+            throw new CalculationException("L'exposant doit être un entier.", InputField.SECOND);
         }
         if (secondValue.abs().compareTo(MAX_ABSOLUTE_EXPONENT) > 0) {
             throw new CalculationException(
-                    "L'exposant doit etre un entier compris entre -"
+                    "L'exposant doit être un entier compris entre -"
                             + DecimalPolicy.MAX_ABSOLUTE_INTEGER_EXPONENT
                             + " et "
                             + DecimalPolicy.MAX_ABSOLUTE_INTEGER_EXPONENT
@@ -94,7 +94,7 @@ public class CalculatorEngine {
         int exponent = secondValue.intValueExact();
         BigDecimal base = DecimalPolicy.normalize(firstValue);
         if (base.signum() == 0 && exponent < 0) {
-            throw new CalculationException("0 ne peut pas etre eleve a une puissance negative.", InputField.FIRST);
+            throw new CalculationException("0 ne peut pas être élevé à une puissance négative.", InputField.FIRST);
         }
         long estimatedDigits = (long) Math.max(base.precision(), base.scale()) * Math.abs(exponent);
         if (estimatedDigits > DecimalPolicy.MAX_DISPLAY_DIGITS) {

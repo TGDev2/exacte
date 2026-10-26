@@ -26,7 +26,7 @@ public class CalculatorHistoryStatusTest {
 
         assertEquals(StatusTone.SUCCESS, view.getStatusTone());
         assertEquals(
-                "Historique restaure. Vous pouvez reutiliser un resultat precedent ou lancer un nouveau calcul.",
+                "Historique restauré. Vous pouvez réutiliser un résultat précédent ou lancer un nouveau calcul.",
                 view.getStatusMessage());
     }
 
@@ -36,7 +36,7 @@ public class CalculatorHistoryStatusTest {
 
         assertEquals(StatusTone.INFO, view.getStatusTone());
         assertEquals(
-                "Historique vide. Saisissez un calcul puis appuyez sur Entree ou cliquez sur Calculer.",
+                "Historique vide. Saisissez un calcul puis appuyez sur Entrée ou cliquez sur Calculer.",
                 view.getStatusMessage());
     }
 
@@ -46,7 +46,7 @@ public class CalculatorHistoryStatusTest {
 
         assertEquals(StatusTone.ERROR, view.getStatusTone());
         assertEquals(
-                "Historique restaure partiellement : 1 entree ignoree. Une copie du fichier d'origine a ete conservee.",
+                "Historique restauré partiellement : 1 entrée ignorée. Une copie du fichier d'origine a été conservée.",
                 view.getStatusMessage());
         assertEquals(1, view.getHistoryEntries().size());
     }
@@ -57,7 +57,7 @@ public class CalculatorHistoryStatusTest {
 
         assertEquals(StatusTone.ERROR, view.getStatusTone());
         assertEquals(
-                "Historique restaure partiellement : 3 entrees ignorees. Une copie du fichier d'origine a ete conservee.",
+                "Historique restauré partiellement : 3 entrées ignorées. Une copie du fichier d'origine a été conservée.",
                 view.getStatusMessage());
     }
 
@@ -67,8 +67,8 @@ public class CalculatorHistoryStatusTest {
 
         assertEquals(StatusTone.ERROR, view.getStatusTone());
         assertEquals(
-                "L'historique precedent n'a pas pu etre restaure. Vous pouvez continuer sans blocage."
-                        + " Une copie du fichier d'origine a ete conservee.",
+                "L'historique précédent n'a pas pu être restauré. Vous pouvez continuer sans blocage."
+                        + " Une copie du fichier d'origine a été conservée.",
                 view.getStatusMessage());
         assertEquals(0, view.getHistoryEntries().size());
     }
@@ -79,7 +79,7 @@ public class CalculatorHistoryStatusTest {
 
         assertEquals(StatusTone.ERROR, view.getStatusTone());
         assertEquals(
-                "L'historique precedent n'a pas pu etre restaure. Vous pouvez continuer sans blocage.",
+                "L'historique précédent n'a pas pu être restauré. Vous pouvez continuer sans blocage.",
                 view.getStatusMessage());
     }
 
@@ -88,8 +88,8 @@ public class CalculatorHistoryStatusTest {
         CalculatorViewModel view = startWith(new CalculationHistoryException("Impossible de lire l'historique", null, BACKUP));
 
         assertEquals(
-                "L'historique precedent n'a pas pu etre restaure. Vous pouvez continuer sans blocage."
-                        + " Une copie du fichier d'origine a ete conservee.",
+                "L'historique précédent n'a pas pu être restauré. Vous pouvez continuer sans blocage."
+                        + " Une copie du fichier d'origine a été conservée.",
                 view.getStatusMessage());
     }
 

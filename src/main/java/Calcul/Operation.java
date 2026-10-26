@@ -1,28 +1,28 @@
 package Calcul;
 
 public enum Operation {
-    ADDITION("Addition (+)", "+", true, "Virgule ou point. Le point est un separateur decimal. Pas de notation scientifique."),
-    SUBTRACTION("Soustraction (-)", "-", true, "Virgule ou point. Le point est un separateur decimal. Pas de notation scientifique."),
-    MULTIPLICATION("Multiplication (*)", "*", true, "Virgule ou point. Le point est un separateur decimal. Pas de notation scientifique."),
+    ADDITION("Addition (+)", "+", true, "Virgule ou point. Le point est un séparateur décimal. Pas de notation scientifique."),
+    SUBTRACTION("Soustraction (-)", "-", true, "Virgule ou point. Le point est un séparateur décimal. Pas de notation scientifique."),
+    MULTIPLICATION("Multiplication (*)", "*", true, "Virgule ou point. Le point est un séparateur décimal. Pas de notation scientifique."),
     DIVISION(
             "Division (/)",
             "/",
             true,
-            "Division non terminante : arrondie a 12 decimales et 12 chiffres significatifs minimum."),
+            "Division non terminante : arrondie à 12 décimales et 12 chiffres significatifs minimum."),
     POWER(
             "Puissance (^)",
             "^",
             true,
-            "L'exposant doit etre entier entre -"
+            "L'exposant doit être entier entre -"
                     + DecimalPolicy.MAX_ABSOLUTE_INTEGER_EXPONENT
                     + " et "
                     + DecimalPolicy.MAX_ABSOLUTE_INTEGER_EXPONENT
                     + "."),
     ROOT(
-            "Racine carree (\u221A)",
+            "Racine carrée (\u221A)",
             "\u221A",
             false,
-            "Racine non exacte : arrondie a 12 decimales et 12 chiffres significatifs minimum.");
+            "Racine non exacte : arrondie à 12 décimales et 12 chiffres significatifs minimum.");
 
     private final String displayName;
     private final String historySymbol;

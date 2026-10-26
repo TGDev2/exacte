@@ -16,10 +16,10 @@ import java.util.logging.Logger;
 
 public class CalculatorPresenter {
     private static final Logger LOGGER = Logger.getLogger(CalculatorPresenter.class.getName());
-    private static final String EMPTY_HISTORY_STATUS = "Historique vide. Saisissez un calcul puis appuyez sur Entree ou cliquez sur Calculer.";
-    private static final String RESTORED_HISTORY_STATUS = "Historique restaure. Vous pouvez reutiliser un resultat precedent ou lancer un nouveau calcul.";
-    private static final String UNAVAILABLE_HISTORY_STATUS = "L'historique precedent n'a pas pu etre restaure. Vous pouvez continuer sans blocage.";
-    private static final String BACKUP_KEPT_STATUS = "Une copie du fichier d'origine a ete conservee.";
+    private static final String EMPTY_HISTORY_STATUS = "Historique vide. Saisissez un calcul puis appuyez sur Entrée ou cliquez sur Calculer.";
+    private static final String RESTORED_HISTORY_STATUS = "Historique restauré. Vous pouvez réutiliser un résultat précédent ou lancer un nouveau calcul.";
+    private static final String UNAVAILABLE_HISTORY_STATUS = "L'historique précédent n'a pas pu être restauré. Vous pouvez continuer sans blocage.";
+    private static final String BACKUP_KEPT_STATUS = "Une copie du fichier d'origine a été conservée.";
 
     private final CalculatorEngine engine;
     private final CalculationHistoryStore historyStore;
@@ -90,10 +90,10 @@ public class CalculatorPresenter {
             focusTarget = selectedOperation.requiresSecondOperand() ? FocusTarget.SECOND_NUMBER : FocusTarget.FIRST_NUMBER;
             selectFocusedFieldText = !selectedOperation.requiresSecondOperand();
             if (persistHistory()) {
-                statusMessage = "Calcul effectue. Le resultat est pret pour le calcul suivant et ajoute a l'historique.";
+                statusMessage = "Calcul effectué. Le résultat est prêt pour le calcul suivant et ajouté à l'historique.";
                 statusTone = StatusTone.SUCCESS;
             } else {
-                statusMessage = "Calcul effectue, mais l'historique n'a pas pu etre enregistre.";
+                statusMessage = "Calcul effectué, mais l'historique n'a pas pu être enregistré.";
                 statusTone = StatusTone.ERROR;
             }
             return buildViewModel();
@@ -112,7 +112,7 @@ public class CalculatorPresenter {
         firstInput = "";
         secondInput = "";
         resultValue = "--";
-        statusMessage = "Champs effaces. Vous pouvez saisir un nouveau calcul.";
+        statusMessage = "Champs effacés. Vous pouvez saisir un nouveau calcul.";
         statusTone = StatusTone.INFO;
         focusTarget = FocusTarget.FIRST_NUMBER;
         selectFocusedFieldText = false;
@@ -127,13 +127,13 @@ public class CalculatorPresenter {
         selectFocusedFieldText = false;
 
         if (persistHistory()) {
-            statusMessage = "Historique efface.";
+            statusMessage = "Historique effacé.";
             statusTone = StatusTone.INFO;
             return buildViewModel();
         }
 
         history.addAll(previousHistory);
-        statusMessage = "L'historique n'a pas pu etre efface.";
+        statusMessage = "L'historique n'a pas pu être effacé.";
         statusTone = StatusTone.ERROR;
         return buildViewModel();
     }
@@ -153,14 +153,14 @@ public class CalculatorPresenter {
         syncInputs(currentFirstInput, currentSecondInput);
         CalculationRecord record = resolveSelectedOrLatestRecord();
         if (record == null) {
-            statusMessage = "Aucun resultat disponible dans l'historique.";
+            statusMessage = "Aucun résultat disponible dans l'historique.";
             statusTone = StatusTone.ERROR;
             focusTarget = FocusTarget.NONE;
             return buildViewModel();
         }
 
         if (target == ReuseTarget.SECOND_NUMBER && !selectedOperation.requiresSecondOperand()) {
-            statusMessage = "Le second nombre n'est pas utilise pour cette operation.";
+            statusMessage = "Le second nombre n'est pas utilisé pour cette opération.";
             statusTone = StatusTone.ERROR;
             focusTarget = FocusTarget.FIRST_NUMBER;
             selectFocusedFieldText = true;
@@ -171,12 +171,12 @@ public class CalculatorPresenter {
             firstInput = record.getReusableValue();
             focusTarget = selectedOperation.requiresSecondOperand() ? FocusTarget.SECOND_NUMBER : FocusTarget.FIRST_NUMBER;
             selectFocusedFieldText = !selectedOperation.requiresSecondOperand();
-            statusMessage = "Le resultat historique a ete place pour le calcul en cours.";
+            statusMessage = "Le résultat historique a été placé pour le calcul en cours.";
         } else {
             secondInput = record.getReusableValue();
             focusTarget = FocusTarget.SECOND_NUMBER;
             selectFocusedFieldText = true;
-            statusMessage = "Le resultat historique a ete copie dans le second nombre.";
+            statusMessage = "Le résultat historique a été copié dans le second nombre.";
         }
 
         statusTone = StatusTone.SUCCESS;
@@ -187,7 +187,7 @@ public class CalculatorPresenter {
         syncInputs(currentFirstInput, currentSecondInput);
         CalculationRecord record = resolveLatestRecord();
         if (record == null) {
-            statusMessage = "Aucun resultat precedent n'est disponible.";
+            statusMessage = "Aucun résultat précédent n'est disponible.";
             statusTone = StatusTone.ERROR;
             focusTarget = FocusTarget.NONE;
             return buildViewModel();
@@ -204,7 +204,7 @@ public class CalculatorPresenter {
             focusTarget = FocusTarget.FIRST_NUMBER;
             selectFocusedFieldText = true;
         }
-        statusMessage = "Le dernier resultat a ete repris pour le calcul suivant.";
+        statusMessage = "Le dernier résultat a été repris pour le calcul suivant.";
         statusTone = StatusTone.SUCCESS;
         return buildViewModel();
     }
@@ -246,10 +246,10 @@ public class CalculatorPresenter {
                 firstInput,
                 secondInputEnabled ? secondInput : "",
                 secondInputEnabled,
-                secondInputEnabled ? "Second nombre" : "Second nombre (non utilise)",
+                secondInputEnabled ? "Second nombre" : "Second nombre (non utilisé)",
                 secondInputEnabled
                         ? "Saisissez le second nombre."
-                        : "Ce champ n'est pas utilise pour la racine carree.",
+                        : "Ce champ n'est pas utilisé pour la racine carrée.",
                 selectedOperation.getInputHint(),
                 resultValue,
                 statusMessage,
@@ -290,8 +290,8 @@ public class CalculatorPresenter {
             statusMessage = withBackupNotice(UNAVAILABLE_HISTORY_STATUS, backupKept);
             statusTone = StatusTone.ERROR;
         } else {
-            String skipped = skippedLines == 1 ? "1 entree ignoree" : skippedLines + " entrees ignorees";
-            statusMessage = withBackupNotice("Historique restaure partiellement : " + skipped + ".", backupKept);
+            String skipped = skippedLines == 1 ? "1 entrée ignorée" : skippedLines + " entrées ignorées";
+            statusMessage = withBackupNotice("Historique restauré partiellement : " + skipped + ".", backupKept);
             statusTone = StatusTone.ERROR;
         }
     }

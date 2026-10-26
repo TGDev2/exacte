@@ -28,8 +28,8 @@ import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class CalculatorSizeLimitsTest {
-    private static final String RESULT_TOO_LONG = "Le resultat depasse 1000 chiffres (reduisez les nombres saisis).";
-    private static final String POWER_TOO_LONG = "Le resultat depasse 1000 chiffres (reduisez l'exposant ou la base).";
+    private static final String RESULT_TOO_LONG = "Le résultat dépasse 1000 chiffres (réduisez les nombres saisis).";
+    private static final String POWER_TOO_LONG = "Le résultat dépasse 1000 chiffres (réduisez l'exposant ou la base).";
     private static final Duration ACCEPTED_CASE_LIMIT = Duration.ofSeconds(5);
 
     private final CalculatorEngine engine = new CalculatorEngine();
@@ -44,7 +44,7 @@ public class CalculatorSizeLimitsTest {
                 CalculationException.class,
                 () -> engine.calculate(Operation.ADDITION, paddedOne(1006), "1"),
                 "A 1006-character input should be refused."));
-        assertEquals("Le premier nombre est trop long (1005 caracteres maximum).", exception.getMessage(),
+        assertEquals("Le premier nombre est trop long (1005 caractères maximum).", exception.getMessage(),
                 "The message should state the limit.");
         assertEquals(InputField.FIRST, exception.getField(), "The first operand is the faulty field.");
     }
@@ -58,7 +58,7 @@ public class CalculatorSizeLimitsTest {
                 CalculationException.class,
                 () -> engine.calculate(Operation.ADDITION, "1", paddedOne(1006)),
                 "A 1006-character input should be refused."));
-        assertEquals("Le second nombre est trop long (1005 caracteres maximum).", exception.getMessage(),
+        assertEquals("Le second nombre est trop long (1005 caractères maximum).", exception.getMessage(),
                 "The message should state the limit.");
         assertEquals(InputField.SECOND, exception.getField(), "The second operand is the faulty field.");
     }
@@ -177,13 +177,13 @@ public class CalculatorSizeLimitsTest {
 
         CalculatorViewModel first = presenter.onCalculate(paddedOne(1006), "2");
         assertEquals(StatusTone.ERROR, first.getStatusTone(), "An oversized input is an error.");
-        assertEquals("Le premier nombre est trop long (1005 caracteres maximum).", first.getStatusMessage(),
+        assertEquals("Le premier nombre est trop long (1005 caractères maximum).", first.getStatusMessage(),
                 "The limit should be explained.");
         assertEquals(FocusTarget.FIRST_NUMBER, first.getFocusTarget(), "Focus returns to the faulty first operand.");
         assertEquals(1, first.getHistoryEntries().size(), "A refused calculation must not touch the history.");
 
         CalculatorViewModel second = presenter.onCalculate("1", paddedOne(1006));
-        assertEquals("Le second nombre est trop long (1005 caracteres maximum).", second.getStatusMessage(),
+        assertEquals("Le second nombre est trop long (1005 caractères maximum).", second.getStatusMessage(),
                 "The limit should be explained.");
         assertEquals(FocusTarget.SECOND_NUMBER, second.getFocusTarget(), "Focus returns to the faulty second operand.");
         assertEquals(1, second.getHistoryEntries().size(), "A refused calculation must not touch the history.");

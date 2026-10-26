@@ -124,7 +124,7 @@ public class FileCalculationHistoryStore implements CalculationHistoryStore {
         if (writeProtected) {
             LOGGER.warning("Refused to write " + historyFile + ": the original file is protected");
             throw new CalculationHistoryException(
-                    "Ecriture refusee pour proteger le fichier d'origine : " + historyFile);
+                    "Écriture refusée pour protéger le fichier d'origine : " + historyFile);
         }
 
         try {
