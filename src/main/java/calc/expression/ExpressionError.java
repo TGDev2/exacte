@@ -31,7 +31,7 @@ public enum ExpressionError {
     MISPLACED_EQUALS(Stage.SYNTAX),
     /** A reserved word ({@code ans}, {@code sqrt}, {@code racine}) used as the name of an assignment. */
     RESERVED_NAME(Stage.SYNTAX),
-    /** The nesting is deeper than {@link ExpressionLimits#maxDepth()}, or a tree built by hand is too deep. */
+    /** The nesting is deeper than {@link ExpressionLimits#maxDepth()}. */
     TOO_DEEP(Stage.SYNTAX),
     /** The tree would have more than {@link ExpressionLimits#maxNodes()} nodes. */
     TOO_MANY_NODES(Stage.SYNTAX),

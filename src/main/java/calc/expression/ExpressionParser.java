@@ -30,7 +30,10 @@ public final class ExpressionParser {
         return limits;
     }
 
-    /** Reads {@code line}; the first error from left to right is reported with its position. */
+    /**
+     * Reads {@code line}. The whole line is cut into tokens first, so a lexical error is reported before any syntax error;
+     * within a stage, the first error from the left is reported, with its position.
+     */
     public ParsedLine parse(String line) throws ExpressionException {
         Objects.requireNonNull(line, "line");
         List<Token> tokens = new ArrayList<>(Lexer.tokenize(line, limits));
@@ -238,9 +241,11 @@ public final class ExpressionParser {
                 return misplacedEquals(token);
             }
             Token previous = tokens.get(position - 1);
-            boolean spacedDigits = previous.type() == Token.Type.NUMBER && token.type() == Token.Type.NUMBER
+            // "1 000" or "12 345,5": an integer, ordinary spaces, then a group of three digits looks like grouped thousands.
+            boolean spacedThousands = previous.type() == Token.Type.NUMBER && token.type() == Token.Type.NUMBER
+                    && previous.text().matches("[0-9]+") && token.text().matches("[0-9]{3}(?:[.,][0-9]*)?")
                     && line.substring(previous.span().end(), token.span().start()).chars().allMatch(c -> c == ' ');
-            return new ExpressionException(ExpressionError.MISSING_OPERATOR, token.span(), spacedDigits
+            return new ExpressionException(ExpressionError.MISSING_OPERATOR, token.span(), spacedThousands
                     ? "Opérateur manquant (pour séparer les milliers, utilisez une espace insécable)."
                     : "Opérateur manquant.");
         }

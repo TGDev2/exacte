@@ -37,6 +37,7 @@ class ExpressionErrorsTest {
             "2 + 3 !         | UNEXPECTED_CHARACTER | 6 | 7 | Caractère inattendu « ! ».",
             "2 , 3           | UNEXPECTED_CHARACTER | 2 | 3 | Caractère inattendu « , ».",
             "1,5,3 + 1       | INVALID_NUMBER | 0 | 5 | Nombre invalide « 1,5,3 ».",
+            ") 1,5,3         | INVALID_NUMBER | 2 | 7 | Nombre invalide « 1,5,3 ».",
             "1.000.000       | INVALID_NUMBER | 0 | 9 | Nombre invalide « 1.000.000 ».",
             "12{nb}34        | INVALID_NUMBER | 0 | 5 | Nombre invalide « 12{nb}34 ».",
             "2 + 1e10000     | SCIENTIFIC_EXPONENT_OUT_OF_RANGE | 4 | 11 | L'exposant de la notation scientifique doit être compris entre -9999 et 9999.",
@@ -58,14 +59,18 @@ class ExpressionErrorsTest {
             "x = # rien      | MISSING_OPERAND | 2 | 3 | Expression manquante après « = ».",
             "{v}             | MISSING_OPERAND | 0 | 1 | Opérande manquant après « {v} ».",
             "{v}-2           | MISSING_OPERAND | 0 | 1 | Opérande manquant après « {v} » : un nombre signé se met entre parenthèses, par exemple « {v}(-2) ».",
-            "2 3             | MISSING_OPERATOR | 2 | 3 | Opérateur manquant (pour séparer les milliers, utilisez une espace insécable).",
+            "2 3             | MISSING_OPERATOR | 2 | 3 | Opérateur manquant.",
+            "1 000           | MISSING_OPERATOR | 2 | 5 | Opérateur manquant (pour séparer les milliers, utilisez une espace insécable).",
+            "12 345,5        | MISSING_OPERATOR | 3 | 8 | Opérateur manquant (pour séparer les milliers, utilisez une espace insécable).",
+            "1,5 300         | MISSING_OPERATOR | 4 | 7 | Opérateur manquant.",
+            "1e3 400         | MISSING_OPERATOR | 4 | 7 | Opérateur manquant.",
             "2x              | MISSING_OPERATOR | 1 | 2 | Opérateur manquant.",
             "2e              | MISSING_OPERATOR | 1 | 2 | Opérateur manquant.",
             "2(3)            | MISSING_OPERATOR | 1 | 2 | Opérateur manquant.",
             "(1)(2)          | MISSING_OPERATOR | 3 | 4 | Opérateur manquant.",
             "ans 2           | MISSING_OPERATOR | 4 | 5 | Opérateur manquant.",
             "$1$2            | MISSING_OPERATOR | 2 | 4 | Opérateur manquant.",
-            "(2 3)           | MISSING_OPERATOR | 3 | 4 | Opérateur manquant (pour séparer les milliers, utilisez une espace insécable).",
+            "(1 000)         | MISSING_OPERATOR | 3 | 6 | Opérateur manquant (pour séparer les milliers, utilisez une espace insécable).",
             "(2 + 3          | MISSING_CLOSING_PARENTHESIS | 0 | 1 | Parenthèse fermante manquante.",
             "((2) + 3        | MISSING_CLOSING_PARENTHESIS | 0 | 1 | Parenthèse fermante manquante.",
             "sqrt(2          | MISSING_CLOSING_PARENTHESIS | 4 | 5 | Parenthèse fermante manquante.",
@@ -117,6 +122,9 @@ class ExpressionErrorsTest {
 
         ExpressionException space = refusal("2 +" + (char) 0x2003 + "3", NAMES);
         assertRefusal(space, ExpressionError.UNEXPECTED_CHARACTER, 3, 4, "Caractère inattendu « U+2003 ».");
+
+        ExpressionException mark = refusal("2e3" + (char) 0x0301, NAMES);
+        assertRefusal(mark, ExpressionError.UNEXPECTED_CHARACTER, 3, 4, "Caractère inattendu « U+0301 ».");
     }
 
     @Test

@@ -231,9 +231,12 @@ public final class Lexer {
         int codePoint = line.codePointAt(index);
         Span span = new Span(index, index + Character.charCount(codePoint));
         // An invisible character is named by its code, so that the message shows something.
+        int type = Character.getType(codePoint);
+        // A combining mark is named too: shown alone it would attach to the quotation mark.
         boolean invisible = Character.isISOControl(codePoint) || Character.isWhitespace(codePoint)
-                || Character.isSpaceChar(codePoint) || Character.getType(codePoint) == Character.FORMAT
-                || Character.getType(codePoint) == Character.SURROGATE || !Character.isDefined(codePoint);
+                || Character.isSpaceChar(codePoint) || type == Character.FORMAT || type == Character.SURROGATE
+                || type == Character.NON_SPACING_MARK || type == Character.ENCLOSING_MARK
+                || type == Character.COMBINING_SPACING_MARK || !Character.isDefined(codePoint);
         String shown = invisible ? String.format(Locale.ROOT, "U+%04X", codePoint) : line.substring(span.start(), span.end());
         return new ExpressionException(ExpressionError.UNEXPECTED_CHARACTER, span, "Caractère inattendu « " + shown + " ».");
     }
