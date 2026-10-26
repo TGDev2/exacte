@@ -1,7 +1,13 @@
 package calc.ui;
 
+import calc.engine.CalculationHistoryStore;
 import calc.engine.CalculatorEngine;
 import calc.engine.Operation;
+import calc.format.DisplayMode;
+import calc.ui.widget.DisplayModeSelector;
+import calc.ui.widget.ExactnessBadge;
+import calc.ui.widget.HistoryLine;
+import calc.ui.widget.HistoryLineRenderer;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.GraphicsEnvironment;
@@ -10,10 +16,13 @@ import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.lang.reflect.InvocationTargetException;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import javax.swing.AbstractButton;
 import javax.swing.Action;
+import javax.swing.InputMap;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JFrame;
@@ -214,7 +223,7 @@ public class CalculatorFrameTest {
 
             String[] expectedOrder = {
                 "firstNumberField", "operationSelector", "secondNumberField", "calculateButton",
-                "reuseLastResultButton", "clearButton", "historyList", "reuseAsFirstButton",
+                "reuseLastResultButton", "clearButton", "displayModeSelector", "historyList", "reuseAsFirstButton",
                 "reuseAsSecondButton", "clearHistoryButton", "firstNumberField"
             };
             Component current = firstNumberField;
@@ -289,10 +298,256 @@ public class CalculatorFrameTest {
         }
     }
 
+    @Test
+    void testModeSelectorReformatsTheResultAndTheHistory() throws Exception {
+        CalculatorFrame frame = createFrame();
+        try {
+            JRootPane rootPane = frame.getRootPane();
+            DisplayModeSelector selector = findComponent(rootPane, "displayModeSelector", DisplayModeSelector.class);
+            JComboBox<?> operationSelector = findComponent(rootPane, "operationSelector", JComboBox.class);
+            JTextField firstNumberField = findComponent(rootPane, "firstNumberField", JTextField.class);
+            JTextField secondNumberField = findComponent(rootPane, "secondNumberField", JTextField.class);
+            JLabel resultValueLabel = findComponent(rootPane, "resultValueLabel", JLabel.class);
+            JList<?> historyList = findComponent(rootPane, "historyList", JList.class);
+
+            assertEquals(DisplayMode.AUTO, selector.mode(), "The selector starts in Auto mode.");
+            assertEquals(DisplayMode.values().length, selector.getItemCount(), "Every mode can be chosen.");
+            assertTrue(historyList.getCellRenderer() instanceof HistoryLineRenderer, "The history uses the reusable renderer.");
+
+            runOnEdt(() -> {
+                operationSelector.setSelectedItem(Operation.DIVISION);
+                firstNumberField.setText("1");
+                secondNumberField.setText("3");
+            });
+            clickButton(findComponent(rootPane, "calculateButton", AbstractButton.class));
+            assertEquals("0,333333333333…", resultValueLabel.getText());
+            assertEquals("1 / 3 = 0,333333333333…", historyText(historyList, 0));
+
+            runOnEdt(() -> selector.setSelectedItem(DisplayMode.FRACTION));
+            flushEdt();
+            assertEquals("1/3", resultValueLabel.getText(), "Choosing Fraction formats the result again.");
+            assertEquals("1 / 3 = 1/3", historyText(historyList, 0), "Choosing Fraction formats the history again.");
+            assertEquals("1/3", firstNumberField.getText(), "The field keeps the exact value whatever the mode.");
+
+            runOnEdt(() -> selector.setSelectedItem(DisplayMode.SCIENTIFIC));
+            flushEdt();
+            assertEquals("3,33333333333… × 10⁻¹", resultValueLabel.getText());
+            assertEquals("1 / 3 = 3,33333333333… × 10⁻¹", historyText(historyList, 0));
+        } finally {
+            disposeFrame(frame);
+        }
+    }
+
+    @Test
+    void testBadgeFollowsTheExactnessOfTheResult() throws Exception {
+        CalculatorFrame frame = createFrame();
+        try {
+            JRootPane rootPane = frame.getRootPane();
+            ExactnessBadge badge = findComponent(rootPane, "exactnessBadge", ExactnessBadge.class);
+            JLabel fractionLabel = findComponent(rootPane, "resultFractionLabel", JLabel.class);
+            JComboBox<?> operationSelector = findComponent(rootPane, "operationSelector", JComboBox.class);
+            JTextField firstNumberField = findComponent(rootPane, "firstNumberField", JTextField.class);
+            JTextField secondNumberField = findComponent(rootPane, "secondNumberField", JTextField.class);
+            AbstractButton calculateButton = findComponent(rootPane, "calculateButton", AbstractButton.class);
+
+            assertFalse(badge.isVisible(), "There is no badge before a result.");
+
+            runOnEdt(() -> {
+                operationSelector.setSelectedItem(Operation.DIVISION);
+                firstNumberField.setText("1");
+                secondNumberField.setText("4");
+            });
+            clickButton(calculateButton);
+            assertTrue(badge.isVisible());
+            assertEquals("Exact", badge.getText(), "1 ÷ 4 is exact.");
+            assertEquals(null, badge.getToolTipText(), "An exact, complete result has nothing to add.");
+            assertFalse(fractionLabel.isVisible(), "The complete text needs no secondary fraction.");
+
+            runOnEdt(() -> {
+                firstNumberField.setText("1");
+                secondNumberField.setText("3");
+            });
+            clickButton(calculateButton);
+            assertEquals("Exact", badge.getText(), "1 ÷ 3 is exact even though its text is cut.");
+            assertEquals("Valeur exacte : 1/3 (affichage arrondi)", badge.getToolTipText());
+            assertTrue(fractionLabel.isVisible());
+            assertEquals("Fraction exacte : 1/3", fractionLabel.getText());
+
+            runOnEdt(() -> {
+                operationSelector.setSelectedItem(Operation.ROOT);
+                firstNumberField.setText("2");
+            });
+            clickButton(calculateButton);
+            assertEquals("≈ Approché", badge.getText(), "√2 is approximate.");
+            assertEquals("Erreur maximale : ± 2,1 × 10⁻²⁵", badge.getToolTipText());
+            assertFalse(fractionLabel.isVisible(), "An approximate value has no exact fraction.");
+            assertEquals("Exactitude du résultat : ≈ Approché", badge.getAccessibleContext().getAccessibleName());
+
+            invokeShortcut(rootPane, KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0));
+            assertFalse(badge.isVisible(), "Clearing the result hides the badge.");
+        } finally {
+            disposeFrame(frame);
+        }
+    }
+
+    @Test
+    void testHistoryRendererShowsTheExactnessMarkOfEachLine() throws Exception {
+        CalculatorFrame frame = createFrame();
+        try {
+            JRootPane rootPane = frame.getRootPane();
+            JComboBox<?> operationSelector = findComponent(rootPane, "operationSelector", JComboBox.class);
+            JTextField firstNumberField = findComponent(rootPane, "firstNumberField", JTextField.class);
+            JList<?> historyList = findComponent(rootPane, "historyList", JList.class);
+            runOnEdt(() -> {
+                operationSelector.setSelectedItem(Operation.ROOT);
+                firstNumberField.setText("2");
+            });
+            clickButton(findComponent(rootPane, "calculateButton", AbstractButton.class));
+            runOnEdt(() -> {
+                operationSelector.setSelectedItem(Operation.ROOT);
+                firstNumberField.setText("9");
+            });
+            clickButton(findComponent(rootPane, "calculateButton", AbstractButton.class));
+
+            assertEquals("√(2) ≈ 1,41421356237…", historyText(historyList, 0));
+            assertEquals("√(9) = 3", historyText(historyList, 1));
+            assertEquals(List.of("≈ Approché", "Exact"), renderedMarks(historyList));
+        } finally {
+            disposeFrame(frame);
+        }
+    }
+
+    @Test
+    void testNextModeShortcutCyclesTheModesWithoutConflict() throws Exception {
+        CalculatorFrame frame = createFrame();
+        try {
+            JRootPane rootPane = frame.getRootPane();
+            DisplayModeSelector selector = findComponent(rootPane, "displayModeSelector", DisplayModeSelector.class);
+            KeyStroke nextMode = KeyStroke.getKeyStroke(KeyEvent.VK_M, InputEvent.CTRL_DOWN_MASK);
+
+            assertShortcut(rootPane, nextMode, "next-display-mode");
+            List<DisplayMode> seen = new ArrayList<>();
+            for (int step = 0; step < DisplayMode.values().length; step++) {
+                invokeShortcut(rootPane, nextMode);
+                seen.add(selector.mode());
+            }
+            assertEquals(
+                    List.of(DisplayMode.DECIMAL, DisplayMode.FRACTION, DisplayMode.SCIENTIFIC, DisplayMode.AUTO), seen);
+
+            // Ctrl+M must not be taken by a component of the window (focused or ancestor-of-focused bindings, with
+            // their parent maps, which carry the look and feel's own keys) nor by another window-wide shortcut.
+            List<String> conflicts = new ArrayList<>();
+            collectBindingConflicts(rootPane, nextMode, conflicts);
+            assertEquals(List.of(), conflicts, "No component may bind Ctrl+M itself.");
+            Set<KeyStroke> windowWide = new HashSet<>(List.of(rootPane.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).keys()));
+            assertEquals(
+                    Set.of(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), KeyStroke.getKeyStroke(KeyEvent.VK_R, InputEvent.CTRL_DOWN_MASK), nextMode),
+                    windowWide,
+                    "The window-wide shortcuts of the window are Escape, Ctrl+R and Ctrl+M only.");
+        } finally {
+            disposeFrame(frame);
+        }
+    }
+
+    @Test
+    void testRememberedModeIsShownAtStartAndChoosingOneRemembersIt() throws Exception {
+        List<DisplayMode> saved = new ArrayList<>();
+        DisplayModeStore store = new DisplayModeStore() {
+            @Override
+            public DisplayMode load() {
+                return DisplayMode.SCIENTIFIC;
+            }
+
+            @Override
+            public void save(DisplayMode mode) {
+                saved.add(mode);
+            }
+        };
+        CalculatorFrame frame = createFrame(new CalculatorPresenter(new CalculatorEngine(), CalculationHistoryStore.noop(), store));
+        try {
+            DisplayModeSelector selector = findComponent(frame.getRootPane(), "displayModeSelector", DisplayModeSelector.class);
+            assertEquals(DisplayMode.SCIENTIFIC, selector.mode(), "The remembered mode is selected at start.");
+            assertEquals(List.of(), saved, "Showing the mode does not write it.");
+            runOnEdt(() -> selector.setSelectedItem(DisplayMode.DECIMAL));
+            assertEquals(List.of(DisplayMode.DECIMAL), saved, "The user's choice is remembered.");
+        } finally {
+            disposeFrame(frame);
+        }
+    }
+
+    @Test
+    void testNewComponentsHaveAccessibleNamesAndLabels() throws Exception {
+        CalculatorFrame frame = createFrame();
+        try {
+            JRootPane rootPane = frame.getRootPane();
+            JLabel modeLabel = findComponent(rootPane, "modeLabel", JLabel.class);
+            JComponent selector = findComponent(rootPane, "displayModeSelector", JComponent.class);
+            assertEquals(selector, modeLabel.getLabelFor(), "The mode label labels the selector.");
+            assertNotEquals(0, modeLabel.getDisplayedMnemonic(), "The mode label has a mnemonic.");
+            for (String componentName : new String[] {"displayModeSelector", "exactnessBadge", "resultFractionLabel"}) {
+                JComponent component = findComponent(rootPane, componentName, JComponent.class);
+                String name = component.getAccessibleContext().getAccessibleName();
+                String description = component.getAccessibleContext().getAccessibleDescription();
+                assertTrue(name != null && !name.isBlank(), componentName + " should have an accessible name.");
+                assertTrue(description != null && !description.isBlank(), componentName + " should have an accessible description.");
+            }
+            assertEquals("Mode d'affichage", selector.getAccessibleContext().getAccessibleName());
+        } finally {
+            disposeFrame(frame);
+        }
+    }
+
+    private static String historyText(JList<?> historyList, int index) {
+        return ((HistoryLine) historyList.getModel().getElementAt(index)).text();
+    }
+
+    // The exactness mark drawn under each history line, read from the real renderer of the list.
+    private static List<String> renderedMarks(JList<?> historyList) throws Exception {
+        List<String> marks = new ArrayList<>();
+        runOnEdt(() -> {
+            for (int index = 0; index < historyList.getModel().getSize(); index++) {
+                Component cell = rendererComponent(historyList, index);
+                List<JLabel> labels = new ArrayList<>();
+                for (Component child : ((Container) cell).getComponents()) {
+                    labels.add((JLabel) child);
+                }
+                marks.add(labels.get(1).getText());
+            }
+        });
+        return marks;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Component rendererComponent(JList<?> historyList, int index) {
+        JList<HistoryLine> typed = (JList<HistoryLine>) historyList;
+        return typed.getCellRenderer().getListCellRendererComponent(typed, typed.getModel().getElementAt(index), index, false, false);
+    }
+
+    private static void collectBindingConflicts(Container container, KeyStroke keyStroke, List<String> conflicts) {
+        if (container instanceof JComponent component) {
+            for (int condition : new int[] {JComponent.WHEN_FOCUSED, JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT}) {
+                for (InputMap map = component.getInputMap(condition); map != null; map = map.getParent()) {
+                    if (map.get(keyStroke) != null) {
+                        conflicts.add(component.getClass().getSimpleName() + "/" + component.getName() + " binds " + keyStroke);
+                    }
+                }
+            }
+        }
+        for (Component child : container.getComponents()) {
+            if (child instanceof Container nested) {
+                collectBindingConflicts(nested, keyStroke, conflicts);
+            }
+        }
+    }
+
     private static CalculatorFrame createFrame() throws InterruptedException, InvocationTargetException {
+        return createFrame(new CalculatorPresenter(new CalculatorEngine()));
+    }
+
+    private static CalculatorFrame createFrame(CalculatorPresenter presenter) throws InterruptedException, InvocationTargetException {
         final CalculatorFrame[] frameHolder = new CalculatorFrame[1];
         SwingUtilities.invokeAndWait(() -> {
-            CalculatorFrame frame = new CalculatorFrame(new CalculatorPresenter(new CalculatorEngine()));
+            CalculatorFrame frame = new CalculatorFrame(presenter);
             frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
             frame.setVisible(true);
             frameHolder[0] = frame;

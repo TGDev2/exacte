@@ -202,7 +202,7 @@ public class CalculatorPresenterTest {
         assertEquals("0,333333333333…", third.resultValue(), "The display shows twelve digits and « … ».");
         assertEquals("1/3", third.firstInput(), "The field receives the exact value, not the display.");
         assertTrue(third.resultExact());
-        assertEquals("Valeur exacte : 1/3", third.resultDetail());
+        assertEquals("Valeur exacte : 1/3 (affichage arrondi)", third.resultDetail());
 
         presenter.onOperationChanged(Operation.MULTIPLICATION, third.firstInput(), "");
         CalculatorViewModel product = presenter.onCalculate(third.firstInput(), "3");
@@ -224,7 +224,7 @@ public class CalculatorPresenterTest {
         CalculatorViewModel root = presenter.onCalculate("2", "");
         assertEquals("≈ 1,41421356237…", root.resultValue());
         assertFalse(root.resultExact());
-        assertEquals("Valeur approchée, erreur au plus ± 2,1 × 10⁻²⁵", root.resultDetail());
+        assertEquals("Erreur maximale : ± 2,1 × 10⁻²⁵", root.resultDetail());
 
         presenter.onOperationChanged(Operation.POWER, root.firstInput(), "");
         CalculatorViewModel square = presenter.onCalculate(root.firstInput(), "2");
