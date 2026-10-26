@@ -90,6 +90,7 @@ Le projet fournit 187 tests JUnit 5 (`src/test/java/calc/engine` et `calc/ui`) c
 - workflow après un calcul réussi, réutilisation d'un résultat d'historique, statuts affichés
 - vérification Swing des raccourcis, du changement unaire/binaire, de la réutilisation depuis l'UI et de l'accessibilité (mnémoniques distincts, libellés associés, noms accessibles, ordre de tabulation, info-bulle du résultat long)
 - non-régression : 70 cas de référence (`src/test/resources/golden/engine-v1.tsv`) rejoués contre le moteur et le présentateur, sortie par sortie (affichage, valeur réutilisable ou message d'erreur) ; les historiques de référence se trouvent dans `src/test/resources/legacy/v1`
+- tests par propriétés et de robustesse (jqwik) : arithmétique comparée à un oracle indépendant, erreurs, aller-retour et fuzzing de l'historique, fuzzing de la saisie, séquences aléatoires d'actions du présentateur ; voir [docs/TESTS.md](docs/TESTS.md)
 
 Commande :
 
@@ -150,7 +151,7 @@ Cette politique évite qu'un nombre soit affiché d'une façon, réutilisé avec
 
 Pour que l'interface ne gèle jamais, les tailles sont bornées avant tout calcul coûteux :
 
-- une saisie (après suppression des espaces de début et de fin) ne dépasse pas 1005 caractères
+- une saisie (après suppression des espaces de début et de fin) ne dépasse pas 1005 caractères, et son texte canonique non plus (`.5` s'écrit `0,5` dans l'historique : une saisie de 1005 caractères sans partie entière est donc refusée)
 - tout résultat tient en 1000 chiffres affichables au plus (`max(précision, échelle) ≤ 1000`), sinon le calcul est refusé avec un message
 - pour une puissance, la taille est estimée avant le calcul (`max(précision, échelle)` de la base multiplié par `|exposant|`, borné à 1000), exposants négatifs compris : `2 ^ 999` (301 chiffres) est accepté, mais élever ce résultat à la puissance `999` est refusé immédiatement
 - l'exposant d'une puissance est un entier compris entre `-999` et `999`

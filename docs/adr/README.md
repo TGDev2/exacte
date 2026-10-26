@@ -16,3 +16,4 @@ Later work reads the ADRs instead of guessing why things are the way they are.
 | Number | Title | Status |
 |---|---|---|
 | 0001 | Hardening: lossless history, atomic writes, bounds, typed errors | Accepted |
+| 0002 | Property-based tests and the length of the canonical text | Accepted |
