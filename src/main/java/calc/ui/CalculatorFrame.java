@@ -4,6 +4,7 @@ import calc.engine.CalculationRecord;
 import calc.engine.Operation;
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
@@ -16,6 +17,7 @@ import java.awt.event.KeyEvent;
 import java.util.Objects;
 import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
+import javax.swing.DefaultListCellRenderer;
 import javax.swing.DefaultListModel;
 import javax.swing.InputMap;
 import javax.swing.JButton;
@@ -72,6 +74,7 @@ public class CalculatorFrame extends JFrame {
         secondNumberLabel = new JLabel("Second nombre");
         operationLabel = new JLabel("Opération");
         operationSelector = new JComboBox<>(Operation.values());
+        operationSelector.setRenderer(new OperationRenderer());
         inputHintLabel = new JLabel();
         resultValueLabel = new JLabel(NO_RESULT, SwingConstants.RIGHT) {
             // A result can hold up to 1000 digits: let the layout shrink the label (ellipsis)
@@ -432,5 +435,16 @@ public class CalculatorFrame extends JFrame {
         reuseLastResultButton.setName("reuseLastResultButton");
         reuseAsFirstButton.setName("reuseAsFirstButton");
         reuseAsSecondButton.setName("reuseAsSecondButton");
+    }
+
+    private static final class OperationRenderer extends DefaultListCellRenderer {
+        private static final long serialVersionUID = 1L;
+
+        @Override
+        public Component getListCellRendererComponent(
+                JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+            String text = value instanceof Operation operation ? OperationText.displayName(operation) : "";
+            return super.getListCellRendererComponent(list, text, index, isSelected, cellHasFocus);
+        }
     }
 }

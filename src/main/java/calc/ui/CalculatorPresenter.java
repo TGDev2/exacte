@@ -250,7 +250,7 @@ public class CalculatorPresenter {
                 secondInputEnabled
                         ? "Saisissez le second nombre."
                         : "Ce champ n'est pas utilisé pour la racine carrée.",
-                selectedOperation.getInputHint(),
+                OperationText.inputHint(selectedOperation),
                 resultValue,
                 statusMessage,
                 statusTone,
