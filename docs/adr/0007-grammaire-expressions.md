@@ -104,8 +104,9 @@ operation runs from its first to its last character, and an assignment spans fro
 Each node consumes at least one character, so 1000 characters cannot make more than 1000 nodes; 500 still allows a sum
 of 250 numbers. The parser recurses only through the nesting constructs (about five frames per level), so its stack
 depth is bounded by the depth limit. A caller may choose other limits with `ExpressionLimits`, but never a depth above
-100: measured in interpreted mode, a 256 KB thread stack (a quarter of the default of 64-bit JVMs) overflows near 150
-levels, and `ExpressionRobustnessTest` parses at depth 100 on such a stack. The lexer is a loop, and the evaluator and the
+100: measured in interpreted mode, a 256 KB thread stack overflows near 150 levels on Windows x64 but already at 100 on
+macOS arm64, whose frames and guard zones are larger, so `ExpressionRobustnessTest` parses at depth 100 on a 512 KB
+stack (half the default of 64-bit JVMs). The lexer is a loop, and the evaluator and the
 printer walk the tree with an explicit stack, so a tree of any depth (100 000 levels built by hand in the tests) cannot
 exhaust the stack; the node limit only bounds their work. The tests use a parser without a length limit to show that
 10 000 nested parentheses are refused by the depth check itself, and not only because such a line is too long. Numbers

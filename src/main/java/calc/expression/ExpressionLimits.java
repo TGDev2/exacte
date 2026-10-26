@@ -15,8 +15,9 @@ public record ExpressionLimits(int maxLineLength, int maxDepth, int maxNodes) {
 
     /**
      * Deepest nesting a caller may allow: the parser recurses about five frames per level. Measured in interpreted mode,
-     * a 256 KB thread stack (a quarter of the default of 64-bit JVMs) overflows near 150 levels; {@code
-     * ExpressionRobustnessTest} parses at this depth on such a stack.
+     * a 256 KB thread stack overflows near 150 levels on Windows x64 but already at 100 on macOS arm64, whose frames
+     * and guard zones are larger; {@code ExpressionRobustnessTest} parses at this depth on a 512 KB stack, half the
+     * default of 64-bit JVMs.
      */
     static final int MAX_SAFE_DEPTH = 100;
 

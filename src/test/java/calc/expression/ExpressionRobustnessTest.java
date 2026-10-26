@@ -84,7 +84,7 @@ class ExpressionRobustnessTest {
             } catch (Throwable throwable) {
                 failure.set(throwable);
             }
-        }, "small-stack", 256 * 1024);
+        }, "small-stack", 512 * 1024);
         thread.start();
         thread.join();
         if (failure.get() != null) {

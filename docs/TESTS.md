@@ -276,7 +276,7 @@ Mesures (Windows 11, JDK 21, `gradlew cleanTest check`) : 832 tests, 0 échec, 0
 | `ExpressionEvaluationTest` | - | tables de valeurs exactes : priorités et associativité (`2+3*4 = 14`, `-2^2 = -4`, `2^3^2 = 512`, `2^-1 = 1/2`, `(1/3)*3 = 1`, `--2 = 2`...), racines (`√2*√2` approché qui contient 2), virgule et point, notation `e`, espaces insécables, opérateurs Unicode, mots réservés dans toutes les casses, variables sensibles à la casse, références `ans` et `$n`, commentaires, nature de la ligne, références et noms relevés |
 | `ExpressionErrorsTest` | - | **chaque message** du langage avec son code et sa position exacte (début inclus, fin exclue) : erreurs lexicales, syntaxiques et d'évaluation, longueur, profondeur et nombre de nœuds aux bornes exactes, caractère invisible nommé par son code, caractère hors du plan de base |
 | `LexerTest`, `CanonicalPrinterTest`, `ReferenceRewriterTest` | - | jetons et positions ; textes canoniques (parenthèses minimales) ; renumérotation de l'exemple de l'Epic (3 → 4, 5 supprimée), lignes invalides réécrites quand même |
-| `ExpressionRobustnessTest` | - | 10 000 parenthèses imbriquées : « Trop d'imbrications » par le contrôle de profondeur (analyseur sans limite de longueur) et ligne trop longue avec les limites par défaut ; chaque construction imbriquée comptée ; ligne de 1 Mo refusée en une dizaine de microsecondes ; analyse à la profondeur maximale et arbres de 100 000 niveaux évalués et imprimés sur une pile de 256 Ko, sans `StackOverflowError` |
+| `ExpressionRobustnessTest` | - | 10 000 parenthèses imbriquées : « Trop d'imbrications » par le contrôle de profondeur (analyseur sans limite de longueur) et ligne trop longue avec les limites par défaut ; chaque construction imbriquée comptée ; ligne de 1 Mo refusée en une dizaine de microsecondes ; analyse à la profondeur maximale et arbres de 100 000 niveaux évalués et imprimés sur une pile de 512 Ko, sans `StackOverflowError` |
 | `ExpressionGuideTest` | - | les exemples du guide s'évaluent ligne à ligne avec les valeurs annoncées ; chaque ligne du tableau « Erreurs fréquentes » donne exactement son message |
 | `ExpressionRoundTripProperties` | `property` | arbre aléatoire (toutes formes, nombres de toutes tailles, noms Unicode, `ans`, `$n`, affectations) → imprimeur canonique → analyseur → même arbre, positions mises à part ; le texte canonique est un point fixe ; le texte désigné par la position de **chaque** nœud, relu seul, redonne ce nœud |
 | `ExpressionDifferentialProperties` | `property` | arbre aléatoire de nombres : l'évaluateur donne la même valeur, ou le même code de refus, que les opérations du noyau appliquées directement, sur l'arbre et sur l'arbre réimprimé puis relu (couverture vérifiée : environ 59 % exacts, 14 % approchés, 27 % refusés) |
@@ -330,7 +330,8 @@ commitée.
 7. **Une borne de pile annoncée sans preuve** (E09, corrigé avant commit). Les plafonds « sûrs » d'abord choisis
    (1000 niveaux d'analyse, 5000 nœuds évalués récursivement) faisaient déborder la pile dès le premier test placé à la
    borne. Correction : l'évaluateur et l'imprimeur parcourent l'arbre avec une pile explicite, et la profondeur d'analyse
-   est plafonnée à 100 ; `ExpressionRobustnessTest` le vérifie sur une pile de 256 Ko.
+   est plafonnée à 100 ; `ExpressionRobustnessTest` le vérifie sur une pile de 512 Ko (256 Ko suffisaient sous Windows
+   mais débordaient sous macOS arm64, découvert par la CI).
 
 ## Limites connues
 
