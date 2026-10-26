@@ -34,8 +34,8 @@ public class CalculatorEngine {
         }
 
         BigDecimal resultValue = apply(operation, firstValue, secondValue);
-        String firstDisplay = NumberFormatter.format(firstValue);
-        String secondDisplay = operation.requiresSecondOperand() ? NumberFormatter.format(secondValue) : "";
+        String firstDisplay = DecimalPolicy.format(firstValue);
+        String secondDisplay = operation.requiresSecondOperand() ? DecimalPolicy.format(secondValue) : "";
         return new CalculationRecord(operation, firstDisplay, secondDisplay, resultValue);
     }
 

@@ -92,13 +92,13 @@ public class CalculatorEngineTest {
     void testDivisionRoundingIsStableForReuse() throws Exception {
         CalculationRecord record = engine.calculate(Operation.DIVISION, "1", "3");
         assertEquals("0,333333333333", record.getFormattedResult(), "Non-terminating divisions should use the shared rounding policy.");
-        assertEquals("0,333333333333", record.getReusableValue(), "Reused values should match the displayed rounded result exactly.");
+        assertEquals("0,333333333333", record.getFormattedResult(), "Reused values should match the displayed rounded result exactly.");
     }
 
     @Test
     void testPowerCalculationIsFormattedForReuse() throws Exception {
         CalculationRecord record = engine.calculate(Operation.POWER, "2", "3");
-        assertEquals("8", record.getReusableValue(), "Reusable result should match the formatted result.");
+        assertEquals("8", record.getFormattedResult(), "Reusable result should match the formatted result.");
     }
 
 

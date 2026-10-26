@@ -219,7 +219,7 @@ public class FileCalculationHistoryStore implements CalculationHistoryStore {
                 + "\t"
                 + record.getSecondValue()
                 + "\t"
-                + NumberFormatter.serialize(record.getResultValue());
+                + DecimalPolicy.serialize(record.getResultValue());
     }
 
     private static String keyForOperation(Operation operation) {

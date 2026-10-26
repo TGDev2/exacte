@@ -16,7 +16,7 @@ public class CalculationRecord {
         this.firstValue = Objects.requireNonNull(firstValue);
         this.secondValue = Objects.requireNonNull(secondValue);
         this.resultValue = DecimalPolicy.normalize(Objects.requireNonNull(resultValue));
-        this.formattedResult = NumberFormatter.format(this.resultValue);
+        this.formattedResult = DecimalPolicy.format(this.resultValue);
         this.historyEntry = buildHistoryEntry();
     }
 
@@ -34,10 +34,6 @@ public class CalculationRecord {
 
     public String getSecondValue() {
         return secondValue;
-    }
-
-    public String getReusableValue() {
-        return formattedResult;
     }
 
     public BigDecimal getResultValue() {

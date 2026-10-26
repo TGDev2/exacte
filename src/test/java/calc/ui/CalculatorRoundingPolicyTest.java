@@ -53,7 +53,7 @@ public class CalculatorRoundingPolicyTest {
             throws Exception {
         CalculationRecord record = engine.calculate(operation, first, second);
         assertEquals(expected, record.getFormattedResult(), operation + " " + first + " " + second + " should follow the rounding rule.");
-        assertEquals(expected, record.getReusableValue(), "The reused value should be the displayed value.");
+        assertEquals(expected, record.getFormattedResult(), "The reused value should be the displayed value.");
     }
 
     @Test
@@ -116,7 +116,7 @@ public class CalculatorRoundingPolicyTest {
             Object[] values = arguments.get();
             CalculationRecord record = engine.calculate((Operation) values[0], (String) values[1], (String) values[2]);
             records.add(record);
-            records.add(engine.calculate(Operation.DIVISION, record.getReusableValue(), "7"));
+            records.add(engine.calculate(Operation.DIVISION, record.getFormattedResult(), "7"));
         }
 
         Path historyFile = tempDirectory.resolve("history.tsv");

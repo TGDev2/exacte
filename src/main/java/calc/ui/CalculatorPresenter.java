@@ -85,7 +85,7 @@ public class CalculatorPresenter {
             history.add(record);
             selectedHistoryIndex = history.size() - 1;
             resultValue = record.getFormattedResult();
-            firstInput = record.getReusableValue();
+            firstInput = record.getFormattedResult();
             secondInput = "";
             focusTarget = selectedOperation.requiresSecondOperand() ? FocusTarget.SECOND_NUMBER : FocusTarget.FIRST_NUMBER;
             selectFocusedFieldText = !selectedOperation.requiresSecondOperand();
@@ -168,12 +168,12 @@ public class CalculatorPresenter {
         }
 
         if (target == ReuseTarget.FIRST_NUMBER) {
-            firstInput = record.getReusableValue();
+            firstInput = record.getFormattedResult();
             focusTarget = selectedOperation.requiresSecondOperand() ? FocusTarget.SECOND_NUMBER : FocusTarget.FIRST_NUMBER;
             selectFocusedFieldText = !selectedOperation.requiresSecondOperand();
             statusMessage = "Le résultat historique a été placé pour le calcul en cours.";
         } else {
-            secondInput = record.getReusableValue();
+            secondInput = record.getFormattedResult();
             focusTarget = FocusTarget.SECOND_NUMBER;
             selectFocusedFieldText = true;
             statusMessage = "Le résultat historique a été copié dans le second nombre.";
@@ -194,7 +194,7 @@ public class CalculatorPresenter {
         }
 
         selectedHistoryIndex = history.size() - 1;
-        firstInput = record.getReusableValue();
+        firstInput = record.getFormattedResult();
         if (selectedOperation.requiresSecondOperand()) {
             secondInput = "";
             focusTarget = FocusTarget.SECOND_NUMBER;

@@ -73,14 +73,14 @@ public class CalculatorSizeLimitsTest {
         assertEquals(expected.toString(), power.getFormattedResult(), "2^999 should be exact.");
         assertEquals(301, power.getFormattedResult().length(), "2^999 has 301 digits.");
 
-        CalculationRecord chained = engine.calculate(Operation.ADDITION, power.getReusableValue(), "1");
+        CalculationRecord chained = engine.calculate(Operation.ADDITION, power.getFormattedResult(), "1");
         assertEquals(expected.add(BigInteger.ONE).toString(), chained.getFormattedResult(),
                 "The reused result should chain into the next calculation.");
     }
 
     @Test
     void testPowerOfAHugeResultIsRefusedImmediately() throws Exception {
-        String twoPower999 = engine.calculate(Operation.POWER, "2", "999").getReusableValue();
+        String twoPower999 = engine.calculate(Operation.POWER, "2", "999").getFormattedResult();
 
         CalculationException exception = assertTimeoutPreemptively(Duration.ofSeconds(1), () -> assertThrows(
                 CalculationException.class,
