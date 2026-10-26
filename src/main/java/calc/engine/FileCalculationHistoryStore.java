@@ -247,15 +247,34 @@ public class FileCalculationHistoryStore implements CalculationHistoryStore {
         throw new LineRejection(RejectedLine.Cause.INCONSISTENT_RESULT, "the stored result differs from the recalculation");
     }
 
-    private String serialize
-(CalculationRecord record) {
+    private String serialize(CalculationRecord record) {
         return keyForOperation(record.getOperation())
                 + "\t"
                 + record.getFirstValue()
                 + "\t"
                 + record.getSecondValue()
                 + "\t"
-                + record.getReusableValue();
+                + storedResult(record);
+    }
+
+    /**
+     * The canonical text of the result, which a reload recalculates from the operand texts. Version 1 cannot store an
+     * interval: when an operand was a remembered approximate value, its column holds a point of that interval, and the
+     * only result a reload can verify is the exact recalculation from that point (docs/adr/0004-regles-affichage.md,
+     * section 9). The entry in memory keeps its interval.
+     */
+    private static String storedResult(CalculationRecord record) {
+        if (!record.hasApproximateOperand()) {
+            return record.getReusableValue();
+        }
+        try {
+            return new CalculatorEngine().calculate(record.getOperation(), record.getFirstValue(), record.getSecondValue())
+                    .getReusableValue();
+        } catch (CalculationException exception) {
+            LOGGER.warning("An entry calculated from an approximate value cannot be recalculated from its stored operands ("
+                    + exception.getMessage() + "): it will be rejected when the history is loaded");
+            return record.getReusableValue();
+        }
     }
 
     private static String keyForOperation(Operation operation) {

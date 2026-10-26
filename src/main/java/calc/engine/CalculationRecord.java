@@ -18,6 +18,7 @@ public class CalculationRecord {
     private final String secondValue;
     private final CertifiedValue result;
     private final FormattedValue formatted;
+    private final boolean approximateOperand;
     private final String historyEntry;
 
     /** {@code secondOperand} is ignored (and may be null) for a unary operation. */
@@ -27,6 +28,7 @@ public class CalculationRecord {
         this.firstValue = ValueFormatter.canonical(Objects.requireNonNull(firstOperand));
         this.secondValue = operation.requiresSecondOperand() ? ValueFormatter.canonical(Objects.requireNonNull(secondOperand)) : "";
         this.result = Objects.requireNonNull(result);
+        this.approximateOperand = !firstOperand.isExact() || operation.requiresSecondOperand() && !secondOperand.isExact();
         this.formatted = ValueFormatter.format(result, DisplayMode.AUTO);
         this.historyEntry = buildHistoryEntry();
     }
@@ -52,6 +54,14 @@ public class CalculationRecord {
 
     public boolean isExact() {
         return result.isExact();
+    }
+
+    /**
+     * Whether an operand was an approximate value (a remembered root): its canonical text is only a point of its
+     * interval, so the result recalculated from the operand texts differs from {@link #getResult()}.
+     */
+    public boolean hasApproximateOperand() {
+        return approximateOperand;
     }
 
     public Operation getOperation() {

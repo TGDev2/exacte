@@ -3,6 +3,7 @@ package calc.testing;
 import calc.engine.CalculationException;
 import calc.engine.CalculationRecord;
 import calc.engine.CalculatorEngine;
+import calc.engine.Operand;
 import calc.engine.Operation;
 import calc.testing.DecimalGenerators.DecimalText;
 import java.util.Optional;
@@ -83,6 +84,35 @@ public final class RecordGenerators {
     public static Arbitrary<CalculationRecord> anySizeRecords() {
         return Arbitraries.frequencyOf(Tuple.of(4, records()), Tuple.of(1, longExpressions()
                         .map(RecordGenerators::tryCalculate).filter(Optional::isPresent).map(Optional::get)));
+    }
+
+    /**
+     * Entries calculated from a remembered approximate value, as the presenter makes them: the square root of an operand,
+     * kept as a value, then used as the first or the second operand of another operation (powers up to 40, so that the
+     * exact recalculation from its canonical point stays within the core limits).
+     */
+    public static Arbitrary<CalculationRecord> rememberedRootRecords() {
+        Arbitrary<DecimalText> radicands = DecimalGenerators.nonZero(DecimalGenerators.decimals(20))
+                .map(decimal -> new DecimalText(decimal.text().replaceFirst("^[+-]", ""), decimal.value().abs()));
+        Arbitrary<String> others = Arbitraries.oneOf(DecimalGenerators.decimals(20).map(DecimalText::text),
+                DecimalGenerators.integers(2).map(DecimalText::text), Arbitraries.of("123456789012345", "1e15", "1e-30"));
+        Arbitrary<Operation> operations = Arbitraries.of(Operation.class);
+        return Combinators.combine(radicands, operations, others, Arbitraries.of(true, false), Arbitraries.integers().between(-40, 40))
+                .as((radicand, operation, other, rootFirst, exponent) -> {
+                    try {
+                        CalculatorEngine engine = new CalculatorEngine();
+                        Operand root = Operand.known(engine.calculate(Operation.ROOT, radicand.text(), "").getResult());
+                        if (operation == Operation.POWER) {
+                            return Optional.of(engine.calculate(operation, root, Operand.typed(String.valueOf(exponent))));
+                        }
+                        return Optional.of(rootFirst
+                                ? engine.calculate(operation, root, Operand.typed(other))
+                                : engine.calculate(operation, Operand.typed(other), root));
+                    } catch (CalculationException refused) {
+                        return Optional.<CalculationRecord>empty();
+                    }
+                })
+                .filter(Optional::isPresent).map(Optional::get);
     }
 
     /** The record the public engine makes of a calculation that it must accept. */

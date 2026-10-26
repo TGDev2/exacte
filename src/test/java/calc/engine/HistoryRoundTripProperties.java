@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
+import net.jqwik.api.Arbitraries;
 import net.jqwik.api.Arbitrary;
 import net.jqwik.api.Example;
 import net.jqwik.api.ForAll;
@@ -104,6 +105,64 @@ class HistoryRoundTripProperties {
             assertTrue(loaded.rejections().isEmpty(), () -> "The saved entry was rejected: " + loaded.rejections());
             assertEquals(1, loaded.records().size());
             assertSameEntry(record, loaded.records().get(0));
+        });
+    }
+
+    @Provide
+    Arbitrary<List<CalculationRecord>> rememberedHistories() {
+        return Arbitraries.oneOf(RecordGenerators.records(), RecordGenerators.rememberedRootRecords()).list().ofMinSize(1).ofMaxSize(6);
+    }
+
+    /**
+     * An entry calculated from a remembered root is stored as its operands and the exact recalculation from their texts
+     * (docs/adr/0004-regles-affichage.md, section 9): it reloads without rejection, its value lies in the interval that
+     * was shown, and a second save changes nothing.
+     */
+    @Property(tries = 300)
+    void entriesCalculatedFromRememberedRootsReloadWithoutRejection(@ForAll("rememberedHistories") List<CalculationRecord> history)
+            throws Exception {
+        TempDirectories.with(directory -> {
+            Path file = directory.resolve("history.tsv");
+            new FileCalculationHistoryStore(file).saveHistory(history);
+            byte[] first = Files.readAllBytes(file);
+
+            FileCalculationHistoryStore store = new FileCalculationHistoryStore(file);
+            HistoryLoadResult loaded = store.loadHistory();
+
+            assertTrue(loaded.rejections().isEmpty(), () -> "Nothing may be rejected, got " + loaded.rejections() + " for " + history);
+            assertEquals(history.size(), loaded.records().size());
+            for (int index = 0; index < history.size(); index++) {
+                CalculationRecord saved = history.get(index);
+                CalculationRecord restored = loaded.records().get(index);
+                assertEquals(saved.getFirstValue(), restored.getFirstValue());
+                assertEquals(saved.getSecondValue(), restored.getSecondValue());
+                // Both contain the value of the stored operands: an exact restored value lies in the interval, an interval meets it.
+                assertTrue(restored.getResult().lower().compareTo(saved.getResult().upper()) <= 0
+                                && saved.getResult().lower().compareTo(restored.getResult().upper()) <= 0,
+                        () -> restored + " meets the interval of " + saved);
+            }
+            store.saveHistory(loaded.records());
+            assertTrue(Arrays.equals(first, Files.readAllBytes(file)), "Saving the reloaded history changes nothing.");
+        });
+    }
+
+    /** Regression of the cases found by the review of E06: these lines were rejected by the store that wrote them. */
+    @Example
+    void largeResultsCalculatedFromARememberedRootReload() throws Exception {
+        CalculatorEngine engine = new CalculatorEngine();
+        Operand root = Operand.known(engine.calculate(Operation.ROOT, "2", "").getResult());
+        List<CalculationRecord> history = List.of(
+                engine.calculate(Operation.MULTIPLICATION, root, Operand.typed("123456789012345")),
+                engine.calculate(Operation.POWER, root, Operand.typed("40")),
+                engine.calculate(Operation.DIVISION, Operand.typed("1e15"), root));
+        TempDirectories.with(directory -> {
+            Path file = directory.resolve("history.tsv");
+            new FileCalculationHistoryStore(file).saveHistory(history);
+
+            HistoryLoadResult loaded = new FileCalculationHistoryStore(file).loadHistory();
+
+            assertTrue(loaded.rejections().isEmpty(), () -> "Nothing may be rejected, got " + loaded.rejections());
+            assertEquals(3, loaded.records().size());
         });
     }
 
