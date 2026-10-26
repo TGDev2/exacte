@@ -10,13 +10,6 @@ import calc.number.NumericException;
  * {@link InputField} it concerns (docs/adr/0004-regles-affichage.md).
  */
 public class CalculatorEngine {
-    private static final String TOO_LARGE_MESSAGE =
-            "Le résultat dépasse la taille maximale d'un calcul exact (réduisez les nombres saisis).";
-    private static final String TOO_LARGE_POWER_MESSAGE =
-            "Le résultat dépasse la taille maximale d'un calcul exact (réduisez l'exposant ou la base).";
-    private static final String UNEXPECTED_ARITHMETIC_MESSAGE =
-            "Le calcul n'a pas pu être effectué sur des nombres de cette taille.";
-
     /** Both operands are typed texts. */
     public CalculationRecord calculate(Operation operation, String firstInput, String secondInput) throws CalculationException {
         return calculate(operation, Operand.typed(firstInput), Operand.typed(secondInput));
@@ -37,7 +30,7 @@ public class CalculatorEngine {
         } catch (NumericException exception) {
             throw translate(operation, exception.error());
         } catch (ArithmeticException exception) {
-            throw new CalculationException(UNEXPECTED_ARITHMETIC_MESSAGE, InputField.NONE);
+            throw new CalculationException(NumericMessages.UNEXPECTED_ARITHMETIC, InputField.NONE);
         }
     }
 
@@ -57,30 +50,25 @@ public class CalculatorEngine {
         boolean power = operation == Operation.POWER;
         return switch (error) {
             case DIVISION_BY_ZERO -> power
-                    ? new CalculationException("0 ne peut pas être élevé à une puissance négative.", InputField.FIRST)
+                    ? new CalculationException(NumericMessages.ZERO_TO_NEGATIVE_POWER, InputField.FIRST)
                     : new CalculationException("Le second nombre doit être différent de 0 pour une division.", InputField.SECOND);
             case DIVISOR_MAY_BE_ZERO -> power
                     ? new CalculationException("Le premier nombre est une valeur approchée qui peut valoir 0 : il ne peut pas"
                             + " être élevé à une puissance négative.", InputField.FIRST)
                     : new CalculationException("Le second nombre est une valeur approchée qui peut valoir 0 : la division"
                             + " est impossible.", InputField.SECOND);
-            case ROOT_OF_NEGATIVE -> new CalculationException(
-                    "La racine carrée d'un nombre négatif n'est pas définie en réel.", InputField.FIRST);
+            case ROOT_OF_NEGATIVE -> new CalculationException(NumericMessages.ROOT_OF_NEGATIVE, InputField.FIRST);
             case ROOT_OF_POSSIBLY_NEGATIVE -> new CalculationException(
                     "Le premier nombre est une valeur approchée qui peut être négative : sa racine carrée n'est pas définie.",
                     InputField.FIRST);
-            case EXPONENT_NOT_INTEGER -> new CalculationException("L'exposant doit être un entier.", InputField.SECOND);
-            case EXPONENT_NOT_EXACT -> new CalculationException(
-                    "L'exposant est une valeur approchée : il doit être un entier exact.", InputField.SECOND);
-            case EXPONENT_OUT_OF_RANGE -> new CalculationException(
-                    "L'exposant doit être compris entre -" + CalculationLimits.MAX_ABSOLUTE_INTEGER_EXPONENT
-                            + " et " + CalculationLimits.MAX_ABSOLUTE_INTEGER_EXPONENT + ".",
-                    InputField.SECOND);
+            case EXPONENT_NOT_INTEGER -> new CalculationException(NumericMessages.EXPONENT_NOT_INTEGER, InputField.SECOND);
+            case EXPONENT_NOT_EXACT -> new CalculationException(NumericMessages.EXPONENT_NOT_EXACT, InputField.SECOND);
+            case EXPONENT_OUT_OF_RANGE -> new CalculationException(NumericMessages.EXPONENT_OUT_OF_RANGE, InputField.SECOND);
             case SIZE_LIMIT_EXCEEDED -> power
-                    ? new CalculationException(TOO_LARGE_POWER_MESSAGE, InputField.SECOND)
-                    : new CalculationException(TOO_LARGE_MESSAGE, InputField.NONE);
+                    ? new CalculationException(NumericMessages.POWER_TOO_LARGE, InputField.SECOND)
+                    : new CalculationException(NumericMessages.RESULT_TOO_LARGE, InputField.NONE);
             // Only parsing raises it, and operands are parsed before computing.
-            case MALFORMED_INPUT -> new CalculationException(UNEXPECTED_ARITHMETIC_MESSAGE, InputField.NONE);
+            case MALFORMED_INPUT -> new CalculationException(NumericMessages.UNEXPECTED_ARITHMETIC, InputField.NONE);
         };
     }
 }
