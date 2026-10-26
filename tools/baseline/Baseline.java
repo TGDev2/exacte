@@ -175,6 +175,7 @@ public final class Baseline {
                     .append(reusable).append('\n');
         }
         Files.write(file, out.toString().getBytes(StandardCharsets.UTF_8));
+        Files.write(file.resolveSibling(".gitattributes"), "* -text\n".getBytes(StandardCharsets.UTF_8));
     }
 
     /** Value the presenter puts back into the first field when the user reuses the last result. */

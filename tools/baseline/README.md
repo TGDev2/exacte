@@ -3,7 +3,7 @@
 `Baseline.java` is a standalone program (default package, no dependency). It calls the **existing** engine, presenter and
 history store as they are and writes:
 
-- `testdata/golden/engine-v1.tsv` - one line per engine case (70 cases: 47 OK, 23 ERROR);
+- `testdata/golden/engine-v1.tsv` and `.gitattributes` - one line per engine case (70 cases: 47 OK, 23 ERROR);
 - `testdata/legacy-v1/*.tsv`, `testdata/legacy-v1/README.md` and `testdata/legacy-v1/.gitattributes`.
 
 It is not part of the production code and is not built by Maven.
