@@ -112,7 +112,7 @@ save clears it; the state in memory is never lost.
 
 The brief makes it optional on the condition that a pause of about 150 ms in the typing keeps it fluid on 500 lines. Measured
 (`NotebookResponsivenessTest`): recalculating the 499 lines below line 1 and formatting the rows takes a median of 11 ms
-without the save (best 9,6 ms, worst 15 ms); the full validation, with the save, takes a median of 14 ms. A preview would
+including the save, which `DocumentService` does on every command (best 9,6 ms, worst 15 ms); the full validation, with the save, takes a median of 14 ms. A preview would
 be affordable. It is **not added**, on purpose:
 
 - while the user types `2 +` the preview would show an error for every pause, and the result of a text that is not

@@ -387,7 +387,7 @@ vue qui n'affiche que le `NotebookViewModel`. Choix et raccourcis : `docs/adr/00
 | Classe | Étiquette | Ce qu'elle garantit |
 |---|---|---|
 | `NotebookPresenterTest` | aucune | `a = 2`, `a * 3`, `ans + 1` donnent 2, 6, 7 ; modifier la ligne 1 recalcule les suivantes ; insertion au-dessus d'une ligne référencée (texte réécrit, même valeur) ; suppression (erreur explicite, annulable) ; déplacement ; annuler / rétablir (annuler avec une saisie en cours abandonne d'abord la saisie, rétablir est refusé) ; Échap ; clic ; modes (remémorisés, sauvegardés avec le carnet, saisie intacte) ; ligne trop longue refusée sans perte ; sauts de ligne collés ; fermeture qui valide ; sauvegarde automatique et rechargement ; échec de sauvegarde simulé (signalé, état en mémoire intact, réparé au coup suivant) ; deuxième instance en lecture seule (message permanent) ; migration d'un historique v1 (statut, lignes, valeurs, sauvegarde automatique) ; aucune dépendance à Swing |
-| `NotebookResponsivenessTest` | aucune | 500 lignes avec références : valider la ligne 1 (recalcul, 501 lignes affichées, sauvegarde) en moins de 100 ms dans le présentateur ; coût d'un aperçu pendant la frappe (mesure pour la décision de l'ADR, section 6) |
+| `NotebookResponsivenessTest` | aucune | 500 lignes avec références : valider la ligne 1 (recalcul, 501 lignes affichées, sauvegarde) en moins de 100 ms dans le présentateur ; coût d'un aperçu pendant la frappe (mesure pour la décision de l'ADR, section 6 ; le chiffre inclut la sauvegarde) |
 | `NotebookShortcutConflictTest` | aucune | aucune touche à modificateur du carnet n'est liée par un champ texte des apparences installées ; liste les touches simples que le champ du carnet remplace |
 | `NotebookPaletteContrastTest` | aucune | chaque couleur de texte des lignes atteint 4,5:1 sur ses fonds (rapports imprimés) |
 | `NotebookHelpTest` | aucune | les exemples de l'aide « Syntaxe » donnent le résultat annoncé ; l'aide des raccourcis liste les vraies touches (Ctrl / Cmd) |
@@ -405,7 +405,7 @@ dont 399 approchées, 497 lignes avec références). Machine de développement, 
 | Présentateur : Entrée sur la ligne 1 (recalcul, 501 lignes, sauvegarde du fichier) | 12,1 ms | 14,2 ms | 16,1 ms |
 | Fenêtre : mise à jour des 501 lignes | 12,4 à 14,4 ms | 18,5 à 19,2 ms | 21,7 à 25,1 ms |
 | Fenêtre : avec mise en page et peinture hors écran | 28,7 à 31,8 ms | 41,2 à 41,4 ms | 45,4 à 47,9 ms |
-| Coût d'un aperçu pendant la frappe (recalcul + mise en forme, sans sauvegarde) | 9,6 ms | 10,8 ms | 14,6 ms |
+| Coût d'un aperçu pendant la frappe (recalcul + mise en forme par `DocumentService`, donc avec sa sauvegarde) | 9,6 ms | 10,8 ms | 14,6 ms |
 | Ouverture de la fenêtre (500 lignes) | 0,83 à 0,85 s | | |
 | 5000 lignes : mise à jour / avec mise en page et peinture | 70 à 71 ms / 89 à 91 ms | 83 à 85 ms / 112 à 115 ms | 92 à 106 ms / 120 à 140 ms |
 | Ouverture de la fenêtre (5000 lignes) | 1,5 s | | |
