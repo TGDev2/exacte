@@ -36,31 +36,38 @@ Raccourcis (le modificateur de menu est `Ctrl` sous Windows et Linux, `Cmd` sous
 | `Ctrl+Maj+↑` / `Ctrl+Maj+↓` | monter / descendre la ligne |
 | `Ctrl+M` | mode d'affichage suivant (toujours `Ctrl`, `Cmd+M` minimise la fenêtre sous macOS) |
 
-L'ancien formulaire à deux champs est resté dans le code mais n'est plus lancé ; il sera retiré avec l'Epic E13, qui ajoute aussi Ouvrir, Enregistrer et Exporter dans la fenêtre.
+### Menu Fichier : documents et exports
+
+Le carnet sans titre est enregistré automatiquement. Le menu **Fichier** permet de garder plusieurs carnets dans des fichiers `.calc.json` (format : [docs/FORMAT-FICHIER.md](docs/FORMAT-FICHIER.md), décisions : [docs/adr/0011-fichiers-dans-l-interface.md](docs/adr/0011-fichiers-dans-l-interface.md)) :
+
+| Entrée | Touche | Effet |
+|---|---|---|
+| Nouveau | `Ctrl+N` | carnet vide sans titre ; demande d'abord si des modifications seraient perdues |
+| Ouvrir… | `Ctrl+O` | ouvre un fichier `.calc.json` ; si l'ouverture échoue, le carnet courant reste tel quel |
+| Enregistrer | `Ctrl+S` | écrit le fichier du document (un carnet sans titre demande un nom) |
+| Enregistrer sous… | `Ctrl+Maj+S` | demande un nom (`.calc.json` ajouté), confirme avant de remplacer un fichier |
+| Exporter en Markdown… / en CSV… | | tableau `n° / Expression / Résultat` dans le mode d'affichage courant ; confirme avant de remplacer un fichier |
+| Quitter | | comme le bouton de fermeture de la fenêtre |
+
+- **Titre de la fenêtre** : « Carnet sans titre — Calc » ou « devis.calc.json — Calc » ; un point `•` devant le nom signale un document avec fichier modifié et non enregistré.
+- **Confirmations** : Nouveau, Ouvrir et Quitter (fermeture de la fenêtre comprise) proposent « Enregistrer », « Ne pas enregistrer » ou « Annuler » quand un document avec fichier est modifié. Le carnet sans titre est déjà enregistré, il ne pose pas la question, sauf pour Nouveau, qui remplacerait le fichier automatique.
+- **Ouverture d'un fichier d'un tiers** : un fichier illisible, invalide ou trop volumineux (plus de 16 Mio) est refusé avec sa raison dans la barre d'état ; un fichier d'une version plus récente de Calc s'ouvre en **lecture seule** (Enregistrer désactivé, Enregistrer sous possible) ; les lignes en erreur sont conservées et comptées (« 2 lignes contiennent une erreur. »).
+- **Exemples d'exports** : `Devis cuisine.md` (tableau Markdown) et `Devis cuisine.csv` (séparateur `;`, UTF-8 avec BOM, ouvrable dans Excel ; une cellule qui commencerait par `=`, `+`, `-` ou `@` est préfixée d'une apostrophe).
 
 ## Ce que l'application fait
 
-> Les puces de cette section décrivent surtout l'ancien formulaire à deux champs (opérandes, historique, raccourcis `Ctrl+R`, `Alt+lettre`), qui n'est plus lancé depuis E12. Le calcul exact, les règles d'affichage, le badge d'exactitude et les modes d'affichage valent aussi pour le carnet.
-
-- Opérations prises en charge : addition, soustraction, multiplication, division, puissance (exposant entier), racine carrée
+- Un carnet de calcul : une expression par ligne (`+ - * /`, `^`, `√`, parenthèses, variables, `ans`, `$n`), sauvegarde automatique, annuler / rétablir, documents `.calc.json` et exports Markdown et CSV (voir plus haut)
 - Calcul exact : fractions exactes, et pour une racine non exacte une valeur approchée avec une borne d'erreur garantie (voir « Précision numérique »)
-- Saisie française souple : virgule ou point décimal, fraction `3/4`, notation scientifique `1,5e-7`, espaces insécables de groupement des milliers (voir « Règles de saisie »)
-- Messages d'erreur explicites et ciblés : le focus revient dans le champ fautif
-- Historique réutilisable
-- Historique persistant entre les sessions, protégé contre la perte de données (voir « Historique persistant »)
-- Enchaînement rapide des calculs : après un succès, le résultat revient dans le premier champ pour préparer le calcul suivant
-- Réutilisation sans perte : un résultat repris, enregistré ou rechargé garde sa valeur exacte (`1 / 3` repris puis `× 3` donne `1`)
+- Saisie française souple : virgule ou point décimal, notation scientifique `1,5e-7`, espaces insécables de groupement des milliers (voir « Règles de saisie »)
+- Messages d'erreur explicites et ciblés : le message est écrit sous la ligne et la partie fautive est soulignée
+- Réutilisation sans perte : `ans` et `$n` reprennent la valeur exacte (`1 / 3` puis `ans * 3` donne `1`)
 - Apparence native : l'application adopte le style du système (Windows, macOS, Linux) et retombe sur l'apparence Java par défaut si elle n'est pas disponible
-- Accessibilité : chaque champ est associé à son libellé, tous les composants ont un nom accessible et l'ordre de tabulation suit la lecture (nombres et opération, boutons de calcul, historique et ses boutons)
+- Accessibilité : chaque ligne est un champ accessible dont le nom est « Ligne n » et dont la description donne le résultat, l'ordre de tabulation suit la lecture
 - Affichage lisible : 12 chiffres significatifs, « … » quand des chiffres sont omis, « ≈ » pour une valeur approchée
-- Exactitude visible : un badge « Exact » ou « ≈ Approché » accompagne le résultat (le texte dit toujours ce que la couleur dit) ; son info-bulle donne « Erreur maximale : ± … » pour une valeur approchée, ou « Valeur exacte : 1/3 (affichage arrondi) » quand le texte est arrondi, et la fraction exacte est rappelée sous le résultat
-- Mode d'affichage : le sélecteur « Affichage » (Auto, Décimal, Fraction, Scientifique) met en forme le résultat et l'historique sans recalculer ni modifier aucune valeur ; le choix est mémorisé entre deux lancements (préférences Java `java.util.prefs`, nœud `/calc/display`) et, si les préférences sont inaccessibles, l'application démarre en mode Auto
-- Raccourcis utiles :
-  - `Entrée` : calculer
-  - `Échap` : effacer les champs
-  - `Ctrl+R` : reprendre le dernier résultat
-  - `Ctrl+M` : passer au mode d'affichage suivant (Auto, Décimal, Fraction, Scientifique, puis Auto) ; aucune autre liaison de la fenêtre ni des composants Swing n'utilise cette combinaison (contrôlé par un test avec l'apparence Java et l'apparence Windows ; non contrôlé sous macOS et Linux), et sous macOS la combinaison utilise `Ctrl`, pas `Cmd` : `Cmd+M` (minimiser) n'est pas touché
-  - `Alt` + lettre soulignée : atteindre un champ ou activer un bouton (`Alt+P` premier nombre, `Alt+O` opération, `Alt+S` second nombre, `Alt+A` mode d'affichage, `Alt+C` calculer, `Alt+R` reprendre dernier résultat, `Alt+E` effacer, `Alt+1` / `Alt+2` vers nombre 1 / 2, `Alt+H` effacer l'historique). Sous Windows, les lettres soulignées n'apparaissent qu'après un appui sur `Alt`.
+- Exactitude visible : un badge « Exact » ou « ≈ Approché » accompagne le résultat (le texte dit toujours ce que la couleur dit) ; son info-bulle donne « Erreur maximale : ± … » pour une valeur approchée, ou « Valeur exacte : 1/3 (affichage arrondi) » quand le texte est arrondi
+- Mode d'affichage : le sélecteur « Affichage » (Auto, Décimal, Fraction, Scientifique) met en forme les résultats sans recalculer ni modifier aucune valeur ; le choix est mémorisé entre deux lancements (préférences Java `java.util.prefs`, nœud `/calc/display`) et, si les préférences sont inaccessibles, l'application démarre en mode Auto
+- Raccourcis : voir le tableau du carnet ; `Ctrl+M` passe au mode d'affichage suivant et aucune autre liaison de la fenêtre ni des composants Swing n'utilise cette combinaison (contrôlé par un test avec l'apparence Java et l'apparence Windows ; non contrôlé sous macOS et Linux), et sous macOS elle utilise `Ctrl`, pas `Cmd` : `Cmd+M` (minimiser) n'est pas touché
+- L'ancien formulaire à deux champs (deux nombres et une opération) est retiré : chacune de ses fonctions a son équivalent dans le carnet (`ans` pour « Reprendre dernier résultat », `$n` pour « Vers nombre 1 / 2 », `Échap` pour « Effacer », Édition > Tout effacer pour « Effacer historique »), tableau dans [docs/adr/0011-fichiers-dans-l-interface.md](docs/adr/0011-fichiers-dans-l-interface.md)
 
 ## Architecture
 
@@ -82,15 +89,16 @@ Le projet est volontairement compact, mais les responsabilités sont séparées 
   - `Lexer` (jetons et positions), `ExpressionParser` (descente récursive bornée en longueur, profondeur et nombre de nœuds) et `ParsedLine` (nature de la ligne, arbre, commentaire, références et noms utilisés)
   - `Node` : arbre immuable (interface scellée et records) ; `Evaluator` : évaluation avec le noyau exact, noms et références résolus par un `Resolver` de l'appelant (`TableResolver` pour les tests)
   - `CanonicalPrinter` : texte canonique à parenthèses minimales ; `ReferenceRewriter` : renumérotation des `$n` dans le texte d'origine ; `ExpressionException` : code, position et message français
+- `calc.notebook` : modèle du carnet (lignes, commandes, annuler / rétablir, évaluation), sans Swing
+- `calc.persistence`, `calc.document`, `calc.export` : fichier du carnet (format v3, écriture atomique), documents (nouveau, ouvrir, enregistrer, état modifié, version future en lecture seule) et exports Markdown et CSV ; aucun dialogue ici, les chemins sont des paramètres
 - `calc.ui` : interface
-  - `CalculatorPresenter` : logique d'interaction, gestion d'historique, statut, focus, préparation du workflow suivant et mémoire de la valeur placée dans chaque champ ; testable sans interface graphique
-  - `CalculatorViewModel` (record immuable, textes déjà prêts à afficher), `FocusTarget`, `ReuseTarget`, `StatusTone`, `OperationText` (libellés des opérations)
+  - `StatusTone`, `ResultDescription` : tons de la barre d'état et phrases d'exactitude, partagés
   - `DisplayModeStore` / `PreferencesDisplayModeStore` : mémorisation du mode d'affichage (`java.util.prefs`, erreurs tolérées et journalisées)
-  - `calc.ui.widget` : composants Swing réutilisables, sans dépendance à la fenêtre : `DisplayModeSelector` (liste déroulante des modes), `ExactnessBadge` (« Exact » / « ≈ Approché » et son info-bulle), `HistoryLine` + `HistoryLineRenderer` (ligne d'historique déjà formatée et son rendu), `Palette` et `Contrast` (couleurs et rapport de contraste WCAG)
+  - `calc.ui.widget` : composants Swing réutilisables, sans dépendance à la fenêtre : `DisplayModeSelector` (liste déroulante des modes), `ExactnessBadge` (« Exact » / « ≈ Approché » et son info-bulle), `Palette` et `Contrast` (couleurs et rapport de contraste WCAG)
   - `calc.ui.notebook` : le carnet, fenêtre principale (voir `docs/adr/0010-editeur-carnet.md`)
     - `NotebookPresenter` : toute la logique d'interaction du carnet (validation, navigation, annuler / rétablir, insertion, suppression, déplacement, mode, statut), testable sans interface graphique ; chaque intention renvoie un `NotebookViewModel` immuable (`NotebookRow` par ligne, `NotebookFocus`)
+    - `NotebookDialogs` (interface sans Swing : choix de fichier et confirmations) et `SwingNotebookDialogs` (`JFileChooser`, `JOptionPane`) ; les tests en injectent une version scriptée, aucun test n'ouvre une vraie boîte de dialogue ; le présentateur y ajoute Nouveau, Ouvrir, Enregistrer, Enregistrer sous, exports et Quitter (voir `docs/adr/0011-fichiers-dans-l-interface.md`)
     - `NotebookFrame` (fenêtre, menus, barre d'état), `NotebookRowView` (une ligne : numéro, `LineField`, résultat et badge, message d'erreur), `NotebookShortcuts` (les touches, avec le modificateur de menu du système), `NotebookHelp` (textes du menu Aide), `NotebookPalette` (couleurs, contrastes vérifiés)
-  - `CalculatorFrame` : rendu Swing de l'ancien formulaire à deux champs (plus lancé, retiré en E13)
 
 Cette séparation permet de tester les parcours d'usage critiques sans dépendre d'une vérification manuelle de l'UI.
 
@@ -168,6 +176,8 @@ Ce chemin est le plus adapté à une démonstration portfolio : l'évaluateur pe
 
 ## Historique persistant
 
+> Depuis E11 et E13, cette section décrit l'**ancien historique**, qui n'est plus écrit : il est converti en carnet au premier lancement (et reste lisible pour cette migration). Le fichier courant est désormais `carnet-courant.calc.json`.
+
 L'historique est un fichier JSON versionné, `history.json`, rangé à l'emplacement standard du système (le format complet, avec un exemple, est dans `docs/FORMAT-FICHIER.md`, les décisions dans `docs/adr/0005-format-persistance.md`) :
 
 - Windows : `%APPDATA%\Calc` (à défaut : `<dossier personnel>\AppData\Roaming\Calc`)
@@ -243,7 +253,6 @@ Le script lance `gradlew.bat run` : Gradle compile le projet puis démarre l'app
 - **Instances multiples** : si plusieurs instances de Calc sont ouvertes en même temps, chacune garde son propre historique en mémoire et la dernière à écrire gagne ; il n'y a pas de verrou de fichier.
 - **Historique non borné** : le nombre d'entrées n'est pas limité. C'est volontaire : mesuré, 5 000 calculs prennent 3,9 s cumulées et le rechargement 19 ms, ce qui ne justifie pas de limite.
 - **Messages d'erreur dans le moteur** : les messages destinés à l'utilisateur sont écrits en français dans le moteur ; il n'y a pas d'internationalisation.
-- **Deux opérandes (ancien formulaire)** : le formulaire à deux champs, qui n'est plus lancé, n'accepte que « nombre, opération, nombre ». Le carnet accepte des expressions complètes (parenthèses, priorités, variables, références).
 - **Éditeur de carnet** : une ligne de plus de 16 384 caractères est refusée avec un message (la limite du fichier) ; le collage de plusieurs lignes dans un champ les joint en une seule ligne ; les lignes ne sont pas virtualisées (ouverture d'environ 0,85 s pour 500 lignes et 1,5 s pour 5000 ; valider la première ligne de 5000 lignes prend environ 85 à 115 ms) ; pas d'aperçu du résultat pendant la frappe (mesuré possible, écarté : voir l'ADR 0010) ; les raccourcis ne sont pas contrôlés sur un clavier macOS réel ni avec l'apparence Aqua.
 - **Packaging Windows uniquement** : l'application portable est produite pour Windows et n'est pas signée ; il n'y a ni installeur ni release automatisée. Sous Linux et macOS, l'application se lance avec `java -jar build/libs/calc.jar` après `./gradlew jar`.
 - **Historique et valeurs approchées** : le format de fichier actuel ne stocke pas d'intervalle ; une entrée calculée à partir d'une valeur approchée réutilisée est rechargée comme le résultat exact de son opérande enregistré (un point de l'intervalle affiché). Une puissance d'une telle valeur au-delà d'environ 48 ne peut pas être enregistrée : la ligne est écartée, avec une copie de sauvegarde, au rechargement suivant. Le format de la version suivante stockera les intervalles.

@@ -1,9 +1,11 @@
-package calc.ui;
+package calc.persistence;
 
 import calc.engine.CalculationHistoryException;
-import calc.engine.CalculatorEngine;
+import calc.engine.CalculationRecord;
+import calc.engine.Operation;
 import calc.engine.HistoryLoadResult;
-import calc.persistence.JsonHistoryStore;
+import calc.testing.RecordGenerators;
+import java.util.ArrayList;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -24,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** The copy kept before a version 2 file that was read only in part, or not at all, can be replaced. */
-public class CalculatorHistoryBackupTest {
+public class JsonHistoryBackupTest {
     private static final Clock FIXED_CLOCK = Clock.fixed(Instant.parse("2024-01-02T03:04:05Z"), ZoneOffset.UTC);
     private static final String BACKUP_NAME = "history.json.20240102-030405.bak";
     private static final String ADDITION = "{\"op\": \"addition\", \"operands\": [\"1\", \"2\"], \"result\": {\"exact\": true, \"value\": \"3\"}}";
@@ -57,12 +59,12 @@ public class CalculatorHistoryBackupTest {
         Files.writeString(historyFile, ONE_ENTRY_INVALID, StandardCharsets.UTF_8);
         byte[] originalBytes = Files.readAllBytes(historyFile);
 
-        CalculatorViewModel view;
         try (JsonHistoryStore store = newStore(tempDirectory)) {
-            view = new CalculatorPresenter(new CalculatorEngine(), store).onCalculate("10", "5");
+            List<CalculationRecord> history = new ArrayList<>(store.loadHistory().records());
+            history.add(RecordGenerators.calculated(Operation.ADDITION, "10", "5"));
+            store.saveHistory(history);
         }
 
-        assertEquals(StatusTone.SUCCESS, view.statusTone(), "The calculation after a partial restore must be saved.");
         List<String> lines = Files.readAllLines(historyFile, StandardCharsets.UTF_8);
         assertEquals(4, lines.stream().filter(line -> line.contains("\"op\":")).count(), "The 3 valid entries and the new one.");
         assertTrue(lines.get(lines.size() - 4).contains("\"multiplication\""), "Old entries first, in order.");
@@ -76,19 +78,14 @@ public class CalculatorHistoryBackupTest {
         Files.writeString(historyFile, "{ this is not JSON", StandardCharsets.UTF_8);
         byte[] originalBytes = Files.readAllBytes(historyFile);
 
-        CalculatorPresenter presenter;
-        CalculatorViewModel startView;
         try (JsonHistoryStore store = newStore(tempDirectory)) {
-            presenter = new CalculatorPresenter(new CalculatorEngine(), store);
-            startView = presenter.createInitialView();
-
-            assertEquals(0, startView.historyEntries().size());
+            assertThrows(CalculationHistoryException.class, store::loadHistory);
             assertTrue(Files.exists(tempDirectory.resolve(BACKUP_NAME)), "A copy must exist before any write.");
 
-            presenter.onCalculate("1", "1");
+            store.saveHistory(List.of(RecordGenerators.calculated(Operation.ADDITION, "1", "1")));
         }
 
-        assertArrayEquals(originalBytes, Files.readAllBytes(tempDirectory.resolve(BACKUP_NAME)), "The calculation must not touch the copy.");
+        assertArrayEquals(originalBytes, Files.readAllBytes(tempDirectory.resolve(BACKUP_NAME)), "The next save must not touch the copy.");
         assertTrue(Files.readString(historyFile, StandardCharsets.UTF_8).contains("\"operands\": [\"1\", \"1\"]"));
     }
 
@@ -155,23 +152,6 @@ public class CalculatorHistoryBackupTest {
             assertNotNull(failure.getCause(), "The cause must be kept.");
             assertArrayEquals(originalBytes, Files.readAllBytes(failure.getBackupFile()), "An unreadable file is still copied.");
         }
-    }
-
-    @Test
-    void testPresenterReportsSaveFailureInProtectedMode(@TempDir Path tempDirectory) throws Exception {
-        Path historyFile = tempDirectory.resolve("history.json");
-        Files.writeString(historyFile, ONE_ENTRY_INVALID, StandardCharsets.UTF_8);
-        byte[] originalBytes = Files.readAllBytes(historyFile);
-
-        CalculatorViewModel view;
-        try (JsonHistoryStore store = newStoreWithFailingCopy(tempDirectory)) {
-            view = new CalculatorPresenter(new CalculatorEngine(), store).onCalculate("1", "1");
-        }
-
-        assertEquals(StatusTone.ERROR, view.statusTone());
-        assertEquals("Calcul effectué, mais l'historique n'a pas pu être enregistré.", view.statusMessage());
-        assertFalse(view.statusMessage().contains("simulated"), "No technical detail in the interface.");
-        assertArrayEquals(originalBytes, Files.readAllBytes(historyFile), "The original file must survive a refused save.");
     }
 
     private static String document(String... entries) {

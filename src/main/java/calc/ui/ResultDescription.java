@@ -18,10 +18,4 @@ public final class ResultDescription {
         return "";
     }
 
-    /** The exact fraction is secondary information when the main text cuts the value and does not already show it. */
-    public static String secondaryFraction(FormattedValue result) {
-        return result.exactFraction()
-                .filter(fraction -> result.truncated() && !fraction.equals(result.text()))
-                .orElse("");
-    }
 }

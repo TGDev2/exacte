@@ -107,6 +107,16 @@ public final class DocumentService {
         return Optional.ofNullable(autosaveProblem);
     }
 
+    /** Whether {@code file} is one of the files Calc keeps for itself: it can be neither opened, saved over nor exported to. */
+    public boolean isReservedPath(Path file) {
+        return store.isReserved(absolute(file));
+    }
+
+    /** Whether the autosaved draft holds work that an opened file has taken off the screen (a new document would replace it). */
+    public boolean isDraftOffScreen() {
+        return draftOffScreen;
+    }
+
     /**
      * Whether replacing the document (new, open) would lose something that is not in a file: ask the user first. An unsaved
      * edit of a document with a file does, and so does the autosaved draft that opening a file took off the screen (new
@@ -227,6 +237,8 @@ public final class DocumentService {
         path = target;
         newerVersion = false;
         markSaved();
+        // The document is in a file of its own now: a failed automatic save is no longer its story.
+        autosaveProblem = null;
         if (wasUntitled) {
             try {
                 store.saveCurrent(Notebook.empty(), displayMode);

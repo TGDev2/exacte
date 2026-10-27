@@ -30,7 +30,7 @@ des actions GitHub (5 pull requests ouvertes au maximum par écosystème).
 
 ## Pourquoi les tests d'interface sont obligatoires en CI
 
-Les tests portant le tag JUnit `ui` (`CalculatorFrameTest`) pilotent la vraie fenêtre Swing. Sans affichage ils sont
+Les tests portant le tag JUnit `ui` (`NotebookFrameTest`, `NotebookFrameFilesTest`, `NotebookFrameResponsivenessTest`, `MainStartupTest`) pilotent la vraie fenêtre Swing. Sans affichage ils sont
 ignorés (`skipped`), et un build vert pourrait alors ne rien avoir vérifié de l'interface. Avec
 `-PrequireUiTests=true`, l'absence d'affichage fait **échouer** ces tests avec le message
 « UI tests require a graphical environment (-PrequireUiTests=true) ». Un job vert prouve donc que l'interface a été
@@ -60,7 +60,7 @@ artefact par système : `test-reports-ubuntu-latest`, `test-reports-windows-late
 (conservés 7 jours). Chacun contient :
 
 - `build/reports/tests/test/index.html` : rapport HTML (ouvrir dans un navigateur) ;
-- `build/test-results/test/*.xml` : résultats JUnit. Dans `TEST-calc.ui.CalculatorFrameTest.xml`, l'attribut
+- `build/test-results/test/*.xml` : résultats JUnit. Dans `TEST-calc.ui.notebook.NotebookFrameTest.xml` (et les autres fichiers des tests `ui`), l'attribut
   `skipped` doit valoir `0` et `tests` doit valoir le nombre de tests d'interface.
 
 ## Protection de la branche `main` (action manuelle)

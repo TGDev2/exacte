@@ -5,6 +5,7 @@ import calc.ui.DisplayModeStore;
 import calc.ui.PreferencesDisplayModeStore;
 import calc.ui.notebook.NotebookFrame;
 import calc.ui.notebook.NotebookPresenter;
+import calc.ui.notebook.SwingNotebookDialogs;
 import java.awt.Desktop;
 import java.awt.desktop.QuitStrategy;
 import java.awt.event.WindowAdapter;
@@ -39,7 +40,11 @@ public class Main {
 
     /** The main window: the notebook that {@code store} keeps, with the old history migrated into it on the first start. */
     static NotebookFrame createWindow(NotebookStore store, DisplayModeStore modeStore) {
-        return new NotebookFrame(NotebookPresenter.open(store, modeStore));
+        // The dialogs belong to the window, which needs the presenter, which needs the dialogs: the window is given last.
+        SwingNotebookDialogs dialogs = new SwingNotebookDialogs();
+        NotebookFrame frame = new NotebookFrame(NotebookPresenter.open(store, modeStore, dialogs));
+        dialogs.setParent(frame);
+        return frame;
     }
 
     // Cmd+Q on macOS quits without closing the windows by default: close them, so that a line being typed is validated.

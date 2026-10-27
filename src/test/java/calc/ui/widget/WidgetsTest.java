@@ -2,17 +2,13 @@ package calc.ui.widget;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import calc.format.DisplayMode;
-import java.awt.Component;
-import java.awt.Container;
 import java.util.ArrayList;
 import java.util.List;
-import javax.swing.JLabel;
-import javax.swing.JList;
 import org.junit.jupiter.api.Test;
 
 /** The reusable components, alone: none of them needs the calculator window. */
@@ -62,35 +58,5 @@ class WidgetsTest {
         badge.clearBadge();
         assertFalse(badge.isVisible());
         assertEquals("", badge.getText());
-    }
-
-    @Test
-    void theRendererDrawsTheLineThenItsExactnessMark() {
-        JList<HistoryLine> list = new JList<>(new HistoryLine[] {
-            new HistoryLine("√(2)", "≈ 1,41421356237…", false, "Erreur maximale : ± 2,1 × 10⁻²⁵"),
-            new HistoryLine("1 / 4", "0,25", true, "")});
-        HistoryLineRenderer.install(list);
-
-        List<String> first = texts(list, 0, false);
-        assertEquals(List.of("√(2) ≈ 1,41421356237…", "≈ Approché"), first);
-        assertEquals(List.of("1 / 4 = 0,25", "Exact"), texts(list, 1, false));
-        assertEquals(List.of("1 / 4 = 0,25", "Exact"), texts(list, 1, true), "Selection does not change the words.");
-
-        Component approximate = cell(list, 0, false);
-        assertEquals("Erreur maximale : ± 2,1 × 10⁻²⁵", ((HistoryLineRenderer) approximate).getToolTipText());
-        assertEquals("√(2) ≈ 1,41421356237… (≈ Approché)", ((HistoryLineRenderer) approximate).getAccessibleContext().getAccessibleName());
-        assertNull(((HistoryLineRenderer) cell(list, 1, false)).getToolTipText());
-    }
-
-    private static List<String> texts(JList<HistoryLine> list, int index, boolean selected) {
-        List<String> texts = new ArrayList<>();
-        for (Component child : ((Container) cell(list, index, selected)).getComponents()) {
-            texts.add(((JLabel) child).getText());
-        }
-        return texts;
-    }
-
-    private static Component cell(JList<HistoryLine> list, int index, boolean selected) {
-        return list.getCellRenderer().getListCellRendererComponent(list, list.getModel().getElementAt(index), index, selected, false);
     }
 }

@@ -221,6 +221,34 @@ class NotebookFrameTest {
     }
 
     @Test
+    @DisplayName("parité : un résultat très long n'élargit pas la fenêtre, un résultat exact et complet n'a pas d'info-bulle d'exactitude")
+    void aLongResultDoesNotWidenTheWindowAndAnExactCompleteOneHasNoBadgeTooltip() throws Exception {
+        int widthBefore = frame.getWidth();
+
+        typeLine("2^999");
+        typeLine("0,25");
+
+        assertEquals("5,35754303593… × 10³⁰⁰", frame.row(0).resultLabel.getText());
+        assertEquals(widthBefore, frame.getWidth(), "a long result must not widen the window");
+        assertNotNull(frame.row(0).resultLabel.getToolTipText());
+        assertEquals("0,25", frame.row(1).resultLabel.getText());
+        assertNull(frame.row(1).badge.getToolTipText(), "exact and complete: nothing to add in the tooltip");
+    }
+
+    @Test
+    @DisplayName("parité : Ctrl+M est la seule touche de la fenêtre entière, aucun composant ne la prend")
+    void theOnlyWindowWideKeyIsNextModeAndNoComponentBindsIt() {
+        KeyStroke nextMode = KeyStroke.getKeyStroke(KeyEvent.VK_M, InputEvent.CTRL_DOWN_MASK);
+
+        List<KeyStroke> windowWide = List.of(frame.getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).keys());
+        assertEquals(List.of(nextMode), windowWide, "the window-wide shortcuts are Ctrl+M only");
+        for (int i = 0; i < frame.rowCount(); i++) {
+            JTextField field = frame.row(i).field;
+            assertNull(field.getInputMap(JComponent.WHEN_FOCUSED).get(nextMode), "the line fields leave Ctrl+M to the window");
+        }
+    }
+
+    @Test
     @DisplayName("1 / 0 : le message d'erreur est affiché en texte, avec la partie fautive soulignée")
     void anErrorIsShownAsTextNotOnlyAsAColour() throws Exception {
         typeLine("1 / 0");
@@ -302,14 +330,14 @@ class NotebookFrameTest {
     // ------------------------------------------------------------------------------------------------ menus and status
 
     @Test
-    @DisplayName("menus Édition, Affichage et Aide ; Annuler et Rétablir suivent l'état")
+    @DisplayName("menus Fichier, Édition, Affichage et Aide ; Annuler et Rétablir suivent l'état")
     void theMenusExistAndFollowTheState() throws Exception {
         List<String> titles = new ArrayList<>();
         for (int i = 0; i < frame.getJMenuBar().getMenuCount(); i++) {
             titles.add(frame.getJMenuBar().getMenu(i).getText());
         }
-        assertEquals(List.of("Édition", "Affichage", "Aide"), titles);
-        JMenu edit = frame.getJMenuBar().getMenu(0);
+        assertEquals(List.of("Fichier", "Édition", "Affichage", "Aide"), titles);
+        JMenu edit = frame.getJMenuBar().getMenu(1);
         List<String> items = new ArrayList<>();
         for (java.awt.Component component : edit.getMenuComponents()) {
             if (component instanceof JMenuItem item) {
@@ -361,9 +389,10 @@ class NotebookFrameTest {
     @Test
     @DisplayName("revue : mnémoniques réels, soulignement retrouvé, curseur laissé en place")
     void theMnemonicsWorkTheUnderlineComesBackAndTheCaretStays() throws Exception {
-        assertEquals(KeyEvent.VK_E, frame.getJMenuBar().getMenu(0).getMnemonic(), "É has no key code: Alt+E opens Édition");
-        assertEquals(KeyEvent.VK_C, frame.getJMenuBar().getMenu(1).getMnemonic());
-        assertEquals(KeyEvent.VK_I, frame.getJMenuBar().getMenu(2).getMnemonic());
+        assertEquals(KeyEvent.VK_F, frame.getJMenuBar().getMenu(0).getMnemonic());
+        assertEquals(KeyEvent.VK_E, frame.getJMenuBar().getMenu(1).getMnemonic(), "É has no key code: Alt+E opens Édition");
+        assertEquals(KeyEvent.VK_C, frame.getJMenuBar().getMenu(2).getMnemonic());
+        assertEquals(KeyEvent.VK_I, frame.getJMenuBar().getMenu(3).getMnemonic());
 
         typeLine("1 / 0");
         typeLine("2");

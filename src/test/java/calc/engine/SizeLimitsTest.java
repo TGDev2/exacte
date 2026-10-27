@@ -1,11 +1,6 @@
-package calc.ui;
+package calc.engine;
 
-import calc.engine.CalculationException;
-import calc.engine.CalculationRecord;
-import calc.engine.CalculatorEngine;
 import calc.persistence.JsonHistoryStore;
-import calc.engine.InputField;
-import calc.engine.Operation;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -28,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * an operand of at most 4100 characters, numerators and denominators of at most 4096 bits, an exponent between -4096
  * and 4096. Everything beyond is refused before any costly work, and every calculation within them stays short.
  */
-public class CalculatorSizeLimitsTest {
+public class SizeLimitsTest {
     private static final String RESULT_TOO_LARGE = "Le résultat dépasse la taille maximale d'un calcul exact (réduisez les nombres saisis).";
     private static final String POWER_TOO_LARGE = "Le résultat dépasse la taille maximale d'un calcul exact (réduisez l'exposant ou la base).";
     private static final Duration ACCEPTED_CASE_LIMIT = Duration.ofSeconds(5);
@@ -251,51 +246,6 @@ public class CalculatorSizeLimitsTest {
     }
 
     @Test
-    void testPresenterShowsInputLengthErrorOnTheRightFieldAndKeepsHistory() {
-        CalculatorPresenter presenter = new CalculatorPresenter(engine);
-        presenter.onCalculate("1", "2");
-
-        CalculatorViewModel first = presenter.onCalculate(paddedOne(MAX_LENGTH + 1), "2");
-        assertEquals(StatusTone.ERROR, first.statusTone(), "An oversized input is an error.");
-        assertEquals("Le premier nombre est trop long (4100 caractères maximum).", first.statusMessage(),
-                "The limit should be explained.");
-        assertEquals(FocusTarget.FIRST_NUMBER, first.focusTarget(), "Focus returns to the faulty first operand.");
-        assertEquals(1, first.historyEntries().size(), "A refused calculation must not touch the history.");
-
-        CalculatorViewModel second = presenter.onCalculate("1", paddedOne(MAX_LENGTH + 1));
-        assertEquals("Le second nombre est trop long (4100 caractères maximum).", second.statusMessage(),
-                "The limit should be explained.");
-        assertEquals(FocusTarget.SECOND_NUMBER, second.focusTarget(), "Focus returns to the faulty second operand.");
-        assertEquals(1, second.historyEntries().size(), "A refused calculation must not touch the history.");
-    }
-
-    @Test
-    void testPresenterRefusesChainedPowerWithoutFreezing() {
-        CalculatorPresenter presenter = new CalculatorPresenter(engine);
-        presenter.onOperationChanged(Operation.POWER, "2", "999");
-        CalculatorViewModel first = presenter.onCalculate("2", "999");
-
-        CalculatorViewModel second = assertTimeoutPreemptively(Duration.ofSeconds(1),
-                () -> presenter.onCalculate(first.firstInput(), "999"));
-        assertEquals(StatusTone.ERROR, second.statusTone(), "The chained power should be refused.");
-        assertEquals(POWER_TOO_LARGE, second.statusMessage(), "The overflow message should be shown.");
-        assertEquals(FocusTarget.SECOND_NUMBER, second.focusTarget(), "Focus goes to the exponent.");
-        assertEquals(1, second.historyEntries().size(), "A refused calculation must not touch the history.");
-        assertEquals(first.firstInput(), second.firstInput(), "The inputs stay available for correction.");
-    }
-
-    @Test
-    void testPresenterFocusesFirstOperandWhenTheResultIsTooLarge() {
-        CalculatorPresenter presenter = new CalculatorPresenter(engine);
-
-        CalculatorViewModel viewModel = presenter.onCalculate(LARGEST.toString(), "1");
-
-        assertEquals(RESULT_TOO_LARGE, viewModel.statusMessage(), "The overflow message should be shown.");
-        assertEquals(FocusTarget.FIRST_NUMBER, viewModel.focusTarget(), "A NONE error falls back to the first operand.");
-        assertEquals(0, viewModel.historyEntries().size(), "A refused calculation must not touch the history.");
-    }
-
-    @Test
     void testOversizedHistoryLineIsSkippedWithBackupAndOthersLoad(@TempDir Path tempDirectory) throws Exception {
         Path historyFile = tempDirectory.resolve("history.tsv");
         String content = "ADDITION\t1\t2\t3\n"
@@ -303,16 +253,15 @@ public class CalculatorSizeLimitsTest {
                 + "MULTIPLICATION\t4\t5\t20\n";
         Files.writeString(historyFile, content, StandardCharsets.UTF_8);
 
-        CalculatorViewModel viewModel;
+        HistoryLoadResult loaded;
         try (JsonHistoryStore store = JsonHistoryStore.open(tempDirectory)) {
-            CalculatorPresenter presenter = new CalculatorPresenter(engine, store);
-            viewModel = assertTimeoutPreemptively(Duration.ofSeconds(2), presenter::createInitialView);
+            loaded = assertTimeoutPreemptively(Duration.ofSeconds(2), store::loadHistory);
         }
 
-        assertEquals(2, viewModel.historyEntries().size(), "The valid lines around the oversized one should load.");
-        assertEquals("1 + 2 = 3", viewModel.historyEntries().get(0).toString(), "First valid line restored.");
-        assertEquals("4 * 5 = 20", viewModel.historyEntries().get(1).toString(), "Last valid line restored.");
-        assertEquals(StatusTone.ERROR, viewModel.statusTone(), "A skipped line is reported.");
+        assertEquals(2, loaded.records().size(), "The valid lines around the oversized one should load.");
+        assertEquals("1 + 2 = 3", loaded.records().get(0).toString(), "First valid line restored.");
+        assertEquals("4 * 5 = 20", loaded.records().get(1).toString(), "Last valid line restored.");
+        assertEquals(1, loaded.rejections().size(), "A skipped line is reported.");
 
         List<Path> backups;
         try (Stream<Path> files = Files.list(tempDirectory)) {

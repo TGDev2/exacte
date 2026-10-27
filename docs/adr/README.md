@@ -25,3 +25,4 @@ Later work reads the ADRs instead of guessing why things are the way they are.
 | 0008 | Notebook semantics: lines, references, variables, recalculation and undo | Accepted |
 | 0009 | Notebook persistence (format v3), documents and exports | Accepted |
 | 0010 | The notebook editor: a stack of rows, one validated command at a time | Accepted |
+| 0011 | Files in the window: the File menu, confirmations, and the removal of the two-field form | Accepted |

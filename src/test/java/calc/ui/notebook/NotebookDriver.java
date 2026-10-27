@@ -110,7 +110,37 @@ final class NotebookDriver {
     }
 
     NotebookDriver close() {
-        show(presenter.onClosing(field));
+        show(presenter.onQuit(field));
+        return this;
+    }
+
+    NotebookDriver nextMode() {
+        show(presenter.onNextDisplayMode(field));
+        return this;
+    }
+
+    NotebookDriver newDocument() {
+        show(presenter.onNew(field));
+        return this;
+    }
+
+    NotebookDriver open() {
+        show(presenter.onOpen(field));
+        return this;
+    }
+
+    NotebookDriver save() {
+        show(presenter.onSave(field));
+        return this;
+    }
+
+    NotebookDriver saveAs() {
+        show(presenter.onSaveAs(field));
+        return this;
+    }
+
+    NotebookDriver export(NotebookDialogs.ExportFormat format) {
+        show(presenter.onExport(format, field));
         return this;
     }
 

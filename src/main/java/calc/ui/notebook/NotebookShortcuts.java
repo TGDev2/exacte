@@ -11,7 +11,8 @@ import javax.swing.KeyStroke;
 /**
  * The keyboard of the notebook, in one place: the keys the window binds, their description for the help and the menus.
  * The modifier of the menu shortcuts is a parameter ({@code Toolkit.getMenuShortcutKeyMaskEx()}: Ctrl on Windows and
- * Linux, Cmd on macOS); the keys of the line (Enter, arrows, Escape, Ctrl+Shift+arrows) and Ctrl+M do not depend on it.
+ * Linux, Cmd on macOS), as do the file keys (new, open, save, save as); the keys of the line (Enter, arrows, Escape,
+ * Ctrl+Shift+arrows) and Ctrl+M do not depend on it.
  * docs/adr/0010-editeur-carnet.md lists them and says why they are free.
  */
 public final class NotebookShortcuts {
@@ -29,7 +30,11 @@ public final class NotebookShortcuts {
         DELETE_LINE("Supprimer la ligne"),
         MOVE_UP("Monter la ligne"),
         MOVE_DOWN("Descendre la ligne"),
-        NEXT_MODE("Passer au mode d'affichage suivant");
+        NEXT_MODE("Passer au mode d'affichage suivant"),
+        NEW_DOCUMENT("Nouveau carnet"),
+        OPEN_DOCUMENT("Ouvrir un carnet"),
+        SAVE("Enregistrer le carnet dans son fichier"),
+        SAVE_AS("Enregistrer le carnet sous un autre nom");
 
         private final String description;
 
@@ -65,6 +70,11 @@ public final class NotebookShortcuts {
         strokes.put(Command.MOVE_DOWN, KeyStroke.getKeyStroke(KeyEvent.VK_DOWN, moveMask));
         // Ctrl+M of the display modes (docs/adr/0006): always Ctrl, because Cmd+M minimises a window on macOS.
         strokes.put(Command.NEXT_MODE, KeyStroke.getKeyStroke(KeyEvent.VK_M, InputEvent.CTRL_DOWN_MASK));
+        // The file menu (E13): the modifier of the system, like undo.
+        strokes.put(Command.NEW_DOCUMENT, KeyStroke.getKeyStroke(KeyEvent.VK_N, menuMask));
+        strokes.put(Command.OPEN_DOCUMENT, KeyStroke.getKeyStroke(KeyEvent.VK_O, menuMask));
+        strokes.put(Command.SAVE, KeyStroke.getKeyStroke(KeyEvent.VK_S, menuMask));
+        strokes.put(Command.SAVE_AS, KeyStroke.getKeyStroke(KeyEvent.VK_S, menuMask | shift));
     }
 
     public KeyStroke stroke(Command command) {

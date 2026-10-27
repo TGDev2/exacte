@@ -4,7 +4,6 @@ import calc.engine.CalculatorEngine;
 import calc.engine.Operation;
 import calc.number.NumericException;
 import calc.number.Rational;
-import calc.ui.CalculatorPresenter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -76,23 +75,12 @@ public final class GoldenV2 {
         Operation operation = line.operation().equals("(none)") ? null : Operation.valueOf(line.operation());
         try {
             CalculationRecord record = new CalculatorEngine().calculate(operation, first, second);
-            String reusable = reusableValue(operation, first, second);
-            if (!reusable.equals(record.getReusableValue())) {
-                throw new IllegalStateException("the presenter does not reuse the canonical text: " + line);
-            }
+            String reusable = record.getReusableValue();
             return new Line(line.number(), line.operation(), line.first(), line.second(), "OK",
                     stored(record.getFormattedResult()), stored(reusable), reusable);
         } catch (CalculationException exception) {
             return new Line(line.number(), line.operation(), line.first(), line.second(), "ERROR", exception.getMessage(), "", "");
         }
-    }
-
-    /** Value the presenter puts back into the first field when the user reuses the last result. */
-    private static String reusableValue(Operation operation, String first, String second) {
-        CalculatorPresenter presenter = new CalculatorPresenter(new CalculatorEngine());
-        presenter.onOperationChanged(operation, "", "");
-        presenter.onCalculate(first, second);
-        return presenter.onReuseLastResult("", "").firstInput();
     }
 
     private static Change classify(Line before, Line after) throws Exception {

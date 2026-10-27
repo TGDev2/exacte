@@ -1,34 +1,17 @@
-# tools/baseline - reference behaviour capture
+# tools/baseline - reference behaviour capture (archive)
 
-`Baseline.java` is a standalone program (default package, no dependency). It calls the **existing** engine, presenter and
-history store as they are and writes:
-
-- `src/test/resources/golden/engine-v1.tsv` and `.gitattributes` - one line per engine case (70 cases: 47 OK, 23 ERROR);
-- `src/test/resources/legacy/v1/*.tsv`, `src/test/resources/legacy/v1/README.md` and `src/test/resources/legacy/v1/.gitattributes`.
-
-> **Since E07** the legacy-file part of this tool needs `FileCalculationHistoryStore`, which was removed when the history became JSON (`docs/adr/0005-format-persistance.md`). Run it on a commit before E07 to regenerate the version 1 observations; the files in `src/test/resources/legacy/v1` are unchanged and are now the input of the migration tests (`LegacyMigrationTest`).
-
-It is not part of the production code and is not built by Gradle.
-
-## Regenerate
-
-From the repository root (JDK 17+), in PowerShell:
-
-```powershell
-$out = Join-Path $env:TEMP "calc-baseline"
-javac -encoding UTF-8 -d $out (Get-ChildItem src\main\java\calc\engine, src\main\java\calc\ui -Filter *.java | ForEach-Object FullName) tools\baseline\Baseline.java
-java -cp $out Baseline .
-```
-
-The only argument is the root under which `src/test/resources/` is written. Run it twice (second time with another root) and compare
-with `diff -r` to check determinism: the output does not depend on the clock, the temp folder or the console encoding
-(everything is written as UTF-8 bytes, LF line endings except `crlf.tsv`).
+`Baseline.java` captured the behaviour of the version 1 engine, two-field window and history store: the 70 cases of
+`src/test/resources/golden/engine-v1.tsv` and the 11 history files of `src/test/resources/legacy/v1`. It could no longer be
+built after E07 (`FileCalculationHistoryStore` is gone, `docs/adr/0005-format-persistance.md`) and it called the two-field
+presenter that E13 removed (`docs/adr/0011-fichiers-dans-l-interface.md`), so the program was deleted in E13. It stays in the
+git history (`git log -- tools/baseline/Baseline.java`). The files it wrote are frozen: `engine-v1.tsv` is the input of
+`tools/golden-v2`, and `legacy/v1` is the input of the migration tests (`LegacyMigrationTest`, `NotebookMigrationTest`).
 
 ## Golden file format
 
 Columns: `operation` (enum constant, or `(none)` for a null operation), `first`, `second`, `outcome` (`OK`/`ERROR`),
-`display` (formatted result, or the exact error message), `reusable` (value the presenter puts back in the first field
-when the last result is reused; empty on error).
+`display` (formatted result, or the exact error message), `reusable` (value the canonical text of the result that the old window put back in
+the first field when the last result was reused; empty on error).
 
 Non-printable or very long inputs are written with a notation that the program expands before calling the engine:
 
