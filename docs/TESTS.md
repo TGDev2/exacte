@@ -9,14 +9,14 @@ lancer une partie, comment rejouer un échec trouvé par un test aléatoire et c
 |---|---|---|---|
 | Exemples JUnit 5 | `src/test/java/calc/engine`, `calc/ui`, `calc/number`, `calc/format`, `calc/expression`, `calc/notebook` | aucune | Un cas précis, un message exact, un comportement décidé. Rapides, faciles à lire. |
 | Sorties de référence | `GoldenOutputsTest`, `src/test/resources/golden`, `legacy/v1` | aucune | Rejoue 70 calculs (`engine-v2.tsv`, mêmes entrées que `engine-v1.tsv`) et 11 fichiers d'historique enregistrés : tout changement de sortie est vu. |
-| Fenêtre Swing | `CalculatorFrameTest`, `NotebookFrameTest`, `NotebookFrameResponsivenessTest`, `MainStartupTest` | `ui` | Raccourcis, focus, accessibilité. Demande un écran (ignoré sans écran, voir `docs/CI.md`). |
+| Fenêtre Swing | `NotebookFrameTest`, `NotebookFrameFilesTest`, `NotebookFrameResponsivenessTest`, `MainStartupTest` | `ui` | Raccourcis, menu Fichier, titre, focus, accessibilité. Demande un écran (ignoré sans écran, voir `docs/CI.md`). |
 | Propriétés | `*Properties` (hors fuzzing) | `property` | Une promesse vraie pour des milliers d'entrées générées, comparée à un oracle indépendant. |
-| Robustesse | `*FuzzProperties` (dont `NotebookFileFuzzProperties`), `PresenterStatefulProperties`, `NotebookStatefulProperties` | `robustness` | Entrées hostiles et séquences d'actions aléatoires : jamais d'exception inattendue, jamais de perte de données. |
+| Robustesse | `*FuzzProperties` (dont `NotebookFileFuzzProperties`), `NotebookPresenterStatefulProperties`, `NotebookStatefulProperties` | `robustness` | Entrées hostiles et séquences d'actions aléatoires : jamais d'exception inattendue, jamais de perte de données. |
 
 Un test d'exemple dit « pour cette entrée, voici la sortie ». Une propriété dit « pour toute entrée de cette forme, ceci
 reste vrai » : jqwik génère les entrées (en visant les cas limites), cherche un contre-exemple et le réduit au plus petit
 possible). Les propriétés sont écrites sur les API publiques (`CalculatorEngine`, `JsonHistoryStore`,
-`CalculatorPresenter`, `ValueFormatter`) ; elles ont survécu au remplacement du moteur en E06, à la révision près des
+`NotebookPresenter`, `ValueFormatter`) ; elles ont survécu au remplacement du moteur en E06, à la révision près des
 points listés plus bas (« Révision de l'Epic E06 »).
 
 Mesures sur la machine de développement (Windows 11, JDK 21, démon Gradle chaud, `gradlew cleanTest check`) :
@@ -90,13 +90,13 @@ ArithmeticProperties > subtractionMatchesTheOracle STANDARD_OUT
 | `TextGenerators` | Chaînes arbitraires : Unicode complet, caractères de contrôle, chiffres non ASCII, espaces Unicode, quasi-nombres, nombres abîmés, textes très longs. |
 | `RecordGenerators` | Calculs (opération et deux textes, décimaux ou fractions) et entrées d'historique produites par le moteur public. |
 | `HistoryFileGenerators` | Contenus de fichiers d'historique : lignes valides, rejetées (avec la cause attendue) ou vides, BOM, en-tête, fins de ligne LF, CRLF, CR, versions inconnues, octets aléatoires, octets abîmés. Les fichiers structurés portent ce que le chargeur doit restaurer et rejeter. |
-| `PresenterActions`, `PresenterSession` | Séquences d'actions de l'utilisateur et vérification de leurs conséquences. |
+| `FakeDialogs`, `NotebookDriver` (`calc.ui.notebook`) | Boîtes de dialogue du menu Fichier jouées par un script (une question non prévue fait échouer le test) ; clavier de l'utilisateur joué sur le présentateur du carnet. |
 | `ArithmeticOracle` | Référence indépendante : analyse du texte, `BigDecimal` à 200 chiffres, texte Auto et texte canonique écrits d'après l'ADR 0004, taille en bits. N'importe rien du code de production. |
 | `DisplayTexts` | Relit le nombre d'un texte affiché (« ≈ », « … », `m × 10ⁿ`, `p/q`) sans le code de production. |
 | `ResultValues` | Valeur décimale exacte d'un résultat, pour la comparer à l'oracle. |
 | `FractionOracle` | Référence indépendante pour les rationnels : paires `BigInteger` jamais réduites, formules d'école, comparaison par produits en croix. N'importe rien du code de production. |
 | `RationalGenerators` | Entiers de toutes tailles (avec une part de -3 à 3), fractions brutes (signe au dénominateur, facteur commun), rationnels, intervalles qui contiennent un point connu (exacts, étroits, larges, autour de zéro), littéraux décimaux lus aussi par `BigDecimal`. |
-| `MemoryHistoryStore`, `TempDirectories` | Magasin d'historique en mémoire ; répertoires temporaires supprimés après usage. |
+| `TempDirectories` | Répertoires temporaires supprimés après usage. |
 
 ## Ce que garantissent les propriétés
 
@@ -126,7 +126,7 @@ ArithmeticProperties > subtractionMatchesTheOracle STANDARD_OUT
 - L'opérande sans partie entière qui a le plus de décimales acceptées est calculé et son texte canonique se relit (régression du défaut 1 ci-dessous).
 
 **Persistance** : voir la section « Persistance versionnée (E07) » plus bas (`HistoryRoundTripProperties`, `HistoryJsonFuzzProperties`, `LegacyTsvReaderFuzzProperties`).
-**Présentateur** (`PresenterStatefulProperties`, `robustness`) : après chaque action d'une séquence aléatoire (changer d'opération, saisir, calculer, effacer les champs, réutiliser le dernier résultat ou celui qui est sélectionné, sélectionner une entrée, effacer l'historique) :
+**Présentateur de l'ancien formulaire** (`PresenterStatefulProperties`, retiré en E13, remplacé par `NotebookPresenterStatefulProperties` : voir « Fichiers dans l'interface (E13) ») : après chaque action d'une séquence aléatoire (changer d'opération, saisir, calculer, effacer les champs, réutiliser le dernier résultat ou celui qui est sélectionné, sélectionner une entrée, effacer l'historique) :
 
 1. l'historique ne grandit que sur un calcul réussi, d'une entrée, et ne perd des entrées que par l'effacement ;
 2. le texte réutilisable de chaque entrée se relit en sa valeur (exactement, ou dans l'intervalle), un décimal exact suit la règle Auto, et le texte réutilisable du dernier calcul est ce qui est placé dans le premier champ ; le résultat attendu d'un calcul est calculé avec un modèle de la mémoire des champs (valeur placée par le présentateur, oubliée dès que le texte change) ;
@@ -258,7 +258,7 @@ Pas de propriété ici : des exemples, tous rapides.
   du test donne les rapports.
 - `VisibleTextsTest` : les littéraux des sources qui portent des textes affichés ne contiennent aucune forme sans accent
   connue ; vérifié en retirant un accent à la main (le test échoue).
-- `CalculatorFrameTest` (tag `ui`) : sélecteur, badge, fraction secondaire, rendu de l'historique, `Ctrl+M` (et absence de
+- `CalculatorFrameTest` (tag `ui`, retiré en E13 : voir `NotebookFrameTest`) : sélecteur, badge, fraction secondaire, rendu de l'historique, `Ctrl+M` (et absence de
   liaison identique dans les tables d'entrées des composants), mode mémorisé, noms accessibles, ordre de tabulation. Les
   tests `ui` ont aussi été lancés avec l'apparence Windows (`-Dswing.defaultlaf=...WindowsLookAndFeel` dans
   `JAVA_TOOL_OPTIONS`) : même résultat.
@@ -411,6 +411,24 @@ dont 399 approchées, 497 lignes avec références). Machine de développement, 
 | Ouverture de la fenêtre (5000 lignes) | 1,5 s | | |
 
 Décision sur l'aperçu : voir l'ADR 0010, section 6 (mesuré à 11 ms, non ajouté pour une raison d'usage, pas de coût).
+
+## Fichiers dans l'interface (E13)
+
+Le menu Fichier, les confirmations et les messages d'ouverture sont décidés par `NotebookPresenter` ; les boîtes de dialogue sont une
+interface (`NotebookDialogs`) que les tests remplacent par `FakeDialogs`. Aucun test n'ouvre une vraie boîte de dialogue. Choix :
+`docs/adr/0011-fichiers-dans-l-interface.md`, qui porte aussi le tableau de parité avec l'ancien formulaire et la liste des tests retirés.
+
+| Classe | Étiquette | Ce qu'elle garantit |
+|---|---|---|
+| `NotebookFilesTest` | aucune | Nouveau, Ouvrir, Enregistrer, Enregistrer sous (extension ajoutée, confirmation avant de remplacer un fichier, nom réservé refusé) ; les trois choix de la confirmation pour Nouveau, Ouvrir et Quitter ; carnet sans titre jamais interrogé pour Ouvrir et Quitter ; version plus récente en lecture seule (Enregistrer refusé, Enregistrer sous permis) ; fichier invalide, trop volumineux, version illisible, réservé ou absent : raison dite, document et modifications conservés ; lignes en erreur comptées ; exports Markdown et CSV comparés octet pour octet aux fichiers de référence d'E11 dans les quatre modes ; confirmation d'écrasement ; échec d'écriture signalé ; aucune dépendance à Swing |
+| `NotebookFrameFilesTest` | `ui` | le menu Fichier est le premier et complet ; ses touches suivent le modificateur de chaque système (Ctrl ou Cmd, jamais les deux) et existent dans le champ de la ligne ; parcours Enregistrer sous, modification (titre marqué `•`), Enregistrer (marqueur retiré) ; fermeture de la fenêtre et Quitter passent par la confirmation (Annuler garde la fenêtre) ; Enregistrer désactivé pour une version plus récente |
+| `NotebookParityTest` | aucune | une fonction de l'ancien formulaire par test (P1 à P16) : calcul binaire et unaire, virgule ou point, enchaînement sans dérive, `ans`, `$n`, un tiers × 3, valeur approchée réutilisée, Échap, Tout effacer, persistance, erreurs ciblées, bornes de taille, modes d'affichage, détail d'exactitude |
+| `NotebookLosslessChainProperties` | `property` | une chaîne aléatoire d'opérations exactes sur `ans`, tapée dans le présentateur, finit exactement sur la valeur d'un oracle indépendant (150 essais) |
+| `NotebookPresenterStatefulProperties` | `robustness` | des séquences aléatoires de saisies, déplacements, annulations, modes et opérations de fichier (Nouveau, Enregistrer sous, Enregistrer, Ouvrir, Exporter, Quitter) : la vue est celle d'une évaluation neuve des textes, le carnet sans titre est le fichier automatique, un document différent de son fichier est marqué ; vérifié en retirant le marqueur du titre (le test échoue sur `[SAVE_AS, LINE(1 + 1)]`) |
+| `calc.engine.DisplayRulesTest`, `SizeLimitsTest`, `GoldenOutputsTest` | aucune | les anciens tests du moteur qui passaient par l'ancien présentateur, déplacés sans perdre une assertion du moteur |
+| `calc.persistence.JsonHistoryBackupTest`, `PersistenceLoggingTest` | aucune | copies `.bak` et journaux de l'ancien historique (désormais seulement la source de la migration), plus le journal d'un échec de sauvegarde automatique du carnet |
+
+Mesures (`gradlew clean check`, Windows 11, JDK 21) : 1050 tests, 0 ignoré, 0 échec, contre 1090 avant E13 (3505 lignes retirées avec l'ancien formulaire et ses tests, les tests du menu Fichier et de la parité ajoutés).
 
 ## Défauts trouvés par les propriétés
 

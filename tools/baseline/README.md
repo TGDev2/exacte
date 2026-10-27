@@ -49,3 +49,5 @@ diff on them means the observable behaviour changed. Change them only through a 
 the observed behaviours of `legacy/v1/README.md` with the new outputs. The reference outputs of the exact engine are
 `engine-v2.tsv`, produced by `tools/golden-v2` from the same inputs. The `legacy/v1` files themselves are unchanged and
 still load with the same number of entries (`CalculatorHistoryLegacyFilesTest`).
+
+> **Since E13** this tool also calls the two-field `CalculatorPresenter`, which was removed with the old interface (`docs/adr/0011-fichiers-dans-l-interface.md`). Run it on a commit before E13 (and before E07 for the legacy files); the golden file it wrote is now checked by `calc.engine.GoldenOutputsTest`.
