@@ -61,3 +61,35 @@ jobs:
             build/test-results
           if-no-files-found: warn
           retention-days: 7
+
+  # The jar that goes into a release must not depend on the build time or the file order (ADR 0012).
+  # One system is enough: the content of the jar does not depend on it.
+  reproducible-jar:
+    name: reproducible jar
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Java 21
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          validate-wrappers: true
+
+      # --rerun-tasks recompiles everything and --no-build-cache forbids a cache hit, so both jars are really built.
+      - name: Build the jar twice and compare
+        run: |
+          ./gradlew clean jar --rerun-tasks --no-build-cache --console=plain
+          first=$(sha256sum build/libs/calc.jar | cut -d' ' -f1)
+          ./gradlew clean jar --rerun-tasks --no-build-cache --console=plain
+          second=$(sha256sum build/libs/calc.jar | cut -d' ' -f1)
+          echo "first build:  $first"
+          echo "second build: $second"
+          test "$first" = "$second"
