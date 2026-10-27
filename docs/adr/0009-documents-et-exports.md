@@ -104,8 +104,10 @@ At start, in the data directory, under the lock:
 4. The status is « Votre historique a été converti en carnet (n lignes). ».
 
 `history.json` is not renamed or deleted: the current interface (until E13) still reads it, and the copy is the safety net.
-A migration that fails at any step leaves every source untouched and is tried again at the next start. A second instance
-(read only) converts in memory and writes nothing.
+A migration that fails at any step leaves every source untouched and is tried again at the next start, as long as no current
+notebook has been written in between (the first autosave of a notebook typed after the failure ends the migration for good;
+`history.json` and its copy stay). A history of more than 5000 entries (a notebook holds 5000 lines, the history up to 10 000)
+converts its newest 5000 and says where the others are (the copy). A second instance (read only) converts in memory and writes nothing.
 
 ### 8. Exports
 
