@@ -11,6 +11,18 @@ Ce projet ne cherche pas à impressionner par un catalogue d'opérations. Il che
 - structuré de manière lisible et testable
 - présentable rapidement à un évaluateur technique
 
+## Téléchargement
+
+Chaque version publiée est une [release GitHub](https://github.com/TGDev2/Calculatrice/releases) (tag `vX.Y.Z`) avec une application autonome par système, sans Java à installer : `Calc-<version>-windows-x64.zip`, `Calc-<version>-macos-arm64.tar.gz` (Mac à puce Apple) et `Calc-<version>-linux-x64.tar.gz`. La release contient aussi `SHA256SUMS.txt` (somme SHA-256 de chaque fichier) et la nomenclature logicielle `Calc-<version>-sbom.cdx.json` (CycloneDX).
+
+À savoir avant de lancer :
+
+- **Les applications ne sont pas signées.** Windows SmartScreen et macOS Gatekeeper affichent un avertissement au premier lancement ; la marche à suivre pour ouvrir l'application malgré tout est dans [docs/RELEASE.md](docs/RELEASE.md).
+- Les sommes SHA-256 permettent de vérifier que le fichier est celui qui a été publié (commandes pour Windows, macOS et Linux dans [docs/RELEASE.md](docs/RELEASE.md)), pas de savoir qui l'a publié.
+- Pas d'installeur (`.msi`, `.dmg`, `.deb`) : on décompresse l'archive et on lance l'application.
+- Seul le JAR est reproductible d'une construction à l'autre ; l'image d'application ne l'est pas garantie.
+- Le packaging macOS et Linux et le workflow de release n'ont pas encore été exécutés sur GitHub : voir « Limites » dans [docs/RELEASE.md](docs/RELEASE.md).
+
 ## Le carnet de calcul (fenêtre principale)
 
 Depuis l'Epic E12, Calc s'ouvre sur un **carnet de calcul** : on écrit une expression par ligne et le résultat s'affiche à droite, avec le badge « Exact » ou « ≈ Approché » (l'info-bulle donne l'erreur maximale ou la valeur exacte derrière un texte arrondi). Une ligne en erreur affiche son message en toutes lettres sous le champ, la partie fautive est soulignée. Une ligne peut être une expression (`prix * 3`), une affectation (`prix = 12,5`), un commentaire (`# Devis`) ou rien ; `ans` désigne le dernier résultat au-dessus et `$3` le résultat de la ligne 3 (guide : [docs/GUIDE-EXPRESSIONS.md](docs/GUIDE-EXPRESSIONS.md), aussi résumé dans le menu Aide). Modifier une ligne recalcule celles qui suivent ; insérer, supprimer ou déplacer des lignes renumérote les références (`$3` suit sa ligne, vers une ligne supprimée elle devient une erreur explicite).
@@ -106,7 +118,7 @@ Cette séparation permet de tester les parcours d'usage critiques sans dépendre
 
 - Un JDK 17 ou plus récent est nécessaire pour lancer Gradle. Le projet est compilé et testé avec Java 21 : si aucun JDK 21 n'est installé, Gradle le télécharge automatiquement (toolchain, résolution via Foojay).
 - Gradle n'est pas à installer : le Gradle Wrapper est fourni (`gradlew.bat` sous Windows, `./gradlew` sous Linux et macOS).
-- `jpackage` (inclus dans le JDK 21 utilisé par Gradle) n'est nécessaire que pour le packaging Windows ; `package.ps1` le trouve tout seul.
+- `jpackage` et `jdeps` (inclus dans le JDK 21 utilisé par Gradle) ne servent qu'au packaging (`gradlew packageApp`, sur Windows, macOS et Linux) ; Gradle utilise ceux de la toolchain, rien à installer en plus.
 
 Commandes principales (PowerShell, à la racine du dépôt) :
 
@@ -115,6 +127,7 @@ Commandes principales (PowerShell, à la racine du dépôt) :
 .\gradlew.bat check "-Dcalc.ui.required=true"    # échoue si les tests d'interface ne peuvent pas s'exécuter (comme la CI)
 .\gradlew.bat run                                # lance l'application
 .\gradlew.bat jar                                # produit build\libs\calc.jar (java -jar build\libs\calc.jar)
+.\gradlew.bat packageApp -PappVersion=1.0.0      # application autonome archivée : build\release\Calc-1.0.0-windows-x64.zip
 .\check.ps1 ; .\run.ps1 ; .\package.ps1          # enveloppes PowerShell qui délèguent à Gradle
 ```
 
@@ -129,6 +142,8 @@ Les scripts PowerShell sont de simples délégations vers Gradle et propagent so
 [![CI](https://github.com/TGDev2/Calculatrice/actions/workflows/ci.yml/badge.svg)](https://github.com/TGDev2/Calculatrice/actions/workflows/ci.yml)
 
 Le workflow `.github/workflows/ci.yml` lance `gradlew check -PrequireUiTests=true` sur Windows, macOS et Linux (JDK 21 Temurin) à chaque `push` sur `main`, à chaque pull request et à la demande. Sous Linux, la commande passe par `xvfb-run` pour disposer d'un affichage virtuel. Grâce à `-PrequireUiTests=true`, aucun test d'interface ne peut être ignoré silencieusement. Les rapports de test sont publiés comme artefacts, et Dependabot met à jour chaque semaine les dépendances Gradle et les actions GitHub.
+
+Un second job, `reproducible jar`, construit le JAR deux fois et échoue si les deux sommes SHA-256 diffèrent. Le workflow `release.yml` publie une release GitHub à chaque tag `vX.Y.Z` ([docs/RELEASE.md](docs/RELEASE.md)).
 
 Détails, reproduction en local et lecture des artefacts : [docs/CI.md](docs/CI.md).
 ## Vérification
@@ -158,21 +173,23 @@ Commande :
 
 Le script `check.ps1` est une enveloppe de cette commande.
 
-## Packaging recommandé pour une évaluation
+## Packaging local
 
-Commande :
+Commande (la même tâche Gradle sur Windows, macOS et Linux) :
 
 ```powershell
-.\package.ps1
+.\package.ps1                     # Windows : check, puis packageApp en version 1.0.0
+.\package.ps1 -Version 1.2.3      # une autre version (X.Y.Z avec X >= 1)
+.\gradlew.bat packageApp -PappVersion=1.2.3   # directement ; ./gradlew sous Linux et macOS
 ```
 
-Le script :
+La tâche `packageApp` :
 
-- vérifie le projet (`gradlew.bat check`) et construit le JAR
-- crée une application Windows portable dans `dist\Calc\Calc.exe`
-- crée une archive de distribution dans `dist\Calc-portable.zip`
+- construit le JAR et calcule les modules Java nécessaires avec `jdeps` (`build\packaging\modules.txt`)
+- appelle le `jpackage` de la toolchain pour créer l'application autonome, avec un runtime Java réduit à ces modules (`build\packaging\image\Calc\Calc.exe`)
+- archive le résultat dans `build\release\Calc-<version>-<windows|macos|linux>-<x64|arm64>.zip` (`.tar.gz` sous macOS et Linux)
 
-Ce chemin est le plus adapté à une démonstration portfolio : l'évaluateur peut ouvrir directement l'exécutable packagé sans IDE ni script de compilation. L'application n'est pas signée.
+Sans `-PappVersion`, la version vaut `0.0.0-local` et la tâche refuse de s'exécuter : un fichier construit à la main ne doit pas passer pour une version publiée. Les versions officielles sont construites par le workflow `release.yml` à partir d'un tag (voir [Téléchargement](#téléchargement) et [docs/RELEASE.md](docs/RELEASE.md)). L'application n'est pas signée. `dist\` n'est plus produit par ce script.
 
 ## Historique persistant
 

@@ -24,6 +24,15 @@ système n'interrompt pas les autres). Chaque job :
    les runners Linux n'ont pas d'écran ; `xvfb` est préinstallé sur `ubuntu-latest`) ;
 5. publie les rapports de test comme artefacts, même en cas d'échec.
 
+Un second job, `reproducible jar` (Linux seulement : le contenu du JAR ne dépend pas du système), lance deux fois
+`./gradlew clean jar --rerun-tasks --no-build-cache`, affiche les deux sommes SHA-256 de `build/libs/calc.jar` et échoue
+si elles diffèrent. Il n'est pas dans la liste des vérifications exigées par la protection de `main` ci-dessous : l'ajouter
+après sa première exécution si on veut en faire une condition de fusion.
+
+Les publications ne passent pas par ce workflow mais par [`release.yml`](../.github/workflows/release.yml) (déclenché par un tag
+`vX.Y.Z`, voir [RELEASE.md](RELEASE.md)). Il reprend les mêmes vérifications (`check` avec les tests d'interface obligatoires)
+avant de construire les archives.
+
 Les actions sont épinglées par SHA de commit, avec la version en commentaire. Dependabot
 ([`.github/dependabot.yml`](../.github/dependabot.yml)) propose chaque semaine la mise à jour des dépendances Gradle et
 des actions GitHub (5 pull requests ouvertes au maximum par écosystème).
