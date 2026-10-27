@@ -529,6 +529,60 @@ class NotebookPresenterTest {
         assertFalse(migrated.view.statusMessage().contains("converti"), "the migration message gives way to the next intention");
     }
 
+    // ------------------------------------------------------------------------------------------------ review findings
+
+    @Test
+    void aChangeOfModeAloneNeverWritesTheNotebookSoAHistoryToConvertIsNotLost() {
+        d.mode(DisplayMode.DECIMAL).mode(DisplayMode.FRACTION);
+
+        assertFalse(Files.exists(store.currentFile()), "no write: it would end the retry of an unconverted history");
+        assertEquals(List.of(DisplayMode.DECIMAL, DisplayMode.FRACTION), modes.saves, "the choice is remembered anyway");
+        d.line("1 / 3");
+        assertEquals(DisplayMode.FRACTION, readSaved().displayMode(), "the mode follows at the next command");
+    }
+
+    @Test
+    void theReadOnlyWarningIsNeverReplacedByAnInformation() throws IOException {
+        Path elsewhere = Files.createDirectories(data.resolve("shared2"));
+        try (NotebookStore first = NotebookStore.open(elsewhere); NotebookStore second = NotebookStore.open(elsewhere)) {
+            assertFalse(first.isReadOnly());
+            NotebookDriver readOnly = new NotebookDriver(NotebookPresenter.open(second, modes));
+            String warning = readOnly.view.statusMessage();
+
+            readOnly.type("1 +").escape();
+            assertEquals(warning, readOnly.view.statusMessage());
+            readOnly.undo().redo().mode(DisplayMode.DECIMAL).delete().clear();
+            assertEquals(warning, readOnly.view.statusMessage());
+            assertEquals(StatusTone.ERROR, readOnly.view.statusTone());
+        }
+    }
+
+    @Test
+    void deletingOrClearingNeverErasesWhatIsBeingTypedOnTheNewLine() {
+        d.type("12 * 3").delete();
+        assertEquals("12 * 3", d.view.activeDraft());
+        d.clear();
+        assertEquals("12 * 3", d.view.activeDraft());
+        d.escape();
+        assertEquals("", d.view.activeDraft(), "only Escape abandons the typing");
+    }
+
+    @Test
+    void aRefusalIsShownEvenWhileTheAutomaticSaveIsFailing() throws IOException {
+        store.close();
+        store = NotebookStore.open(Files.createDirectories(data.resolve("failing2")), null, Clock.systemDefaultZone(),
+                Files::copy, (source, target, options) -> {
+                    throw new IOException("simulated full disk");
+                });
+        NotebookDriver failing = new NotebookDriver(NotebookPresenter.open(store, modes));
+        failing.line("1");
+        assertTrue(failing.view.statusMessage().startsWith("Enregistrement automatique impossible"));
+
+        failing.type("1".repeat(NotebookPresenter.MAX_LINE_LENGTH + 1)).enter();
+
+        assertTrue(failing.view.statusMessage().contains("caractères"), failing.view.statusMessage());
+    }
+
     // ------------------------------------------------------------------------------------------------ the layering
 
     @Test

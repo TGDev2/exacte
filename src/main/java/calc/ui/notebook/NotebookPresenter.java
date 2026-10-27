@@ -169,8 +169,7 @@ public final class NotebookPresenter {
     public NotebookViewModel onDelete(String pending) {
         syncDraft(pending);
         if (activeId == null) {
-            dropDraft();
-            say("Cette ligne n'est pas encore validée : il n'y a rien à supprimer.", StatusTone.INFO);
+            say("Cette ligne n'est pas encore validée : il n'y a rien à supprimer (Échap abandonne la saisie).", StatusTone.INFO);
             return view(NotebookFocus.ACTIVE_LINE);
         }
         int index = activeIndex();
@@ -196,7 +195,6 @@ public final class NotebookPresenter {
     public NotebookViewModel onClear(String pending) {
         syncDraft(pending);
         if (document.current().notebook().isEmpty()) {
-            dropDraft();
             say("Le carnet est déjà vide.", StatusTone.INFO);
         } else if (apply(new NotebookCommand.Clear())) {
             select(0);
@@ -250,8 +248,9 @@ public final class NotebookPresenter {
         syncDraft(pending);
         if (newMode != null && newMode != mode) {
             mode = newMode;
+            // The notebook file follows at the next command: a change of mode alone never writes (it would end the retry of
+            // a history that could not be converted).
             modeStore.save(mode);
-            syncMode();
             say("Affichage : " + DisplayModeText.label(mode) + ".", StatusTone.INFO);
         }
         return view(NotebookFocus.NONE);
@@ -413,17 +412,21 @@ public final class NotebookPresenter {
                 status.text(), status.tone(), showHelp ? WATERMARK : "");
     }
 
-    // The failure of the automatic save always wins: it is the one the user must act on. Then the last intention, then the
-    // condition that lasts, then the usual hint.
+    // A refusal of the last intention (an error) is always shown, so that a key that did nothing says why. Then the failure of
+    // the automatic save, which the user must act on. Then, when the notebook is not being saved, that warning (an
+    // information never replaces it), otherwise the last intention, then the usual hint.
     private Message status() {
+        if (transientMessage != null && transientMessage.tone() == StatusTone.ERROR) {
+            return transientMessage;
+        }
         if (document.autosaveProblem().isPresent()) {
             return new Message("Enregistrement automatique impossible : " + document.autosaveProblem().get()
                     + " Le carnet reste disponible dans cette fenêtre.", StatusTone.ERROR);
         }
-        if (transientMessage != null) {
-            return transientMessage;
+        if (lastingMessage != null) {
+            return lastingMessage;
         }
-        return lastingMessage != null ? lastingMessage : new Message(DEFAULT_STATUS, StatusTone.INFO);
+        return transientMessage != null ? transientMessage : new Message(DEFAULT_STATUS, StatusTone.INFO);
     }
 
     private NotebookRow row(LineResult result) {

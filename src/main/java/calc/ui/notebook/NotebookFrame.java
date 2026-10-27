@@ -13,6 +13,7 @@ import java.awt.Font;
 import java.awt.Rectangle;
 import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
+import java.awt.event.KeyEvent;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 import java.awt.event.MouseAdapter;
@@ -67,6 +68,7 @@ public final class NotebookFrame extends JFrame {
 
     private transient NotebookViewModel shown;
     private boolean applying;
+    private boolean focusMoved;
 
     public NotebookFrame(NotebookPresenter presenter) {
         this(presenter, new NotebookShortcuts(Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
@@ -147,16 +149,16 @@ public final class NotebookFrame extends JFrame {
 
     private JMenuBar createMenuBar() {
         JMenuBar bar = new JMenuBar();
-        bar.add(menu("Édition", 0, edit()));
-        bar.add(menu("Affichage", 2, display()));
-        bar.add(menu("Aide", 1, help()));
+        bar.add(menu("Édition", KeyEvent.VK_E, 0, edit()));
+        bar.add(menu("Affichage", KeyEvent.VK_C, 2, display()));
+        bar.add(menu("Aide", KeyEvent.VK_I, 1, help()));
         return bar;
     }
 
     // A null item is a separator.
-    private static JMenu menu(String text, int mnemonicIndex, List<JMenuItem> items) {
+    private static JMenu menu(String text, int mnemonic, int mnemonicIndex, List<JMenuItem> items) {
         JMenu menu = new JMenu(text);
-        menu.setMnemonic(text.toUpperCase(java.util.Locale.ROOT).charAt(mnemonicIndex));
+        menu.setMnemonic(mnemonic);
         menu.setDisplayedMnemonicIndex(mnemonicIndex);
         for (JMenuItem item : items) {
             if (item == null) {
@@ -329,6 +331,8 @@ public final class NotebookFrame extends JFrame {
             while (rows.size() > viewModel.rows().size()) {
                 rowsPanel.remove(rows.remove(rows.size() - 1));
             }
+            String before = rows.get(viewModel.activeIndex()).field.getText();
+            boolean moved = shown == null || shown.activeIndex() != viewModel.activeIndex();
             for (int i = 0; i < rows.size(); i++) {
                 NotebookRow row = viewModel.rows().get(i);
                 boolean active = i == viewModel.activeIndex();
@@ -341,6 +345,8 @@ public final class NotebookFrame extends JFrame {
             modeItems.get(viewModel.displayMode()).setSelected(true);
             showStatus(viewModel.statusMessage(), viewModel.statusTone());
             shown = viewModel;
+            // The caret only moves when another line is active or the text of the active field was replaced.
+            focusMoved = moved || !before.equals(rows.get(viewModel.activeIndex()).field.getText());
         } finally {
             applying = false;
         }
@@ -349,7 +355,9 @@ public final class NotebookFrame extends JFrame {
         if (viewModel.focus() == NotebookFocus.ACTIVE_LINE) {
             NotebookRowView active = rows.get(viewModel.activeIndex());
             active.field.requestFocusInWindow();
-            active.field.setCaretPosition(active.field.getText().length());
+            if (focusMoved) {
+                active.field.setCaretPosition(active.field.getText().length());
+            }
         }
         scrollToActive();
     }

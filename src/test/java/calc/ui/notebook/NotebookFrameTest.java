@@ -358,6 +358,31 @@ class NotebookFrameTest {
         assertEquals(calc.ui.widget.Palette.ERROR, frame.statusLabel().getForeground());
     }
 
+    @Test
+    @DisplayName("revue : mnémoniques réels, soulignement retrouvé, curseur laissé en place")
+    void theMnemonicsWorkTheUnderlineComesBackAndTheCaretStays() throws Exception {
+        assertEquals(KeyEvent.VK_E, frame.getJMenuBar().getMenu(0).getMnemonic(), "É has no key code: Alt+E opens Édition");
+        assertEquals(KeyEvent.VK_C, frame.getJMenuBar().getMenu(1).getMnemonic());
+        assertEquals(KeyEvent.VK_I, frame.getJMenuBar().getMenu(2).getMnemonic());
+
+        typeLine("1 / 0");
+        typeLine("2");
+        press(KeyEvent.VK_UP, 0);
+        press(KeyEvent.VK_UP, 0);
+        assertTrue(frame.row(0).field.hasErrorMark());
+        runOnEdt(() -> field(0).setText("1 / 00"));
+        runOnEdt(() -> field(0).setText("1 / 0"));
+        assertFalse(frame.row(0).field.hasErrorMark(), "typing removes the mark");
+        press(KeyEvent.VK_ESCAPE, 0);
+        press(KeyEvent.VK_ENTER, 0);
+        press(KeyEvent.VK_UP, 0);
+        assertTrue(frame.row(0).field.hasErrorMark(), "the mark of a line in error comes back when its text is the validated text");
+
+        runOnEdt(() -> field(0).setCaretPosition(2));
+        press(KeyEvent.VK_Y, MENU_MASK);
+        assertEquals(2, field(0).getCaretPosition(), "a refused redo does not move the caret");
+    }
+
     // ------------------------------------------------------------------------------------------------ helpers
 
     private JTextField field(int index) {

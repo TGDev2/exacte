@@ -150,7 +150,8 @@ final class NotebookRowView extends JPanel {
             field.setText(text);
         }
         field.setPlaceholder(watermark);
-        if (rowChanged || textChanged) {
+        boolean markLost = row.status() == Status.ERROR && !field.hasErrorMark() && text.equals(row.text());
+        if (rowChanged || textChanged || markLost) {
             // The mark is only right for the text the evaluator saw.
             field.markError(row.status() == Status.ERROR && text.equals(row.text()) ? row.errorStart() : -1, row.errorEnd());
         }

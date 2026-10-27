@@ -5,6 +5,8 @@ import calc.ui.DisplayModeStore;
 import calc.ui.PreferencesDisplayModeStore;
 import calc.ui.notebook.NotebookFrame;
 import calc.ui.notebook.NotebookPresenter;
+import java.awt.Desktop;
+import java.awt.desktop.QuitStrategy;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.util.logging.Level;
@@ -18,6 +20,7 @@ public class Main {
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
             useSystemLookAndFeel();
+            closeWindowsOnQuit();
             // Opens the data directory (taking the lock that makes a second instance read only), migrates the old history
             // into a notebook on the first start and loads the current notebook. The system releases the lock with the
             // process; releasing it on a normal exit is only tidier.
@@ -35,11 +38,18 @@ public class Main {
     }
 
     /** The main window: the notebook that {@code store} keeps, with the old history migrated into it on the first start. */
-static NotebookFrame createWindow(NotebookStore store, DisplayModeStore modeStore) {
-    return new NotebookFrame(NotebookPresenter.open(store, modeStore));
-}
+    static NotebookFrame createWindow(NotebookStore store, DisplayModeStore modeStore) {
+        return new NotebookFrame(NotebookPresenter.open(store, modeStore));
+    }
 
-private static void useSystemLookAndFeel() {
+    // Cmd+Q on macOS quits without closing the windows by default: close them, so that a line being typed is validated.
+    private static void closeWindowsOnQuit() {
+        if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.APP_QUIT_STRATEGY)) {
+            Desktop.getDesktop().setQuitStrategy(QuitStrategy.CLOSE_ALL_WINDOWS);
+        }
+    }
+
+    private static void useSystemLookAndFeel() {
         try {
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
         } catch (Exception exception) {
