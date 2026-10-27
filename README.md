@@ -11,7 +11,36 @@ Ce projet ne cherche pas à impressionner par un catalogue d'opérations. Il che
 - structuré de manière lisible et testable
 - présentable rapidement à un évaluateur technique
 
+## Le carnet de calcul (fenêtre principale)
+
+Depuis l'Epic E12, Calc s'ouvre sur un **carnet de calcul** : on écrit une expression par ligne et le résultat s'affiche à droite, avec le badge « Exact » ou « ≈ Approché » (l'info-bulle donne l'erreur maximale ou la valeur exacte derrière un texte arrondi). Une ligne en erreur affiche son message en toutes lettres sous le champ, la partie fautive est soulignée. Une ligne peut être une expression (`prix * 3`), une affectation (`prix = 12,5`), un commentaire (`# Devis`) ou rien ; `ans` désigne le dernier résultat au-dessus et `$3` le résultat de la ligne 3 (guide : [docs/GUIDE-EXPRESSIONS.md](docs/GUIDE-EXPRESSIONS.md), aussi résumé dans le menu Aide). Modifier une ligne recalcule celles qui suivent ; insérer, supprimer ou déplacer des lignes renumérote les références (`$3` suit sa ligne, vers une ligne supprimée elle devient une erreur explicite).
+
+- **Sauvegarde automatique** : le carnet courant est enregistré après chaque ligne validée (`carnet-courant.calc.json`, voir [docs/FORMAT-FICHIER.md](docs/FORMAT-FICHIER.md)). Un échec d'enregistrement est signalé dans la barre d'état et ne fait perdre aucune ligne.
+- **Premier lancement** : l'ancien historique est converti en carnet (une ligne par calcul), après une copie de sécurité ; la barre d'état le dit.
+- **Une seule fenêtre écrit** : si Calc est déjà ouvert, la deuxième fenêtre est en lecture seule et l'indique dans la barre d'état.
+- **Annuler / rétablir** portent sur les lignes **validées** ; la saisie en cours se retire avec `Échap` (ou avec Annuler, qui l'abandonne d'abord).
+- **Aide au premier lancement** : un carnet vide montre trois exemples en filigrane (`prix = 12,5`, `prix * 3`, `ans / 2`), qui ne sont pas enregistrés.
+- Le menu **Affichage** (et le sélecteur en haut) change la notation des résultats (Auto, Décimal, Fraction, Scientifique) sans rien recalculer ; le choix est mémorisé.
+
+Raccourcis (le modificateur de menu est `Ctrl` sous Windows et Linux, `Cmd` sous macOS ; la liste est aussi dans le menu Aide > Raccourcis clavier et dans [docs/adr/0010-editeur-carnet.md](docs/adr/0010-editeur-carnet.md)) :
+
+| Touche | Action |
+|---|---|
+| `Entrée` | valider la ligne et passer à la suivante (après la dernière : nouvelle ligne) |
+| `↑` / `↓` | ligne précédente / suivante (la ligne quittée est validée) |
+| `Échap` | annuler la saisie en cours dans la ligne |
+| `Ctrl+Z` | annuler la dernière modification validée |
+| `Ctrl+Y`, `Ctrl+Maj+Z` | rétablir |
+| `Ctrl+Entrée` / `Ctrl+Maj+Entrée` | insérer une ligne au-dessous / au-dessus |
+| `Ctrl+Maj+K` | supprimer la ligne |
+| `Alt+↑` / `Alt+↓` | monter / descendre la ligne |
+| `Ctrl+M` | mode d'affichage suivant (toujours `Ctrl`, `Cmd+M` minimise la fenêtre sous macOS) |
+
+L'ancien formulaire à deux champs est resté dans le code mais n'est plus lancé ; il sera retiré avec l'Epic E13, qui ajoute aussi Ouvrir, Enregistrer et Exporter dans la fenêtre.
+
 ## Ce que l'application fait
+
+> Les puces de cette section décrivent surtout l'ancien formulaire à deux champs (opérandes, historique, raccourcis `Ctrl+R`, `Alt+lettre`), qui n'est plus lancé depuis E12. Le calcul exact, les règles d'affichage, le badge d'exactitude et les modes d'affichage valent aussi pour le carnet.
 
 - Opérations prises en charge : addition, soustraction, multiplication, division, puissance (exposant entier), racine carrée
 - Calcul exact : fractions exactes, et pour une racine non exacte une valeur approchée avec une borne d'erreur garantie (voir « Précision numérique »)
@@ -37,7 +66,7 @@ Ce projet ne cherche pas à impressionner par un catalogue d'opérations. Il che
 
 Le projet est volontairement compact, mais les responsabilités sont séparées (sources dans `src/main/java`, tests dans `src/test/java`) :
 
-- `calc/Main.java` : point d'entrée, assemble moteur, persistance, présentateur et fenêtre
+- `calc/Main.java` : point d'entrée, ouvre le magasin du carnet (migration de l'ancien historique au premier lancement) et la fenêtre du carnet
 - `calc.engine` : moteur de calcul et persistance, sans aucune dépendance à Swing
   - `CalculatorEngine` : exécute les calculs avec le noyau exact et traduit chaque refus en message français ; `Operand` : texte saisi ou valeur déjà connue
   - `OperandParser` (privé au package) : grammaire de saisie (décimal, fraction, notation scientifique, milliers) ; `NumberLiterals` : lecture d'un littéral (milliers en espaces insécables), partagée avec le langage d'expressions ; `NumericMessages` : messages des refus du noyau qui ne nomment aucun champ, partagés aussi
@@ -58,7 +87,10 @@ Le projet est volontairement compact, mais les responsabilités sont séparées 
   - `CalculatorViewModel` (record immuable, textes déjà prêts à afficher), `FocusTarget`, `ReuseTarget`, `StatusTone`, `OperationText` (libellés des opérations)
   - `DisplayModeStore` / `PreferencesDisplayModeStore` : mémorisation du mode d'affichage (`java.util.prefs`, erreurs tolérées et journalisées)
   - `calc.ui.widget` : composants Swing réutilisables, sans dépendance à la fenêtre : `DisplayModeSelector` (liste déroulante des modes), `ExactnessBadge` (« Exact » / « ≈ Approché » et son info-bulle), `HistoryLine` + `HistoryLineRenderer` (ligne d'historique déjà formatée et son rendu), `Palette` et `Contrast` (couleurs et rapport de contraste WCAG)
-  - `CalculatorFrame` : rendu Swing et branchement des actions utilisateur
+  - `calc.ui.notebook` : le carnet, fenêtre principale (voir `docs/adr/0010-editeur-carnet.md`)
+    - `NotebookPresenter` : toute la logique d'interaction du carnet (validation, navigation, annuler / rétablir, insertion, suppression, déplacement, mode, statut), testable sans interface graphique ; chaque intention renvoie un `NotebookViewModel` immuable (`NotebookRow` par ligne, `NotebookFocus`)
+    - `NotebookFrame` (fenêtre, menus, barre d'état), `NotebookRowView` (une ligne : numéro, `LineField`, résultat et badge, message d'erreur), `NotebookShortcuts` (les touches, avec le modificateur de menu du système), `NotebookHelp` (textes du menu Aide), `NotebookPalette` (couleurs, contrastes vérifiés)
+  - `CalculatorFrame` : rendu Swing de l'ancien formulaire à deux champs (plus lancé, retiré en E13)
 
 Cette séparation permet de tester les parcours d'usage critiques sans dépendre d'une vérification manuelle de l'UI.
 
@@ -104,6 +136,7 @@ Le projet fournit des tests JUnit 5 et des propriétés jqwik (`src/test/java`, 
 - historique : restauration partielle, copies `.bak`, BOM, ancien format sans en-tête, version inconnue non écrasée, mode protégé, écriture atomique et échec d'écriture
 - workflow après un calcul réussi, réutilisation d'un résultat d'historique, statuts affichés
 - vérification Swing des raccourcis, du changement unaire/binaire, de la réutilisation depuis l'UI et de l'accessibilité (mnémoniques distincts, libellés associés, noms accessibles, ordre de tabulation, info-bulle du résultat long) ; sélecteur de mode, badge d'exactitude, rendu de l'historique selon le mode, raccourci `Ctrl+M` sans conflit, mode mémorisé
+- carnet (E12) : présentateur sans Swing (`a = 2`, `a * 3`, `ans + 1` donnent 2, 6, 7 ; modification de la première ligne, insertion au-dessus d'une ligne référencée, suppression, annuler / rétablir, Échap, modes, migration, lecture seule, échec d'enregistrement simulé), parcours clavier complet dans la vraie fenêtre avec le modificateur de menu de chaque système, badge et info-bulle sur `√2`, message d'erreur sur `1 / 0`, noms accessibles, démarrage sur un répertoire contenant un historique v1, réactivité sur 500 lignes (voir [docs/TESTS.md](docs/TESTS.md))
 - accents des textes visibles : un test lit les littéraux des sources qui portent des textes affichés et refuse les formes sans accent connues
 - contrastes : chaque couleur de texte de statut et de badge atteint au moins 4,5:1 sur son fond
 - non-régression : 70 cas de référence (`src/test/resources/golden/engine-v2.tsv`) rejoués contre le moteur et le présentateur, sortie par sortie (affichage, valeur réutilisable ou message d'erreur) ; chaque écart avec la version 1 (`engine-v1.tsv`) est justifié dans [docs/changements-comportement-E06.md](docs/changements-comportement-E06.md) ; les historiques de référence se trouvent dans `src/test/resources/legacy/v1`
@@ -210,7 +243,8 @@ Le script lance `gradlew.bat run` : Gradle compile le projet puis démarre l'app
 - **Instances multiples** : si plusieurs instances de Calc sont ouvertes en même temps, chacune garde son propre historique en mémoire et la dernière à écrire gagne ; il n'y a pas de verrou de fichier.
 - **Historique non borné** : le nombre d'entrées n'est pas limité. C'est volontaire : mesuré, 5 000 calculs prennent 3,9 s cumulées et le rechargement 19 ms, ce qui ne justifie pas de limite.
 - **Messages d'erreur dans le moteur** : les messages destinés à l'utilisateur sont écrits en français dans le moteur ; il n'y a pas d'internationalisation.
-- **Deux opérandes** : le modèle de calcul est « nombre, opération, nombre » ; il n'y a pas de saisie d'expression (parenthèses, priorités).
+- **Deux opérandes (ancien formulaire)** : le formulaire à deux champs, qui n'est plus lancé, n'accepte que « nombre, opération, nombre ». Le carnet accepte des expressions complètes (parenthèses, priorités, variables, références).
+- **Éditeur de carnet** : une ligne de plus de 16 384 caractères est refusée avec un message (la limite du fichier) ; le collage de plusieurs lignes dans un champ les joint en une seule ligne ; les lignes ne sont pas virtualisées (ouverture d'environ 0,85 s pour 500 lignes et 1,5 s pour 5000 ; valider la première ligne de 5000 lignes prend environ 85 à 115 ms) ; pas d'aperçu du résultat pendant la frappe (mesuré possible, écarté : voir l'ADR 0010) ; les raccourcis ne sont pas contrôlés sur un clavier macOS réel ni avec l'apparence Aqua.
 - **Packaging Windows uniquement** : l'application portable est produite pour Windows et n'est pas signée ; il n'y a ni installeur ni release automatisée. Sous Linux et macOS, l'application se lance avec `java -jar build/libs/calc.jar` après `./gradlew jar`.
 - **Historique et valeurs approchées** : le format de fichier actuel ne stocke pas d'intervalle ; une entrée calculée à partir d'une valeur approchée réutilisée est rechargée comme le résultat exact de son opérande enregistré (un point de l'intervalle affiché). Une puissance d'une telle valeur au-delà d'environ 48 ne peut pas être enregistrée : la ligne est écartée, avec une copie de sauvegarde, au rechargement suivant. Le format de la version suivante stockera les intervalles.
 - Les tests UI couvrent les parcours critiques, pas un rendu graphique pixel par pixel.

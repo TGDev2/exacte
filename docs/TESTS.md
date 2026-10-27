@@ -9,7 +9,7 @@ lancer une partie, comment rejouer un échec trouvé par un test aléatoire et c
 |---|---|---|---|
 | Exemples JUnit 5 | `src/test/java/calc/engine`, `calc/ui`, `calc/number`, `calc/format`, `calc/expression`, `calc/notebook` | aucune | Un cas précis, un message exact, un comportement décidé. Rapides, faciles à lire. |
 | Sorties de référence | `GoldenOutputsTest`, `src/test/resources/golden`, `legacy/v1` | aucune | Rejoue 70 calculs (`engine-v2.tsv`, mêmes entrées que `engine-v1.tsv`) et 11 fichiers d'historique enregistrés : tout changement de sortie est vu. |
-| Fenêtre Swing | `CalculatorFrameTest` | `ui` | Raccourcis, focus, accessibilité. Demande un écran (ignoré sans écran, voir `docs/CI.md`). |
+| Fenêtre Swing | `CalculatorFrameTest`, `NotebookFrameTest`, `NotebookFrameResponsivenessTest`, `MainStartupTest` | `ui` | Raccourcis, focus, accessibilité. Demande un écran (ignoré sans écran, voir `docs/CI.md`). |
 | Propriétés | `*Properties` (hors fuzzing) | `property` | Une promesse vraie pour des milliers d'entrées générées, comparée à un oracle indépendant. |
 | Robustesse | `*FuzzProperties` (dont `NotebookFileFuzzProperties`), `PresenterStatefulProperties`, `NotebookStatefulProperties` | `robustness` | Entrées hostiles et séquences d'actions aléatoires : jamais d'exception inattendue, jamais de perte de données. |
 
@@ -379,6 +379,39 @@ Quatre mutations ont été faites puis retirées sans être commitées : (1) la 
 les guillemets, la propriété) ; (2) le chargeur qui écarte les lignes que le langage refuse → 9 tests échouent, dont `NotebookFileFuzzProperties` ; (3) l'enregistrement automatique aussi pour un document associé à un fichier
 → `aDocumentWithAFileIsNeverSavedAutomatically...` échoue ; (4) une version supérieure non mise en lecture seule → les deux tests de version future échouent.
 
+## Éditeur de carnet : fenêtre principale (E12)
+
+L'éditeur suit le modèle des fenêtres précédentes : toute la logique dans `NotebookPresenter` (testable sans Swing), une
+vue qui n'affiche que le `NotebookViewModel`. Choix et raccourcis : `docs/adr/0010-editeur-carnet.md`.
+
+| Classe | Étiquette | Ce qu'elle garantit |
+|---|---|---|
+| `NotebookPresenterTest` | aucune | `a = 2`, `a * 3`, `ans + 1` donnent 2, 6, 7 ; modifier la ligne 1 recalcule les suivantes ; insertion au-dessus d'une ligne référencée (texte réécrit, même valeur) ; suppression (erreur explicite, annulable) ; déplacement ; annuler / rétablir (annuler avec une saisie en cours abandonne d'abord la saisie, rétablir est refusé) ; Échap ; clic ; modes (remémorisés, sauvegardés avec le carnet, saisie intacte) ; ligne trop longue refusée sans perte ; sauts de ligne collés ; fermeture qui valide ; sauvegarde automatique et rechargement ; échec de sauvegarde simulé (signalé, état en mémoire intact, réparé au coup suivant) ; deuxième instance en lecture seule (message permanent) ; migration d'un historique v1 (statut, lignes, valeurs, sauvegarde automatique) ; aucune dépendance à Swing |
+| `NotebookResponsivenessTest` | aucune | 500 lignes avec références : valider la ligne 1 (recalcul, 501 lignes affichées, sauvegarde) en moins de 100 ms dans le présentateur ; coût d'un aperçu pendant la frappe (mesure pour la décision de l'ADR, section 6) |
+| `NotebookShortcutConflictTest` | aucune | aucune touche à modificateur du carnet n'est liée par un champ texte des apparences installées ; liste les touches simples que le champ du carnet remplace |
+| `NotebookPaletteContrastTest` | aucune | chaque couleur de texte des lignes atteint 4,5:1 sur ses fonds (rapports imprimés) |
+| `NotebookHelpTest` | aucune | les exemples de l'aide « Syntaxe » donnent le résultat annoncé ; l'aide des raccourcis liste les vraies touches (Ctrl / Cmd) |
+| `NotebookFrameTest` | `ui` | parcours clavier complet dans la vraie fenêtre (saisie, Entrée, ↑ ↓, Échap, annuler, rétablir, Ctrl+Maj+Z, déplacer, insérer, supprimer) avec le modificateur de menu du système ; Ctrl ou Cmd, jamais les deux ; badge et info-bulle sur `√2` ; message d'erreur en texte sur `1 / 0` avec la partie fautive soulignée ; variable repérée ; filigrane ; noms accessibles « Ligne n », description avec le résultat, ordre de focus ; menus et état Annuler / Rétablir ; échec d'enregistrement dans la barre d'état |
+| `NotebookFrameResponsivenessTest` | `ui` | les mêmes 500 lignes dans la fenêtre : mise à jour des lignes, mise en page et peinture hors écran en moins de 100 ms ; mesure à 5000 lignes (limite du modèle) |
+| `MainStartupTest` (`calc`) | `ui` | démarrage sur un répertoire de données avec un historique v1 : le carnet migré s'affiche, la première ligne validée est enregistrée, le deuxième démarrage retrouve le carnet sans migrer |
+
+### Mesures de réactivité (`NotebookResponsivenessTest`, `NotebookFrameResponsivenessTest`)
+
+Carnet de 500 lignes (3 variables et lignes de tête, puis `ans`, `$n` et variables, une racine toutes les 100 lignes : 500 valeurs,
+dont 399 approchées, 497 lignes avec références). Machine de développement, Windows 11, JDK 21, échauffement de 30 essais, 15 mesures :
+
+| Mesure | Meilleur | Médiane | Pire |
+|---|---|---|---|
+| Présentateur : Entrée sur la ligne 1 (recalcul, 501 lignes, sauvegarde du fichier) | 12,1 ms | 14,2 ms | 16,1 ms |
+| Fenêtre : mise à jour des 501 lignes | 12,4 à 14,4 ms | 18,5 à 19,2 ms | 21,7 à 25,1 ms |
+| Fenêtre : avec mise en page et peinture hors écran | 28,7 à 31,8 ms | 41,2 à 41,4 ms | 45,4 à 47,9 ms |
+| Coût d'un aperçu pendant la frappe (recalcul + mise en forme, sans sauvegarde) | 9,6 ms | 10,8 ms | 14,6 ms |
+| Ouverture de la fenêtre (500 lignes) | 0,83 à 0,85 s | | |
+| 5000 lignes : mise à jour / avec mise en page et peinture | 70 à 71 ms / 89 à 91 ms | 83 à 85 ms / 112 à 115 ms | 92 à 106 ms / 120 à 140 ms |
+| Ouverture de la fenêtre (5000 lignes) | 1,5 s | | |
+
+Décision sur l'aperçu : voir l'ADR 0010, section 6 (mesuré à 11 ms, non ajouté pour une raison d'usage, pas de coût).
+
 ## Défauts trouvés par les propriétés
 
 1. **Une entrée valide était perdue au rechargement** (corrigé). Repéré d'abord par un exemple visant le piège noté en E4,
@@ -428,7 +461,9 @@ les guillemets, la propriété) ; (2) le chargeur qui écarte les lignes que le 
 
 - Le budget de 100 ms de `InputFuzzProperties` est une mesure de temps : il prend le meilleur de deux essais et suit un échauffement, mais une machine très chargée peut encore l'invalider.
 - Le recalcul d'un carnet hostile est borné par ligne, pas annulable : les neuf formes de lignes lourdes mesurées (E11) restent sous la seconde pour 5000 lignes, mais aucune preuve ne dit qu'aucune forme n'est plus lente.
-- Le modèle de carnet accepte une ligne plus longue que ce que le fichier écrit (16 384 caractères) : l'écriture est alors refusée et signalée, et l'éditeur (E12) devra borner la saisie.
+- Le modèle de carnet accepte une ligne plus longue que ce que le fichier écrit (16 384 caractères) : l'éditeur (E12) la refuse avec un message (`NotebookPresenterTest`), mais le modèle lui-même ne la borne toujours pas.
+- Les mesures de réactivité de l'éditeur (E12) sont des mesures de temps sur la machine de développement : le budget de 100 ms est contrôlé sur la médiane de 15 essais après échauffement, et la médiane mesurée (14 à 41 ms) laisse une marge d'un facteur 2 à 7 ; une machine de CI très chargée pourrait quand même l'invalider.
+- L'éditeur n'est pas contrôlé sur un clavier macOS réel ni avec l'apparence Aqua : les touches sont vérifiées par leur liaison dans le champ (avec `Cmd` simulé) et par les apparences installées dans le JDK de la machine.
 - Les générateurs choisissent leurs formes de valeurs : les cas non prévus (autres alphabets d'espaces, très gros nombres de lignes d'historique) ne sont pas couverts. `-Pjqwik.tries.default=20000` élargit la recherche sans rien changer au code.
 - Le modèle de session du présentateur reproduit la règle de la mémoire des champs : une erreur commune au modèle et au présentateur ne serait pas vue ; `CalculatorPresenterTest` la fixe aussi par des exemples.
 - L'oracle n'a qu'une précision de 200 chiffres : les propriétés qui l'utilisent gardent des opérandes assez courts pour que le résultat exact y tienne, et vérifient que c'est bien le cas.
