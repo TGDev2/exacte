@@ -80,7 +80,7 @@ window takes it as a parameter, and tests build it with each value.
 | `Ctrl+Entrée` / `Cmd+Entrée` | insert a line below |
 | `Ctrl+Maj+Entrée` / `Cmd+Maj+Entrée` | insert a line above |
 | `Ctrl+Maj+K` / `Cmd+Maj+K` | delete the line |
-| `Alt+↑` / `Alt+↓` | move the line up / down |
+| `Ctrl+Maj+↑` / `Ctrl+Maj+↓` (always Ctrl) | move the line up / down |
 | `Ctrl+M` (always Ctrl) | next display mode (ADR 0006) |
 
 Why these keys are free:
@@ -92,8 +92,9 @@ Why these keys are free:
   field**, which has priority over the look and feel; a test checks that every key resolves to an always-enabled action there.
 - **Ctrl+Z in a field.** A Swing text field has no undo of its own, so the key is ours; it is documented that it reverts
   the last validated command, not the typing.
-- **Delete is `Ctrl+Maj+K`**, not `Ctrl+Suppr`: Ctrl+Delete is « delete the next word » in a text field. Alt+arrows
-  move a line as in most editors; on Linux, some window managers use them to switch workspaces (the menu items stay).
+- **Delete is `Ctrl+Maj+K`**, not `Ctrl+Suppr`: Ctrl+Delete is « delete the next word » in a text field. Moving a
+  line is `Ctrl+Maj+↑` / `↓` on every system, not `Alt+↑` / `↓`: the Aqua text field binds Alt+Up and Alt+Down (found by
+  the macOS run of `NotebookShortcutConflictTest`), and on Linux some window managers use Alt+arrows for workspaces.
 - **`Ctrl+M` stays `Ctrl`** on macOS because `Cmd+M` minimises a window.
 - Not checked on a real macOS keyboard here; the Aqua look and feel is not part of the Java runtime of this machine.
 

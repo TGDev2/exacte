@@ -48,7 +48,8 @@ class NotebookHelpTest {
         assertEquals("Ctrl+Maj+Z", windows.text(NotebookShortcuts.Command.REDO_ALTERNATE));
         assertEquals("Cmd+Z", mac.text(NotebookShortcuts.Command.UNDO));
         assertEquals("Cmd+Maj+K", mac.text(NotebookShortcuts.Command.DELETE_LINE));
-        assertEquals("Alt+↑", windows.text(NotebookShortcuts.Command.MOVE_UP));
+        assertEquals("Ctrl+Maj+↑", windows.text(NotebookShortcuts.Command.MOVE_UP));
+        assertEquals("Ctrl+Maj+↓", mac.text(NotebookShortcuts.Command.MOVE_DOWN), "the line keys are Ctrl on every system");
         assertEquals("Ctrl+M", mac.text(NotebookShortcuts.Command.NEXT_MODE), "the display mode key is Ctrl on every system");
         assertEquals("Entrée", windows.text(NotebookShortcuts.Command.ENTER));
         assertEquals("Échap", windows.text(NotebookShortcuts.Command.CANCEL_EDIT));

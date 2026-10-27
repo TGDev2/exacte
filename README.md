@@ -33,7 +33,7 @@ Raccourcis (le modificateur de menu est `Ctrl` sous Windows et Linux, `Cmd` sous
 | `Ctrl+Y`, `Ctrl+Maj+Z` | rétablir |
 | `Ctrl+Entrée` / `Ctrl+Maj+Entrée` | insérer une ligne au-dessous / au-dessus |
 | `Ctrl+Maj+K` | supprimer la ligne |
-| `Alt+↑` / `Alt+↓` | monter / descendre la ligne |
+| `Ctrl+Maj+↑` / `Ctrl+Maj+↓` | monter / descendre la ligne |
 | `Ctrl+M` | mode d'affichage suivant (toujours `Ctrl`, `Cmd+M` minimise la fenêtre sous macOS) |
 
 L'ancien formulaire à deux champs est resté dans le code mais n'est plus lancé ; il sera retiré avec l'Epic E13, qui ajoute aussi Ouvrir, Enregistrer et Exporter dans la fenêtre.

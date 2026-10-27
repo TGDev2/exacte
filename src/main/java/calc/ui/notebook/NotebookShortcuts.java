@@ -11,7 +11,7 @@ import javax.swing.KeyStroke;
 /**
  * The keyboard of the notebook, in one place: the keys the window binds, their description for the help and the menus.
  * The modifier of the menu shortcuts is a parameter ({@code Toolkit.getMenuShortcutKeyMaskEx()}: Ctrl on Windows and
- * Linux, Cmd on macOS); the keys of the line (Enter, arrows, Escape, Alt+arrows) and Ctrl+M do not depend on it.
+ * Linux, Cmd on macOS); the keys of the line (Enter, arrows, Escape, Ctrl+Shift+arrows) and Ctrl+M do not depend on it.
  * docs/adr/0010-editeur-carnet.md lists them and says why they are free.
  */
 public final class NotebookShortcuts {
@@ -59,8 +59,10 @@ public final class NotebookShortcuts {
         strokes.put(Command.INSERT_BELOW, KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, menuMask));
         strokes.put(Command.INSERT_ABOVE, KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, menuMask | shift));
         strokes.put(Command.DELETE_LINE, KeyStroke.getKeyStroke(KeyEvent.VK_K, menuMask | shift));
-        strokes.put(Command.MOVE_UP, KeyStroke.getKeyStroke(KeyEvent.VK_UP, InputEvent.ALT_DOWN_MASK));
-        strokes.put(Command.MOVE_DOWN, KeyStroke.getKeyStroke(KeyEvent.VK_DOWN, InputEvent.ALT_DOWN_MASK));
+        // Always Ctrl+Shift, like Ctrl+M: the Aqua text field binds Alt+Up and Alt+Down.
+        int moveMask = InputEvent.CTRL_DOWN_MASK | shift;
+        strokes.put(Command.MOVE_UP, KeyStroke.getKeyStroke(KeyEvent.VK_UP, moveMask));
+        strokes.put(Command.MOVE_DOWN, KeyStroke.getKeyStroke(KeyEvent.VK_DOWN, moveMask));
         // Ctrl+M of the display modes (docs/adr/0006): always Ctrl, because Cmd+M minimises a window on macOS.
         strokes.put(Command.NEXT_MODE, KeyStroke.getKeyStroke(KeyEvent.VK_M, InputEvent.CTRL_DOWN_MASK));
     }
@@ -73,7 +75,7 @@ public final class NotebookShortcuts {
         return menuMask;
     }
 
-    /** The key as the user reads it in French: {@code Ctrl+Maj+K}, {@code Alt+↑}, {@code Entrée}. */
+    /** The key as the user reads it in French: {@code Ctrl+Maj+K}, {@code Ctrl+Maj+↑}, {@code Entrée}. */
     public String text(Command command) {
         KeyStroke stroke = stroke(command);
         List<String> parts = new ArrayList<>();

@@ -121,10 +121,10 @@ class NotebookFrameTest {
         press(KeyEvent.VK_Z, MENU_MASK | InputEvent.SHIFT_DOWN_MASK);
         assertEquals(List.of("10", "30", "31", ""), results(), "Ctrl+Shift+Z redoes as well");
 
-        press(KeyEvent.VK_DOWN, InputEvent.ALT_DOWN_MASK);
-        assertEquals(List.of("a = 10", "ans + 1", "a * 3", ""), texts(), "Alt+↓ moves the active line down");
+        press(KeyEvent.VK_DOWN, InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK);
+        assertEquals(List.of("a = 10", "ans + 1", "a * 3", ""), texts(), "Ctrl+Shift+↓ moves the active line down");
         assertEquals(2, frame.shown().activeIndex(), "the focus follows the line");
-        press(KeyEvent.VK_UP, InputEvent.ALT_DOWN_MASK);
+        press(KeyEvent.VK_UP, InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK);
         assertEquals(List.of("a = 10", "a * 3", "ans + 1", ""), texts());
 
         press(KeyEvent.VK_ENTER, MENU_MASK);
