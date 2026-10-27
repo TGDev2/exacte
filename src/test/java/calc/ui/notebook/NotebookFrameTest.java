@@ -302,14 +302,14 @@ class NotebookFrameTest {
     // ------------------------------------------------------------------------------------------------ menus and status
 
     @Test
-    @DisplayName("menus Édition, Affichage et Aide ; Annuler et Rétablir suivent l'état")
+    @DisplayName("menus Fichier, Édition, Affichage et Aide ; Annuler et Rétablir suivent l'état")
     void theMenusExistAndFollowTheState() throws Exception {
         List<String> titles = new ArrayList<>();
         for (int i = 0; i < frame.getJMenuBar().getMenuCount(); i++) {
             titles.add(frame.getJMenuBar().getMenu(i).getText());
         }
-        assertEquals(List.of("Édition", "Affichage", "Aide"), titles);
-        JMenu edit = frame.getJMenuBar().getMenu(0);
+        assertEquals(List.of("Fichier", "Édition", "Affichage", "Aide"), titles);
+        JMenu edit = frame.getJMenuBar().getMenu(1);
         List<String> items = new ArrayList<>();
         for (java.awt.Component component : edit.getMenuComponents()) {
             if (component instanceof JMenuItem item) {
@@ -361,9 +361,10 @@ class NotebookFrameTest {
     @Test
     @DisplayName("revue : mnémoniques réels, soulignement retrouvé, curseur laissé en place")
     void theMnemonicsWorkTheUnderlineComesBackAndTheCaretStays() throws Exception {
-        assertEquals(KeyEvent.VK_E, frame.getJMenuBar().getMenu(0).getMnemonic(), "É has no key code: Alt+E opens Édition");
-        assertEquals(KeyEvent.VK_C, frame.getJMenuBar().getMenu(1).getMnemonic());
-        assertEquals(KeyEvent.VK_I, frame.getJMenuBar().getMenu(2).getMnemonic());
+        assertEquals(KeyEvent.VK_F, frame.getJMenuBar().getMenu(0).getMnemonic());
+        assertEquals(KeyEvent.VK_E, frame.getJMenuBar().getMenu(1).getMnemonic(), "É has no key code: Alt+E opens Édition");
+        assertEquals(KeyEvent.VK_C, frame.getJMenuBar().getMenu(2).getMnemonic());
+        assertEquals(KeyEvent.VK_I, frame.getJMenuBar().getMenu(3).getMnemonic());
 
         typeLine("1 / 0");
         typeLine("2");

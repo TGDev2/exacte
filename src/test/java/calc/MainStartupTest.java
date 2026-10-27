@@ -76,7 +76,7 @@ class MainStartupTest {
 
         start();
 
-        assertEquals("Calc — Carnet de calcul", frame.getTitle(), "the notebook is the main window, not the two-field form");
+        assertEquals("Carnet sans titre — Calc", frame.getTitle(), "the notebook is the main window, not the two-field form");
         assertEquals(List.of("0,1 + 0,2", "10 - 2,5", "1,5 * 4", "7 / 2", "2 ^ 10", "√(16)", ""), texts());
         assertEquals(List.of("0,3", "7,5", "6", "3,5", "1024", "4", ""), results());
         assertEquals("Votre historique a été converti en carnet (6 lignes).", status());

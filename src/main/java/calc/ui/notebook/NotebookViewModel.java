@@ -12,6 +12,9 @@ import java.util.List;
  * {@code text} of the row until it is validated; every other field shows the text of its row. {@code watermark} is the
  * help shown inside the empty field of an empty notebook, never saved; it is empty otherwise.
  *
+ * <p>{@code title} is the title of the window (document name, modified marker), {@code canSave} whether « Enregistrer » can
+ * write the document (false for a file from a newer version), {@code closeWindow} that the window must now be closed.
+ *
  * @param activeIndex the index, from 0, of the active row
  * @param focus       where the focus must go once the view model is shown
  */
@@ -25,7 +28,10 @@ public record NotebookViewModel(
         DisplayMode displayMode,
         String statusMessage,
         StatusTone statusTone,
-        String watermark) {
+        String watermark,
+        String title,
+        boolean canSave,
+        boolean closeWindow) {
 
     public NotebookViewModel {
         rows = List.copyOf(rows);

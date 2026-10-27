@@ -63,6 +63,7 @@ public final class NotebookFrame extends JFrame {
     private final JLabel statusLabel = new JLabel(" ");
     private final DisplayModeSelector modeSelector = new DisplayModeSelector();
     private final transient Map<DisplayMode, JRadioButtonMenuItem> modeItems = new EnumMap<>(DisplayMode.class);
+    private final transient Action saveAction;
     private final transient Action undoAction;
     private final transient Action redoAction;
 
@@ -79,6 +80,7 @@ public final class NotebookFrame extends JFrame {
         super("Calc — Carnet de calcul");
         this.presenter = Objects.requireNonNull(presenter, "presenter");
         this.shortcuts = Objects.requireNonNull(shortcuts, "shortcuts");
+        saveAction = menuAction("Enregistrer", Command.SAVE);
         undoAction = menuAction("Annuler", Command.UNDO);
         redoAction = menuAction("Rétablir", Command.REDO);
 
@@ -127,13 +129,17 @@ public final class NotebookFrame extends JFrame {
         setJMenuBar(createMenuBar());
         installModeShortcut();
 
-        setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+        // Closing is the presenter's decision (a line being typed, unsaved changes), never the window's own.
+        setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent event) {
-                // What is being typed is validated first, so that closing never loses a line.
                 if (shown != null) {
-                    presenter.onClosing(pendingText());
+                    NotebookViewModel next = presenter.onQuit(pendingText());
+                    apply(next);
+                    if (next.closeWindow()) {
+                        dispose();
+                    }
                 }
             }
         });
@@ -149,6 +155,7 @@ public final class NotebookFrame extends JFrame {
 
     private JMenuBar createMenuBar() {
         JMenuBar bar = new JMenuBar();
+        bar.add(menu("Fichier", KeyEvent.VK_F, 0, file()));
         bar.add(menu("Édition", KeyEvent.VK_E, 0, edit()));
         bar.add(menu("Affichage", KeyEvent.VK_C, 2, display()));
         bar.add(menu("Aide", KeyEvent.VK_I, 1, help()));
@@ -168,6 +175,40 @@ public final class NotebookFrame extends JFrame {
             }
         }
         return menu;
+    }
+
+    private List<JMenuItem> file() {
+        List<JMenuItem> items = new ArrayList<>();
+        items.add(item(menuAction("Nouveau", Command.NEW_DOCUMENT), Command.NEW_DOCUMENT, "newItem"));
+        items.add(item(menuAction("Ouvrir…", Command.OPEN_DOCUMENT), Command.OPEN_DOCUMENT, "openItem"));
+        items.add(null);
+        items.add(item(saveAction, Command.SAVE, "saveItem"));
+        items.add(item(menuAction("Enregistrer sous…", Command.SAVE_AS), Command.SAVE_AS, "saveAsItem"));
+        items.add(null);
+        items.add(item(exportAction("Exporter en Markdown…", NotebookDialogs.ExportFormat.MARKDOWN), null, "exportMarkdownItem"));
+        items.add(item(exportAction("Exporter en CSV…", NotebookDialogs.ExportFormat.CSV), null, "exportCsvItem"));
+        items.add(null);
+        items.add(item(new AbstractAction("Quitter") {
+            private static final long serialVersionUID = 1L;
+
+            @Override
+            public void actionPerformed(ActionEvent event) {
+                // The same path as the close button: the presenter asks about unsaved changes, then the window closes.
+                dispatchEvent(new WindowEvent(NotebookFrame.this, WindowEvent.WINDOW_CLOSING));
+            }
+        }, null, "quitItem"));
+        return items;
+    }
+
+    private Action exportAction(String text, NotebookDialogs.ExportFormat format) {
+        return new AbstractAction(text) {
+            private static final long serialVersionUID = 1L;
+
+            @Override
+            public void actionPerformed(ActionEvent event) {
+                apply(presenter.onExport(format, pendingText()));
+            }
+        };
     }
 
     private List<JMenuItem> edit() {
@@ -312,6 +353,10 @@ public final class NotebookFrame extends JFrame {
             case MOVE_UP -> apply(presenter.onMoveLineUp(pendingText()));
             case MOVE_DOWN -> apply(presenter.onMoveLineDown(pendingText()));
             case NEXT_MODE -> apply(presenter.onNextDisplayMode(pendingText()));
+            case NEW_DOCUMENT -> apply(presenter.onNew(pendingText()));
+            case OPEN_DOCUMENT -> apply(presenter.onOpen(pendingText()));
+            case SAVE -> apply(presenter.onSave(pendingText()));
+            case SAVE_AS -> apply(presenter.onSaveAs(pendingText()));
         }
     }
 
@@ -339,6 +384,8 @@ public final class NotebookFrame extends JFrame {
                 rows.get(i).show(row, active, active ? viewModel.activeDraft() : row.text(), i == viewModel.activeIndex()
                         ? viewModel.watermark() : "");
             }
+            setTitle(viewModel.title());
+            saveAction.setEnabled(viewModel.canSave());
             undoAction.setEnabled(viewModel.canUndo());
             redoAction.setEnabled(viewModel.canRedo());
             modeSelector.showMode(viewModel.displayMode());

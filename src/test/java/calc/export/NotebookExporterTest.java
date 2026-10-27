@@ -27,9 +27,9 @@ import org.junit.jupiter.params.provider.ValueSource;
  * an error, comments, variables, references, special characters), and the rules one by one: escaping, quoting, byte order
  * mark, line ends and the neutralisation of formulas.
  */
-class NotebookExporterTest {
+public class NotebookExporterTest {
     /** Exact, approximate, error, comment, variables, reference, spreadsheet-looking and Markdown-looking lines. */
-    static final List<String> REPRESENTATIVE = List.of(
+    public static final List<String> REPRESENTATIVE = List.of(
             "# Devis cuisine",
             "surface = 12,5",
             "prix = 42",
