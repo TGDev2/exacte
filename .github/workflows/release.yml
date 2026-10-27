@@ -1,0 +1,227 @@
+name: Release
+
+# Publishes a GitHub Release when a version tag vX.Y.Z is pushed (procedure: docs/RELEASE.md, decisions: ADR 0012).
+# workflow_dispatch is for trials: it builds the same files and publishes them as a pre-release named test-vX.Y.Z-<run>,
+# without creating a version tag.
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build, as X.Y.Z (X >= 1). Published as a pre-release, no version tag is created.'
+        required: true
+        type: string
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # Validates the version once; the other jobs only read the outputs.
+  prepare:
+    name: version
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      # Values from the event go through the environment, never straight into the script.
+      - name: Derive the version
+        id: version
+        env:
+          EVENT: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            version="$INPUT_VERSION"
+            tag="test-v${version}-${GITHUB_RUN_NUMBER}"
+            prerelease=true
+          else
+            version="${REF_NAME#v}"
+            tag="$REF_NAME"
+            prerelease=false
+          fi
+          if ! [[ "$version" =~ ^[1-9][0-9]*\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::'$version' is not a releasable version: expected X.Y.Z with X >= 1 (jpackage refuses a first component of 0 on macOS)."
+            exit 1
+          fi
+          {
+            echo "version=$version"
+            echo "tag=$tag"
+            echo "prerelease=$prerelease"
+          } >> "$GITHUB_OUTPUT"
+
+  build:
+    name: package (${{ matrix.os }})
+    needs: prepare
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    defaults:
+      run:
+        shell: bash
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Java 21
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          validate-wrappers: true
+
+      # Same checks as ci.yml, user-interface tests included (they fail instead of being skipped without a display).
+      # Linux runners have no display: xvfb provides one.
+      - name: Check and package (Linux, virtual display)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a ./gradlew check packageApp "-PappVersion=$VERSION" -PrequireUiTests=true --console=plain
+
+      - name: Check and package (Windows, macOS)
+        if: runner.os != 'Linux'
+        run: ./gradlew check packageApp "-PappVersion=$VERSION" -PrequireUiTests=true --console=plain
+
+      # Unpacks the archive that was just built and starts the application from it.
+      - name: Smoke test the package (Linux, virtual display)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a bash tools/release/smoke-test.sh build/release/Calc-*
+
+      - name: Smoke test the package (Windows, macOS)
+        if: runner.os != 'Linux'
+        run: bash tools/release/smoke-test.sh build/release/Calc-*
+
+      - name: Upload the package
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: package-${{ matrix.os }}
+          path: build/release/Calc-*
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: test-reports-${{ matrix.os }}
+          path: |
+            build/reports/tests
+            build/test-results
+          if-no-files-found: warn
+          retention-days: 7
+
+  publish:
+    name: publish the release
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # The only place that can write to the repository.
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      TAG: ${{ needs.prepare.outputs.tag }}
+      PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+      EVENT: ${{ github.event_name }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      # The full history is needed for the release notes (commits since the previous tag).
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java 21
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          validate-wrappers: true
+
+      - name: Download the packages
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: package-*
+          merge-multiple: true
+          path: release
+
+      - name: Check that the three packages are there
+        run: |
+          ls -l release
+          test -f "release/Calc-${VERSION}-windows-x64.zip"
+          test -f "release/Calc-${VERSION}-macos-arm64.tar.gz"
+          test -f "release/Calc-${VERSION}-linux-x64.tar.gz"
+          test "$(ls release | wc -l)" -eq 3
+
+      # The SBOM describes the runtime classpath (see ADR 0012 for what it does not cover).
+      - name: Generate the SBOM
+        run: |
+          ./gradlew cyclonedxBom "-PappVersion=$VERSION" --console=plain
+          cp build/reports/cyclonedx/bom.json "release/Calc-${VERSION}-sbom.cdx.json"
+
+      # Bare file names in the list, so that "sha256sum -c" works in the folder of the downloads.
+      - name: Compute the SHA-256 sums
+        working-directory: release
+        run: |
+          sha256sum Calc-* > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Write the release notes
+        run: |
+          if [ "$EVENT" = "push" ]; then
+            base="${TAG}^"
+          else
+            base=HEAD
+          fi
+          previous=$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' "$base" 2>/dev/null || true)
+          {
+            if [ -n "$previous" ]; then
+              echo "## Changes since $previous"
+              echo
+              git log --no-merges --pretty='- %s (%h)' "${previous}..${GITHUB_SHA}"
+            else
+              echo "## Changes"
+              echo
+              git log --no-merges --pretty='- %s (%h)' "${GITHUB_SHA}"
+            fi
+            echo
+            echo "## Vérifier et ouvrir"
+            echo
+            echo "Les sommes SHA-256 de chaque fichier sont dans \`SHA256SUMS.txt\`. Les applications ne sont **pas signées** : Windows SmartScreen et macOS Gatekeeper affichent un avertissement au premier lancement. La marche à suivre est dans [docs/RELEASE.md](https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_SHA}/docs/RELEASE.md)."
+          } > release-notes.md
+          cat release-notes.md
+
+      - name: Create the GitHub Release
+        run: |
+          flags=()
+          title="Calc $VERSION"
+          if [ "$PRERELEASE" = "true" ]; then
+            flags+=(--prerelease)
+            title="$title (essai)"
+          else
+            flags+=(--verify-tag)
+          fi
+          gh release create "$TAG" "${flags[@]}" \
+            --target "$GITHUB_SHA" \
+            --title "$title" \
+            --notes-file release-notes.md \
+            release/Calc-* release/SHA256SUMS.txt
