@@ -1,10 +1,6 @@
-package calc.ui;
+package calc.engine;
 
-import calc.engine.CalculationRecord;
-import calc.engine.CalculatorEngine;
 import calc.persistence.JsonHistoryStore;
-import calc.engine.HistoryLoadResult;
-import calc.engine.Operation;
 import calc.testing.DisplayTexts;
 import calc.testing.FractionOracle;
 import java.math.BigDecimal;
@@ -30,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * half up, « … » when digits are left out, « ≈ » and only guaranteed digits for an approximate root, scientific notation
  * outside {@code [10^-6, 10^15)}. Before E06 these cases were rounded to 12 decimals (CalculatorRoundingPolicyTest).
  */
-public class CalculatorDisplayRulesTest {
+public class DisplayRulesTest {
     private static final MathContext ORACLE = new MathContext(80, RoundingMode.DOWN);
 
     private final CalculatorEngine engine = new CalculatorEngine();
@@ -158,24 +154,6 @@ public class CalculatorDisplayRulesTest {
             CalculationRecord recomputed = engine.calculate(reloaded.getOperation(), reloaded.getFirstValue(), reloaded.getSecondValue());
             assertEquals(original.getFormattedResult(), recomputed.getFormattedResult(), original + " should recompute from its operands.");
         }
-    }
-
-    @Test
-    void testTinyResultDividedByItselfIsExactlyOne() {
-        CalculatorPresenter presenter = new CalculatorPresenter(new CalculatorEngine());
-        presenter.onOperationChanged(Operation.DIVISION, "", "");
-
-        CalculatorViewModel tiny = presenter.onCalculate("1", "3000000000000");
-        assertEquals("3,33333333333… × 10⁻¹³", tiny.resultValue(), "A tiny quotient keeps its significant digits.");
-        assertEquals("1/3000000000000", tiny.firstInput(), "The exact quotient is ready to be reused.");
-
-        CalculatorViewModel reused = presenter.onReuseHistoryResult(ReuseTarget.SECOND_NUMBER, tiny.firstInput(), "");
-        CalculatorViewModel chained = presenter.onCalculate(reused.firstInput(), reused.secondInput());
-
-        assertEquals(StatusTone.SUCCESS, chained.statusTone(), chained.statusMessage());
-        assertEquals("1", chained.resultValue(), "A non-zero value divided by itself is 1.");
-        assertEquals("1/3000000000000 / 1/3000000000000 = 1", chained.historyEntries().get(1).toString(),
-                "The chained entry should be recorded.");
     }
 
     private static BigDecimal randomDecimal(Random random, int digits, int scale) {

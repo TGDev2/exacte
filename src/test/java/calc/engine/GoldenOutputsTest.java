@@ -1,9 +1,5 @@
-package calc.ui;
+package calc.engine;
 
-import calc.engine.CalculationException;
-import calc.engine.CalculationRecord;
-import calc.engine.CalculatorEngine;
-import calc.engine.Operation;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -79,8 +75,7 @@ class GoldenOutputsTest {
         assertEquals("OK", goldenCase.outcome(), "Unknown outcome in the golden file.");
         CalculationRecord record = engine.calculate(operation, first, second);
         String display = record.getFormattedResult();
-        String reusable = reusableValue(operation, first, second);
-        assertEquals(record.getReusableValue(), reusable, "The presenter reuses the canonical text of the result.");
+        String reusable = record.getReusableValue();
         assertEquals(goldenCase.display(), comparable(goldenCase.display(), display), "The displayed result should be unchanged.");
         assertEquals(goldenCase.reusable(), comparable(goldenCase.reusable(), reusable), "The reusable value should be unchanged.");
     }
@@ -92,14 +87,6 @@ class GoldenOutputsTest {
         }
         byte[] digest = MessageDigest.getInstance("SHA-256").digest(actual.getBytes(StandardCharsets.UTF_8));
         return "len=" + actual.length() + " sha256=" + HexFormat.of().formatHex(digest);
-    }
-
-    /** Value the presenter puts back into the first field when the user reuses the last result. */
-    private static String reusableValue(Operation operation, String first, String second) {
-        CalculatorPresenter presenter = new CalculatorPresenter(new CalculatorEngine());
-        presenter.onOperationChanged(operation, "", "");
-        presenter.onCalculate(first, second);
-        return presenter.onReuseLastResult("", "").firstInput();
     }
 
     private static List<GoldenCase> readCases() throws IOException {

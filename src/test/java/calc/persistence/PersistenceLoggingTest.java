@@ -1,8 +1,8 @@
-package calc.ui;
+package calc.persistence;
 
 import calc.engine.CalculationHistoryException;
-import calc.engine.CalculatorEngine;
-import calc.persistence.JsonHistoryStore;
+import calc.testing.NotebookGenerators;
+import calc.format.DisplayMode;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -24,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class CalculatorHistoryLoggingTest {
+public class PersistenceLoggingTest {
     private final List<LogRecord> records = new ArrayList<>();
     private final Handler handler = new Handler() {
         @Override
@@ -41,18 +41,18 @@ public class CalculatorHistoryLoggingTest {
         }
     };
     private final Logger storeLogger = Logger.getLogger("calc.persistence.JsonHistoryStore");
-    private final Logger presenterLogger = Logger.getLogger("calc.ui.CalculatorPresenter");
+    private final Logger notebookLogger = Logger.getLogger("calc.persistence.NotebookStore");
 
     @BeforeEach
     void attachHandler() {
         storeLogger.addHandler(handler);
-        presenterLogger.addHandler(handler);
+        notebookLogger.addHandler(handler);
     }
 
     @AfterEach
     void detachHandler() {
         storeLogger.removeHandler(handler);
-        presenterLogger.removeHandler(handler);
+        notebookLogger.removeHandler(handler);
     }
 
     @Test
@@ -84,7 +84,7 @@ public class CalculatorHistoryLoggingTest {
         Files.write(historyFile, new byte[] {(byte) 0xFF, (byte) 0xFE, '\n'});
 
         try (JsonHistoryStore store = JsonHistoryStore.open(tempDirectory)) {
-            new CalculatorPresenter(new CalculatorEngine(), store);
+            assertThrows(CalculationHistoryException.class, store::loadHistory);
         }
 
         LogRecord warning = warnings().get(0);
@@ -112,20 +112,16 @@ public class CalculatorHistoryLoggingTest {
     }
 
     @Test
-    void testPresenterLogsTheCauseWhenPersistingFails(@TempDir Path tempDirectory) throws Exception {
-        Path historyFile = tempDirectory.resolve("history.json");
-        Files.createDirectories(historyFile);
+    void testAFailedAutomaticSaveOfTheNotebookIsLoggedWithPathAndCause(@TempDir Path tempDirectory) throws Exception {
+        try (NotebookStore store = NotebookStore.open(tempDirectory, null, Clock.systemDefaultZone(), Files::copy, (source, target, options) -> {
+            throw new IOException("simulated disk failure");
+        })) {
+            assertThrows(NotebookStoreException.class, () -> store.saveCurrent(NotebookGenerators.notebook(List.of("1 + 1")), DisplayMode.AUTO));
 
-        try (JsonHistoryStore store = JsonHistoryStore.open(tempDirectory)) {
-            new CalculatorPresenter(new CalculatorEngine(), store).onCalculate("1", "1");
+            LogRecord warning = warnings().stream().filter(record -> record.getMessage().startsWith("Cannot write notebook file")).findFirst().orElseThrow();
+            assertTrue(warning.getMessage().contains(store.currentFile().toString()));
+            assertEquals("simulated disk failure", warning.getThrown().getMessage());
         }
-
-        LogRecord presenterWarning = warnings().stream()
-                .filter(record -> "calc.ui.CalculatorPresenter".equals(record.getLoggerName()))
-                .findFirst()
-                .orElseThrow();
-        assertNotNull(presenterWarning.getThrown(), "The presenter must log the persistence failure cause.");
-        assertTrue(presenterWarning.getThrown().getMessage().contains(historyFile.toString()), "The cause message must carry the path.");
     }
 
     @Test
