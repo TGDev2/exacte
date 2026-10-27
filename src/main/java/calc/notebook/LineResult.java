@@ -18,7 +18,8 @@ import java.util.Optional;
  * @param value       the value, {@code null} without one
  * @param error       the error, {@code null} without one
  * @param definedName the name assigned by the line, {@code null} if it is not an assignment
- * @param references  the lines above designated by the {@code $n} of the line, in source order, without repetition
+ * @param references  the lines above designated by the {@code $n} of the line, in source order, without repetition;
+ *                    empty for a line that does not parse
  */
 public record LineResult(int number, LineId id, String text, ParsedLine.Kind kind, CertifiedValue value, LineError error,
                          String definedName, List<LineId> references) {

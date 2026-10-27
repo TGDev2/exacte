@@ -28,7 +28,8 @@ Forces:
 A notebook is an ordered sequence of lines `{identifier, source text}`. Lines are numbered from 1 in the order shown;
 `$n` and every message use these numbers. Each line also has a **stable identifier** (`LineId`), internal and never shown,
 which survives every edit and every move of its line; a new line gets a new identifier, and an identifier is never
-reused within a notebook. The source text is the only data to persist: results are always recalculated. A line text
+reused within a notebook, not even after an undo (a restored notebook keeps counting from the latest identifier).
+The source text is the only data to persist: results are always recalculated. A line text
 holds no line break (`\n`, `\r`): a caller splits a pasted block into lines.
 
 ### 2. References go backwards only
@@ -77,8 +78,10 @@ Consequences:
   **past the last line**: an insertion adds one to it, a deletion removes one, a move leaves it, so that it can never come
   to designate a line by accident. It is an error (not above) until the user edits it.
 - `$0` and numbers beyond `int` are kept as written (lexical errors of the language).
+- A `$n` written in a comment (after `#`) is text, not a reference: it is neither bound nor rewritten, as in the
+  language's `ReferenceRewriter`. Only the references that are evaluated follow their line.
 - Since the binding lives in the text, persisting the text is enough (E11): reading the text back binds every reference
-  to the line of that number, which is the line it was bound to.
+  to the line of that number, which is the line it was bound to (checked after every step of the stateful test).
 
 Variables and `ans` are not bound to lines: they are resolved by position at each evaluation (closest definition above,
 closest value above), which is what a user reads on the screen.
@@ -135,8 +138,9 @@ cannot fit in 1000 characters.
 - **An assignment in error defines nothing.** Then `x` below would silently take an older definition while the user is
   fixing the line: rejected, the same rule as above.
 - **A mutable document with inverse commands for undo.** Each command needs a correct inverse (a delete must restore the
-  rewritten texts of every other line); immutable snapshots make undo exact by construction, and sharing the unchanged
-  `Line` objects keeps 200 snapshots cheap.
+  rewritten texts of every other line); immutable snapshots make undo exact by construction, and the unchanged
+  `Line` objects are shared between snapshots. Each snapshot still keeps its own list and index of lines (a few
+  hundred kilobytes for 5000 lines), which bounds 200 snapshots to tens of megabytes; not measured further.
 - **Incremental recalculation along the dependency graph.** Not needed: the measure meets the budget with a plain
   sequential pass from the first changed line.
 
