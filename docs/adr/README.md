@@ -19,5 +19,7 @@ Later work reads the ADRs instead of guessing why things are the way they are.
 | 0002 | Property-based tests and the length of the canonical text | Accepted, partly superseded by 0004 |
 | 0003 | Numeric representation: exact rationals and certified intervals | Accepted |
 | 0004 | Display rules, canonical text and the exact engine | Accepted |
+| 0005 | Persistence: versioned JSON history (version 2), migration, lock and data directories | Accepted |
 | 0006 | Interface: display modes, visible exactness, reusable components | Accepted |
 | 0007 | Expression language: grammar, errors and evaluation | Accepted |
+| 0008 | Notebook semantics: lines, references, variables, recalculation and undo | Accepted |
