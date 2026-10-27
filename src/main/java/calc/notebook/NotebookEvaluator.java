@@ -101,7 +101,9 @@ public final class NotebookEvaluator {
             return Optional.empty();
         }
         try {
+            // The name alone, as the parser requires it: "(x) =" is not an assignment.
             return ExpressionParser.parseLine(head.group(1)).node() instanceof Node.Variable variable
+                    && variable.name().equals(head.group(1))
                     ? Optional.of(variable.name())
                     : Optional.empty();
         } catch (ExpressionException notAName) {

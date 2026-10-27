@@ -136,7 +136,11 @@ class NotebookSemanticsTest {
 
     @Test
     void onlyANameBeforeTheEqualsSignMakesALineInErrorAnAssignment() {
-        assertEquals(List.of(), names("2 = 3", "ans = 1 +", "$1 = 2", "x y = 2", "# x = 2", "= 2", "x + 1 = 2"));
+        assertEquals(List.of(), names("2 = 3", "ans = 1 +", "$1 = 2", "x y = 2", "# x = 2", "= 2", "x + 1 = 2",
+                "(x) = 2", "((x)) = 2 +"));
+        EvaluatedNotebook notebook = evaluated("x = 1", "(x) = 2", "x + 1");
+        assertEquals(ParsedLine.Kind.EXPRESSION, notebook.result(2).kind());
+        assertValue("2", notebook.result(3));
         assertEquals(List.of("taux_TVA", "année2", "_x"), names(" taux_TVA = 1 +", "année2=", "_x " + (char) 0x00A0 + "= $?"));
     }
 
