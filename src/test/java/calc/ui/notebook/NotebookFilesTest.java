@@ -414,6 +414,142 @@ class NotebookFilesTest {
         dialogs.assertAllUsed();
     }
 
+    // ------------------------------------------------------------------------------------------------ work that is not saved at all
+
+    @Test
+    void aSecondInstanceNeverLosesItsUnsavedNotebookToOpenOrQuit() throws Exception {
+        Path shared = Files.createDirectories(root.resolve("shared"));
+        Path other = writeNotebook("other.calc.json", "9 + 9");
+        try (NotebookStore first = NotebookStore.open(shared); NotebookStore second = NotebookStore.open(shared)) {
+            assertFalse(first.isReadOnly());
+            assertTrue(second.isReadOnly());
+            NotebookDriver readOnly = new NotebookDriver(NotebookPresenter.open(second, DisplayModeStore.noop(), dialogs));
+            readOnly.line("1 + 1").line("2 + 2");
+
+            dialogs.willOpen(other).willAnswer(Unsaved.CANCEL);
+            readOnly.open();
+            assertEquals(List.of("1 + 1", "2 + 2"), lines(readOnly), "cancelled: nothing replaced");
+            dialogs.willAnswer(Unsaved.CANCEL);
+            readOnly.close();
+            assertFalse(readOnly.view.closeWindow(), "nothing on disk holds these lines: the window stays");
+
+            dialogs.willAnswer(Unsaved.SAVE).willSaveTo(documents.resolve("kept"));
+            readOnly.close();
+            assertTrue(readOnly.view.closeWindow());
+            assertEquals(List.of("1 + 1", "2 + 2"), savedTexts(documents.resolve("kept.calc.json")));
+        }
+        dialogs.assertAllUsed();
+    }
+
+    @Test
+    void anUntitledNotebookWhoseAutomaticSaveFailsIsAskedAboutBeforeItIsLeft() throws Exception {
+        Path failing = Files.createDirectories(root.resolve("failing"));
+        Path other = writeNotebook("other.calc.json", "9 + 9");
+        try (NotebookStore broken = NotebookStore.open(failing, null, java.time.Clock.systemDefaultZone(), Files::copy,
+                (source, target, options) -> {
+                    throw new IOException("simulated full disk");
+                })) {
+            NotebookDriver unsaved = new NotebookDriver(NotebookPresenter.open(broken, DisplayModeStore.noop(), dialogs));
+            unsaved.line("1 + 1");
+            assertTrue(unsaved.view.statusMessage().startsWith("Enregistrement automatique impossible"));
+
+            dialogs.willOpen(other).willAnswer(Unsaved.CANCEL);
+            unsaved.open();
+            assertEquals(List.of("1 + 1"), lines(unsaved));
+            dialogs.willAnswer(Unsaved.SAVE).willSaveTo(documents.resolve("rescued"));
+            unsaved.close();
+
+            assertTrue(unsaved.view.closeWindow());
+            assertEquals(List.of("1 + 1"), savedTexts(documents.resolve("rescued.calc.json")));
+        }
+        dialogs.assertAllUsed();
+    }
+
+    @Test
+    void aSuccessfulSaveAsEndsTheWarningAboutTheFailedAutomaticSave() throws Exception {
+        Path failing = Files.createDirectories(root.resolve("failing"));
+        try (NotebookStore broken = NotebookStore.open(failing, null, java.time.Clock.systemDefaultZone(), Files::copy,
+                (source, target, options) -> {
+                    if (target.getFileName().toString().equals(CURRENT)) {
+                        throw new IOException("simulated full disk");
+                    }
+                    Files.move(source, target, options);
+                })) {
+            NotebookDriver unsaved = new NotebookDriver(NotebookPresenter.open(broken, DisplayModeStore.noop(), dialogs));
+            unsaved.line("1 + 1");
+            assertTrue(unsaved.view.statusMessage().startsWith("Enregistrement automatique impossible"));
+
+            dialogs.willSaveTo(documents.resolve("rescued"));
+            unsaved.saveAs();
+            assertTrue(unsaved.view.statusMessage().startsWith("Carnet enregistré dans"), unsaved.view.statusMessage());
+            unsaved.click(unsaved.texts().size() - 1);
+            unsaved.line("2 + 2");
+            unsaved.save();
+            assertEquals("« rescued.calc.json » enregistré.", unsaved.view.statusMessage());
+        }
+    }
+
+    @Test
+    void closingWithALineThatCannotBeValidatedKeepsTheWindowOpen() throws Exception {
+        type("1 + 1");
+        d.type("9".repeat(NotebookPresenter.MAX_LINE_LENGTH + 1));
+
+        d.close();
+
+        assertFalse(d.view.closeWindow(), "the text typed would be lost");
+        assertEquals(StatusTone.ERROR, d.view.statusTone());
+        d.escape();
+        d.close();
+        assertTrue(d.view.closeWindow(), "once the line is dropped the window closes");
+    }
+
+    // ------------------------------------------------------------------------------------------------ messages and modes
+
+    @Test
+    void anExportIsConfirmedEvenOnADocumentFromANewerVersion() throws Exception {
+        Path future = write("future.calc.json",
+                "{\"format\":\"calc-notebook\",\"version\":7,\"lines\":[{\"id\":\"1\",\"source\":\"1 + 1\"}]}");
+        dialogs.willOpen(future);
+        d.open();
+        Path target = documents.resolve("sortie.csv");
+
+        dialogs.willExportTo(target);
+        d.export(ExportFormat.CSV);
+        assertEquals("Exporté vers " + target.toAbsolutePath().normalize(), d.view.statusMessage());
+
+        append("2 + 2");
+        assertEquals(NotebookPresenter.READ_ONLY_FILE_STATUS, d.view.statusMessage(), "the warning comes back with the next command");
+        dialogs.assertAllUsed();
+    }
+
+    @Test
+    void aChangeOfDisplayModeMarksADocumentWithAFileAndIsOfferedForSaving() throws Exception {
+        Path file = saveTwoLinesAs("work");
+        assertEquals("work.calc.json — Calc", d.view.title());
+
+        d.mode(DisplayMode.FRACTION);
+        assertEquals("• work.calc.json — Calc", d.view.title());
+        dialogs.willAnswer(Unsaved.SAVE);
+        d.close();
+
+        assertTrue(d.view.closeWindow());
+        assertEquals(DisplayMode.FRACTION, NotebookCodec.read(file).displayMode());
+        dialogs.assertAllUsed();
+    }
+
+    @Test
+    void aNewNotebookAfterAnOpenedFileGoesBackToTheRememberedPreference() throws Exception {
+        Path file = documents.resolve("fraction.calc.json");
+        Files.write(file, NotebookCodec.encode(NotebookGenerators.notebook(List.of("1 / 3")), DisplayMode.FRACTION).bytes());
+        dialogs.willOpen(file);
+        d.open();
+        assertEquals(DisplayMode.FRACTION, d.view.displayMode());
+
+        d.newDocument();
+
+        assertEquals(DisplayMode.AUTO, d.view.displayMode(), "the mode of the file was the file's; the preference is the notebook's");
+    }
+
     // ------------------------------------------------------------------------------------------------ open: messages
 
     @Test

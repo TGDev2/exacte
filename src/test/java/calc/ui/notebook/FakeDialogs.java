@@ -55,6 +55,18 @@ final class FakeDialogs implements NotebookDialogs {
         return this;
     }
 
+    /** Forgets the answers still queued and the questions asked: a step of a test starts from nothing. */
+    void reset() {
+        toOpen.clear();
+        toSave.clear();
+        toExport.clear();
+        unsaved.clear();
+        replaceDraft.clear();
+        overwrite.clear();
+        asked.clear();
+        suggestedExportNames.clear();
+    }
+
     /** Fails if an answer was queued and never used. */
     void assertAllUsed() {
         if (!toOpen.isEmpty() || !toSave.isEmpty() || !toExport.isEmpty() || !unsaved.isEmpty() || !replaceDraft.isEmpty()

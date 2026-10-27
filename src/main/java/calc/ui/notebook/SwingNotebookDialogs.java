@@ -67,7 +67,7 @@ public final class SwingNotebookDialogs implements NotebookDialogs {
 
     @Override
     public boolean confirmReplaceDraft() {
-        return yesNo("Le carnet sans titre enregistré automatiquement, mis de côté par l'ouverture d'un fichier, sera remplacé par un"
+        return yesNo("Le carnet sans titre mis de côté par l'ouverture d'un fichier sera remplacé par un"
                 + " carnet vide.\nContinuer ?", "Remplacer le carnet sans titre", "Remplacer");
     }
 

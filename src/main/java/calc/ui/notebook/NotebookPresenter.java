@@ -278,6 +278,11 @@ public final class NotebookPresenter {
         syncDraft(pending);
         if (newMode != null && newMode != mode) {
             mode = newMode;
+            if (!document.isUntitled()) {
+                // A document with a file is modified by a change of mode (ADR 0009): the title and the questions say so. The
+                // untitled notebook follows at its next command, so that a mode change alone never writes.
+                syncMode();
+            }
             // The notebook file follows at the next command: a change of mode alone never writes (it would end the retry of
             // a history that could not be converted).
             modeStore.save(mode);
@@ -302,6 +307,9 @@ public final class NotebookPresenter {
         syncDraft(pending);
         if (!commitDraft() || !mayLeave(NotebookDialogs.Action.NEW)) {
             return view(NotebookFocus.ACTIVE_LINE);
+        }
+        if (!document.isUntitled()) {
+            mode = modeStore.load();
         }
         syncMode();
         document.newDocument();
@@ -365,8 +373,7 @@ public final class NotebookPresenter {
      */
     public NotebookViewModel onQuit(String pending) {
         syncDraft(pending);
-        commitDraft();
-        closeRequested = mayLeave(NotebookDialogs.Action.QUIT);
+        closeRequested = commitDraft() && mayLeave(NotebookDialogs.Action.QUIT);
         return view(closeRequested ? NotebookFocus.NONE : NotebookFocus.ACTIVE_LINE);
     }
 
@@ -374,7 +381,7 @@ public final class NotebookPresenter {
     // the untitled notebook when New would replace the autosaved file (Open leaves it, Quit keeps it for the next start).
     private boolean mayLeave(NotebookDialogs.Action action) {
         boolean unsaved = document.isUntitled()
-                ? action == NotebookDialogs.Action.NEW && !document.current().notebook().isEmpty()
+                ? !document.current().notebook().isEmpty() && (action == NotebookDialogs.Action.NEW || !isAutosaved())
                 : document.isModified();
         if (unsaved) {
             switch (dialogs.askToSave(documentName(), action)) {
@@ -392,6 +399,12 @@ public final class NotebookPresenter {
         }
         // A new notebook also replaces the autosaved draft that an opened file has taken off the screen.
         return action != NotebookDialogs.Action.NEW || !document.isDraftOffScreen() || dialogs.confirmReplaceDraft();
+    }
+
+    // Whether the untitled notebook is really kept by the automatic save: not when another instance holds the data directory,
+    // when the file is from a newer version, or when the last automatic save failed.
+    private boolean isAutosaved() {
+        return !document.isStoreReadOnly() && document.autosaveProblem().isEmpty();
     }
 
     private void openFile(Path file) {
@@ -428,7 +441,7 @@ public final class NotebookPresenter {
             say(exception.getMessage(), StatusTone.ERROR);
             return false;
         }
-        say("« " + documentName() + " » enregistré.", StatusTone.SUCCESS);
+        confirm("« " + documentName() + " » enregistré.");
         return true;
     }
 
@@ -452,7 +465,7 @@ public final class NotebookPresenter {
         syncMode();
         try {
             Path written = document.saveAs(file);
-            say("Carnet enregistré dans " + written + ".", StatusTone.SUCCESS);
+            confirm("Carnet enregistré dans " + written + ".");
             return true;
         } catch (DocumentException exception) {
             say(exception.getMessage(), StatusTone.ERROR);
@@ -486,7 +499,7 @@ public final class NotebookPresenter {
             say("Impossible d'exporter vers " + target + " : le fichier n'a pas pu être écrit.", StatusTone.ERROR);
             return;
         }
-        say("Exporté vers " + target, StatusTone.SUCCESS);
+        confirm("Exporté vers " + target);
     }
 
     private String documentName() {
@@ -642,7 +655,16 @@ public final class NotebookPresenter {
         transientMessage = new Message(text, tone);
     }
 
-    private record Message(String text, StatusTone tone) {
+    // A confirmation of a file operation (saved, exported) is shown even over the lasting read-only warnings: the user must
+    // be able to tell that the operation happened.
+    private record Message(String text, StatusTone tone, boolean confirmation) {
+        Message(String text, StatusTone tone) {
+            this(text, tone, false);
+        }
+    }
+
+    private void confirm(String text) {
+        transientMessage = new Message(text, StatusTone.SUCCESS, true);
     }
 
     // ------------------------------------------------------------------------------------------------ view model
@@ -670,9 +692,12 @@ public final class NotebookPresenter {
         if (transientMessage != null && transientMessage.tone() == StatusTone.ERROR) {
             return transientMessage;
         }
-        if (document.autosaveProblem().isPresent()) {
+        if (document.isUntitled() && document.autosaveProblem().isPresent()) {
             return new Message("Enregistrement automatique impossible : " + document.autosaveProblem().get()
                     + " Le carnet reste disponible dans cette fenêtre.", StatusTone.ERROR);
+        }
+        if (transientMessage != null && transientMessage.confirmation()) {
+            return transientMessage;
         }
         if (document.isReadOnlyFile()) {
             return new Message(READ_ONLY_FILE_STATUS, StatusTone.ERROR);

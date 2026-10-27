@@ -76,6 +76,8 @@ class NotebookPresenterStatefulProperties {
                 int saves = 0;
                 for (Step step : sequence) {
                     done.add(step.toString());
+                    dialogs.reset();
+                    boolean untitledBefore = d.view.title().startsWith(NotebookPresenter.UNTITLED_NAME);
                     Path file = documents.resolve("f" + (saves % 3) + ".calc.json");
                     switch (step.kind()) {
                         case LINE -> d.line(step.text());
@@ -118,6 +120,10 @@ class NotebookPresenterStatefulProperties {
                             dialogs.willAnswer(Unsaved.DISCARD);
                             d.close();
                         }
+                    }
+                    if (untitledBefore && (step.kind() == Kind.QUIT || step.kind() == Kind.OPEN)) {
+                        assertFalse(dialogs.asked.stream().anyMatch(question -> question.startsWith("unsaved")),
+                                "an autosaved untitled notebook is never asked about: after " + done + " asked " + dialogs.asked);
                     }
                     check(d, store, documents, done);
                 }

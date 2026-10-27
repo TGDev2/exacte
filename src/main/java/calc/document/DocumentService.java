@@ -237,6 +237,8 @@ public final class DocumentService {
         path = target;
         newerVersion = false;
         markSaved();
+        // The document is in a file of its own now: a failed automatic save is no longer its story.
+        autosaveProblem = null;
         if (wasUntitled) {
             try {
                 store.saveCurrent(Notebook.empty(), displayMode);
