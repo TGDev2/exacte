@@ -330,4 +330,5 @@ tasks.withType<org.cyclonedx.gradle.CyclonedxDirectTask>().configureEach {
 
 tasks.cyclonedxBom {
     xmlOutput.unsetConvention()
+    projectType = org.cyclonedx.model.Component.Type.APPLICATION
 }
