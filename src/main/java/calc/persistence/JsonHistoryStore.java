@@ -56,12 +56,15 @@ public final class JsonHistoryStore implements CalculationHistoryStore, AutoClos
     private final FileCopier copier;
     private final AtomicFileWriter.Mover mover;
     private final StoreLock lock;
+    // False when a NotebookStore shares its lock with this store and releases it itself.
+    private final boolean ownsLock;
     // No write at all, silently: another instance holds the history, or a newer version made the file.
     private boolean readOnly;
     // Writes fail loudly: the file on disk must not be replaced (unreadable, over a limit, no backup possible).
     private boolean writeProtected;
 
-    private JsonHistoryStore(Path directory, Path legacyDirectory, Clock clock, FileCopier copier, AtomicFileWriter.Mover mover) {
+    private JsonHistoryStore(Path directory, Path legacyDirectory, Clock clock, FileCopier copier, AtomicFileWriter.Mover mover,
+                             StoreLock sharedLock) {
         this.directory = Objects.requireNonNull(directory);
         this.jsonFile = directory.resolve(JSON_FILE);
         this.legacyFile = directory.resolve(LEGACY_FILE);
@@ -69,7 +72,8 @@ public final class JsonHistoryStore implements CalculationHistoryStore, AutoClos
         this.clock = Objects.requireNonNull(clock);
         this.copier = Objects.requireNonNull(copier);
         this.mover = Objects.requireNonNull(mover);
-        this.lock = acquireLock(directory);
+        this.ownsLock = sharedLock == null;
+        this.lock = ownsLock ? acquireLock(directory) : sharedLock;
         this.readOnly = lock.state() == StoreLock.State.BUSY;
         LOGGER.info("History directory: " + directory);
     }
@@ -92,10 +96,19 @@ public final class JsonHistoryStore implements CalculationHistoryStore, AutoClos
      */
     public static JsonHistoryStore open(Path directory, Path legacyDirectory, Clock clock, FileCopier copier,
                                         AtomicFileWriter.Mover mover) {
-        return new JsonHistoryStore(directory, legacyDirectory, clock, copier, mover);
+        return new JsonHistoryStore(directory, legacyDirectory, clock, copier, mover, null);
     }
 
-    private static StoreLock acquireLock(Path directory) {
+    /**
+     * A store that uses the lock of another store of the same directory instead of taking its own (the same process cannot
+     * lock a file twice): the notebook store of the same directory, which closes the lock.
+     */
+    static JsonHistoryStore openSharing(StoreLock lock, Path directory, Path legacyDirectory, Clock clock, FileCopier copier,
+                                        AtomicFileWriter.Mover mover) {
+        return new JsonHistoryStore(directory, legacyDirectory, clock, copier, mover, Objects.requireNonNull(lock));
+    }
+
+    static StoreLock acquireLock(Path directory) {
         try {
             Files.createDirectories(directory);
         } catch (IOException exception) {
@@ -112,7 +125,9 @@ public final class JsonHistoryStore implements CalculationHistoryStore, AutoClos
     /** Releases the lock. The store still loads; it no longer protects the file from another instance. */
     @Override
     public void close() {
-        lock.close();
+        if (ownsLock) {
+            lock.close();
+        }
     }
 
     // ------------------------------------------------------------------------------------------------ loading
@@ -257,16 +272,9 @@ public final class JsonHistoryStore implements CalculationHistoryStore, AutoClos
         }
         String baseName = file.getFileName() + "." + LocalDateTime.now(clock).format(BACKUP_TIMESTAMP);
         try {
-            for (int attempt = 0; ; attempt++) {
-                Path backup = file.resolveSibling(baseName + (attempt == 0 ? "" : "-" + attempt) + ".bak");
-                try {
-                    copier.copy(file, backup);
-                    LOGGER.info("Backed up " + file + " to " + backup);
-                    return backup;
-                } catch (FileAlreadyExistsException exists) {
-                    // never overwrite an existing copy: try the next numbered name
-                }
-            }
+            Path backup = BackupCopies.make(file, copier, attempt -> baseName + (attempt == 0 ? "" : "-" + attempt) + ".bak");
+            LOGGER.info("Backed up " + file + " to " + backup);
+            return backup;
         } catch (IOException exception) {
             LOGGER.log(Level.WARNING, "Cannot back up " + file + ", writes are now refused", exception);
             writeProtected = true;

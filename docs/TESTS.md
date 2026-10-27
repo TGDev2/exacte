@@ -11,7 +11,7 @@ lancer une partie, comment rejouer un échec trouvé par un test aléatoire et c
 | Sorties de référence | `GoldenOutputsTest`, `src/test/resources/golden`, `legacy/v1` | aucune | Rejoue 70 calculs (`engine-v2.tsv`, mêmes entrées que `engine-v1.tsv`) et 11 fichiers d'historique enregistrés : tout changement de sortie est vu. |
 | Fenêtre Swing | `CalculatorFrameTest` | `ui` | Raccourcis, focus, accessibilité. Demande un écran (ignoré sans écran, voir `docs/CI.md`). |
 | Propriétés | `*Properties` (hors fuzzing) | `property` | Une promesse vraie pour des milliers d'entrées générées, comparée à un oracle indépendant. |
-| Robustesse | `*FuzzProperties`, `PresenterStatefulProperties`, `NotebookStatefulProperties` | `robustness` | Entrées hostiles et séquences d'actions aléatoires : jamais d'exception inattendue, jamais de perte de données. |
+| Robustesse | `*FuzzProperties` (dont `NotebookFileFuzzProperties`), `PresenterStatefulProperties`, `NotebookStatefulProperties` | `robustness` | Entrées hostiles et séquences d'actions aléatoires : jamais d'exception inattendue, jamais de perte de données. |
 
 Un test d'exemple dit « pour cette entrée, voici la sortie ». Une propriété dit « pour toute entrée de cette forme, ceci
 reste vrai » : jqwik génère les entrées (en visant les cas limites), cherche un contre-exemple et le réduit au plus petit
@@ -308,6 +308,77 @@ Mesures (Windows 11, JDK 21, `gradlew cleanTest check`, trois exécutions avec d
 le nouveau carnet sans renuméroter) : 3 tests échouent, dont `NotebookStatefulProperties` à lui seul, réduit à une seule
 action (`insertAfter` d'une ligne `x = $11`) ; la modification a été retirée sans être commitée.
 
+## Persistance du carnet, documents et exports (E11)
+
+Le format est décrit dans `docs/FORMAT-FICHIER.md` (partie « Format du carnet »), les décisions dans `docs/adr/0009-documents-et-exports.md`. Tout se lance avec
+`.\gradlew.bat test --tests "calc.persistence.Notebook*" --tests "calc.document.*" --tests "calc.export.*"`.
+
+Mesures (Windows 11, JDK 21, `gradlew cleanTest check`, trois exécutions avec de nouvelles graines) : 1 032 tests, 0 échec, 0 ignoré (875 avant E11, soit 157 nouveaux), de 44 à 45 s.
+
+| Classe | Étiquette | Ce qu'elle garantit |
+|---|---|---|
+| `NotebookCodecTest` (23) | - | l'exemple du format est exactement ce qui est écrit ; **aucun résultat** dans le fichier ; mode d'affichage (absent ou inconnu : auto) ; champs inconnus ignorés à tous les niveaux ; **une ligne que le langage refuse est conservée telle quelle** et apparaît en erreur ; identifiants absents, mal formés ou en double régénérés de façon déterministe (premier porteur gardé, suite après le plus grand) ; sauts de ligne remplacés sans couper la ligne ; substitut isolé conservé ; lire puis écrire ne change aucun octet ; refus clairs (`calc-history`, JSON invalide, doublon de clé, UTF-8 invalide, version absente ou inférieure à 3, `lines` mal formé) ; version supérieure lue au mieux, jamais refusée pour son contenu ; limites exactes (5000 lignes et 5001, 16 384 caractères et 16 385, 100 001 valeurs, fichier d'un octet au-dessus) ; un carnet qui ne peut pas être relu n'est pas écrit |
+| `NotebookRoundTripProperties` (2, 300 et 100 essais) | `property` | carnet généré, puis **modifié** (insertions, suppressions, déplacements : identifiants non contigus) → écriture v3 → lecture : mêmes textes, mêmes identifiants, même mode, **mêmes résultats après le recalcul** ; lire puis écrire ne change aucun octet ; le fichier est de l'UTF-8 valide sans `value`, `exact` ni `result` |
+| `NotebookFileFuzzProperties` (6, 300 à 500 essais) | `robustness` | fichiers structurés avec champs inconnus et textes de ligne quelconques (accents, guillemets, contrôles, 1200 caractères) : **toutes les lignes sont gardées, dans l'ordre** ; un élément qui n'est pas une ligne donne `MALFORMED_STRUCTURE` et rien d'autre ; octets quelconques, fichier tronqué, octet changé, plage supprimée, objet répété, JSON quelconque, imbrications de 33 à un million de niveaux : seule exception possible `NotebookFormatException`, en moins de 10 s ; ce qui est chargé se recalcule sans exception |
+| `NotebookHostileFilesTest` (19) | - | fichiers hostiles refusés avec la bonne cause, meilleur de trois (tableau ci-dessous) ; fichier de 100 Mo refusé sur sa taille seule ; seul un fichier ordinaire est lu ; recalcul **borné** de 5000 lignes aussi lourdes que le langage le permet (tableau ci-dessous) |
+| `NotebookStoreTest` (14) | - | carnet courant atomique (un fichier, pas de temporaire) ; **seconde instance en lecture seule** : charge, n'écrit pas un octet, état exposé ; verrou partagé avec `JsonHistoryStore` dans les deux sens ; **version supérieure : lecture seule, jamais réécrite** (ni après une saisie, ni après « tout effacer »), pas de copie ; version illisible : rien affiché ni écrit ; fichier abîmé copié puis remplaçable ; copie impossible, hors limites ou dossier à la place du fichier : jamais remplacé ; **échec d'écriture simulé** : l'ancien carnet reste intact, pas de temporaire ; carnet hors format : phrase en français, fichier précédent intact ; carnet maximal (5000 lignes) relu |
+| `NotebookMigrationTest` (34) | - | **les 10 fichiers `legacy/v1` lisibles passent la chaîne v1 → v2 → v3** (lignes attendues, valeurs exactes recalculées, phrase d'état, `history.tsv.v1.bak` identique octet pour octet, `history.json.v2.bak` identique à `history.json`, aucun autre fichier) ; `future-version.tsv` ni lu ni converti ; **idempotence** : relancer ne crée, ne supprime ni ne modifie aucun fichier ; reprise depuis `~/.calc` ; historique v2 converti dans l'ordre ; entrée sans ligne possible (opérande approché) → commentaire compté ; plus de 5000 entrées → les 5000 plus récentes et la phrase qui dit où sont les autres ; sauvegarde existante jamais écrasée ; les deux historiques présents : le v2 fait foi ; carnet courant existant jamais remplacé ; **copie qui échoue, écriture qui échoue, historique illisible ou plus récent : sources intactes**, conversion au démarrage suivant, jusqu'à ce qu'un carnet courant soit écrit ; seconde instance : conversion en mémoire seulement ; installation neuve : rien d'écrit |
+| `DocumentServiceTest` (28) | - | enregistrement automatique du carnet sans titre **après chaque commande qui change quelque chose** (une écriture par commande, annuler et rétablir compris) et jamais pour une commande sans effet ou refusée ; disque défaillant : modification gardée, problème signalé puis réparé ; retour au démarrage suivant ; seconde instance : aucun octet du carnet courant écrit, « enregistrer sous » possible ; extension `.calc.json` ajoutée (casse, `.json`, `.calc`) ; **enregistrer sous** associe le fichier et vide le brouillon ; **document avec fichier jamais enregistré automatiquement**, indicateur « modifié » (annuler jusqu'à l'état enregistré l'efface, le mode d'affichage compte) ; échec d'enregistrement : fichier et indicateur inchangés ; ouvrir laisse le brouillon intact, garde les lignes en erreur ; fichier refusé (autre format, hostile, texte, absent, dossier) : document inchangé ; version supérieure en lecture seule, jamais réécrite, même vers le même chemin ; nouveau document, qui prévient (`wouldLoseWork`) quand un fichier ouvert a retiré de l'écran un brouillon non vide ; chemin sans nom de fichier refusé ; fichiers réservés de Calc ni ouverts ni écrasés ; carnet trop gros : erreur et aucun fichier |
+| `ServicesDependenciesTest` (2) | - | aucune interface (Swing, AWT, `calc.ui`) dans `persistence`, `document`, `export` ; les couches ne pointent que vers le bas |
+| `NotebookExporterTest` (27) | - | exports Markdown et CSV **comparés à des fichiers de référence** (`src/test/resources/export`, 4 modes × 2 formats) pour un carnet qui mêle exact, approché, erreur, commentaires, variables, références, ligne vide, `=`, `-`, `@` en tête, caractères Markdown et guillemets ; marque d'ordre des octets, CRLF sans saut de ligne isolé, cinq colonnes ; **injection CSV** : `=`, `+`, `-`, `@`, tabulation, retour chariot préfixés d'une apostrophe (et rien d'autre) ; guillemets RFC 4180 ; mode d'affichage sans effet sur la valeur exacte ; échappement Markdown ; commentaire hostile (`<script>`, `\|`, lien) sans effet sur le tableau ; titre échappé ; fichiers écrits de façon atomique |
+| `NotebookExportProperties` (2, 300 essais chacune) | `property` | pour tout carnet et tout mode : le CSV, relu par un lecteur RFC 4180 écrit dans le test, donne une ligne par ligne non vide et cinq cellules, **aucune cellule ne peut commencer une formule**, le texte de la ligne se retrouve en retirant l'apostrophe, la colonne exacte n'est remplie que pour un résultat exact ; le tableau Markdown garde trois cellules par ligne et aucun tag ne passe |
+
+Les fichiers de référence d'export ont été **relus à la main** avant d'être figés (valeurs, échappements, apostrophes, guillemets doublés). Quand une sortie change, le
+test écrit la sortie réelle dans `build/actual-exports/` et dit où : on la relit, puis on la copie sur la référence si le changement est voulu.
+`.gitattributes` empêche toute conversion de fins de ligne des `.csv` de référence (octet pour octet) et fixe LF pour les `.md`.
+
+### Fichiers hostiles (mesures, `NotebookHostileFilesTest`)
+
+Meilleur de trois exécutions après échauffement ; l'assertion est un budget de 2 s, pas la mesure.
+
+| Fichier | Refus | Durée |
+|---|---|---|
+| un million de `[` imbriqués (1 Mo) | `JSON_LIMIT` | 0 ms |
+| 500 000 objets imbriqués (2,5 Mo) | `JSON_LIMIT` | 2 ms |
+| une ligne imbriquée sur 1000 niveaux | `JSON_LIMIT` | 0 ms |
+| une source de 6 Mo | `JSON_LIMIT` | 6 ms |
+| une source de 16 385 caractères | `JSON_LIMIT` | 0 ms |
+| une clé de 6 Mo | `JSON_LIMIT` | 7 ms |
+| une version de 3 millions de chiffres | `JSON_LIMIT` | 3 ms |
+| un `id` qui est un nombre de 3 millions de chiffres | `JSON_LIMIT` | 3 ms |
+| un exposant de 3 millions de chiffres | `JSON_LIMIT` | 3 ms |
+| 5001 lignes | `TOO_MANY_LINES` | 0 ms |
+| trois millions de tableaux vides (9 Mo) dans un champ inconnu | `JSON_LIMIT` (budget de valeurs) | 10 ms |
+| cent mille clés inconnues | `JSON_LIMIT` (budget de valeurs) | 15 ms |
+| un fichier d'un octet au-dessus de 16 Mio | `TOO_LARGE` | 0 ms |
+| un fichier de 100 Mo (lu par `NotebookCodec.read`) | `TOO_LARGE`, sans lecture | 0 ms |
+| un million de clés égales (6 Mo) | `MALFORMED_JSON` | 5 ms |
+| 2 Mo d'octets `0xFF` | `NOT_UTF8` | 0 ms |
+
+**Fichiers lisibles mais exigeants** : 5000 lignes (la limite) qui répètent la même ligne la plus lourde que le langage accepte. Le chargement ne calcule rien ; le recalcul
+est borné par ligne (1000 caractères, 100 niveaux, 500 nœuds, nombres de 4096 bits), donc par le fichier (5000 lignes). Chargement puis recalcul complet, une exécution :
+
+| 5000 lignes de... | Fichier | Chargement | Recalcul | Résultat |
+|---|---|---|---|---|
+| un littéral de 1000 chiffres | 5,2 Mo | 25 ms | 98 ms | 5000 valeurs |
+| son carré (déborde 4096 bits) | 10,1 Mo | 50 ms | 208 ms | 5000 erreurs |
+| `1e` suivi de 990 chiffres | 5,1 Mo | 26 ms | 170 ms | 5000 erreurs |
+| `9^9^9^9^9^9^9^9^9^9` | 0,3 Mo | 4 ms | 66 ms | 5000 erreurs |
+| `(99/100)^4096 * (101/100)^4096` | 0,3 Mo | 4 ms | 64 ms | 5000 erreurs |
+| 99 racines imbriquées | 2,7 Mo | 15 ms | 236 ms | 5000 erreurs |
+| 99 parenthèses imbriquées | 1,2 Mo | 7 ms | 41 ms | 5000 valeurs |
+| 245 sommes de `1/3` (plus de 500 nœuds) | 5,1 Mo | 23 ms | 884 ms | 5000 erreurs |
+| des fractions `1/997` fois un nombre de 500 chiffres | 6,3 Mo | 28 ms | 138 ms | 5000 erreurs |
+
+Le plus lent est inférieur à une seconde sur la machine de développement (budget d'assertion de 60 s). Le recalcul reste **synchrone** : la borne est celle du langage, pas une
+annulation. Un fichier conçu pour être plus lent que ces neuf cas n'a pas été trouvé ; il resterait borné par ligne.
+
+### Preuves d'efficacité
+
+Quatre mutations ont été faites puis retirées sans être commitées : (1) la neutralisation des formules désactivée → 14 des 29 tests d'export échouent (les quatre références CSV, l'injection, les six débuts,
+les guillemets, la propriété) ; (2) le chargeur qui écarte les lignes que le langage refuse → 9 tests échouent, dont `NotebookFileFuzzProperties` ; (3) l'enregistrement automatique aussi pour un document associé à un fichier
+→ `aDocumentWithAFileIsNeverSavedAutomatically...` échoue ; (4) une version supérieure non mise en lecture seule → les deux tests de version future échouent.
+
 ## Défauts trouvés par les propriétés
 
 1. **Une entrée valide était perdue au rechargement** (corrigé). Repéré d'abord par un exemple visant le piège noté en E4,
@@ -356,6 +427,8 @@ action (`insertAfter` d'une ligne `x = $11`) ; la modification a été retirée 
 ## Limites connues
 
 - Le budget de 100 ms de `InputFuzzProperties` est une mesure de temps : il prend le meilleur de deux essais et suit un échauffement, mais une machine très chargée peut encore l'invalider.
+- Le recalcul d'un carnet hostile est borné par ligne, pas annulable : les neuf formes de lignes lourdes mesurées (E11) restent sous la seconde pour 5000 lignes, mais aucune preuve ne dit qu'aucune forme n'est plus lente.
+- Le modèle de carnet accepte une ligne plus longue que ce que le fichier écrit (16 384 caractères) : l'écriture est alors refusée et signalée, et l'éditeur (E12) devra borner la saisie.
 - Les générateurs choisissent leurs formes de valeurs : les cas non prévus (autres alphabets d'espaces, très gros nombres de lignes d'historique) ne sont pas couverts. `-Pjqwik.tries.default=20000` élargit la recherche sans rien changer au code.
 - Le modèle de session du présentateur reproduit la règle de la mémoire des champs : une erreur commune au modèle et au présentateur ne serait pas vue ; `CalculatorPresenterTest` la fixe aussi par des exemples.
 - L'oracle n'a qu'une précision de 200 chiffres : les propriétés qui l'utilisent gardent des opérandes assez courts pour que le résultat exact y tienne, et vérifient que c'est bien le cas.

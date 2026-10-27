@@ -23,3 +23,4 @@ Later work reads the ADRs instead of guessing why things are the way they are.
 | 0006 | Interface: display modes, visible exactness, reusable components | Accepted |
 | 0007 | Expression language: grammar, errors and evaluation | Accepted |
 | 0008 | Notebook semantics: lines, references, variables, recalculation and undo | Accepted |
+| 0009 | Notebook persistence (format v3), documents and exports | Accepted |

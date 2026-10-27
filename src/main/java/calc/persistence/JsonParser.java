@@ -32,15 +32,26 @@ final class JsonParser {
     }
 
     private final String text;
+    private final int maxValues;
     private int position;
+    private int values;
 
-    private JsonParser(String text) {
+    private JsonParser(String text, int maxValues) {
         this.text = text;
+        this.maxValues = maxValues;
     }
 
     /** The only value of {@code text}. A leading byte order mark is ignored. */
     static Object parse(String text) throws JsonException {
-        JsonParser parser = new JsonParser(text);
+        return parse(text, Integer.MAX_VALUE);
+    }
+
+    /**
+     * The only value of {@code text}, which may hold at most {@code maxValues} values in all (every object, array, string,
+     * number, boolean and null counts one): a file of millions of tiny values is refused before it fills the memory.
+     */
+    static Object parse(String text, int maxValues) throws JsonException {
+        JsonParser parser = new JsonParser(text, maxValues);
         if (!text.isEmpty() && text.charAt(0) == '﻿') {
             parser.position = 1;
         }
@@ -56,6 +67,9 @@ final class JsonParser {
     private Object readValue(int depth) throws JsonException {
         if (position >= text.length()) {
             throw error(JsonException.Reason.SYNTAX);
+        }
+        if (++values > maxValues) {
+            throw error(JsonException.Reason.TOO_MANY_VALUES);
         }
         char first = text.charAt(position);
         return switch (first) {

@@ -6,17 +6,19 @@ package calc.persistence;
 public final class JsonException extends Exception {
     private static final long serialVersionUID = 1L;
 
-    /** Why the text was refused. The last five are limits of {@link StorageLimits}; the others are errors of syntax. */
+    /** Why the text was refused. The last four are limits of {@link StorageLimits}; the others are errors of syntax. */
     public enum Reason {
         SYNTAX,
         DUPLICATE_KEY,
         TOO_DEEP,
         STRING_TOO_LONG,
-        NUMBER_TOO_LONG;
+        NUMBER_TOO_LONG,
+        /** More values than the caller allows (see {@code JsonParser.parse(String, int)}). */
+        TOO_MANY_VALUES;
 
         /** Whether the text was refused because of a bound rather than because it is malformed. */
         public boolean isLimit() {
-            return this == TOO_DEEP || this == STRING_TOO_LONG || this == NUMBER_TOO_LONG;
+            return this != SYNTAX && this != DUPLICATE_KEY;
         }
     }
 
