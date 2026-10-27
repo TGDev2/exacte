@@ -325,6 +325,24 @@ class NotebookMigrationTest {
     }
 
     @Test
+    void aHistoryFromANewerVersionIsNotConvertedAndNeverRewritten(@TempDir Path directory) throws Exception {
+        Files.writeString(directory.resolve("history.json"), "{\"format\": \"calc-history\", \"version\": 99, \"entries\": ["
+                + "{\"op\": \"addition\", \"operands\": [\"1\", \"2\"], \"result\": {\"exact\": true, \"value\": \"3\"}}]}\n");
+        byte[] newer = Files.readAllBytes(directory.resolve("history.json"));
+
+        try (NotebookStore store = NotebookStore.open(directory)) {
+            LoadedNotebook loaded = store.load();
+
+            assertEquals(Condition.HISTORY_NOT_CONVERTED, loaded.condition());
+            assertEquals("L'historique vient d'une version plus récente de Calc : il n'est pas converti en carnet.", loaded.status());
+            assertTrue(loaded.notebook().isEmpty());
+        }
+        assertArrayEquals(newer, Files.readAllBytes(directory.resolve("history.json")), "never rewritten");
+        assertEquals(List.of("history.json", "history.lock"), Files.list(directory).map(path -> path.getFileName().toString()).sorted().toList(),
+                "no notebook, no copy, no temporary file");
+    }
+
+    @Test
     void aHistoryTooDamagedToBeReadIsNotConvertedAndIsNotTouched(@TempDir Path directory) throws Exception {
         Files.writeString(directory.resolve("history.json"), "{\"format\": \"calc-history\", \"version\": 2, \"entries\": [");
         byte[] damaged = Files.readAllBytes(directory.resolve("history.json"));

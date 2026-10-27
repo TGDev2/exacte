@@ -13,9 +13,6 @@ import calc.engine.HistoryLoadResult;
 import calc.engine.HistoryLoadResult.Condition;
 import calc.engine.Operation;
 import calc.testing.RecordGenerators;
-import calc.ui.CalculatorPresenter;
-import calc.ui.CalculatorViewModel;
-import calc.ui.StatusTone;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -123,18 +120,14 @@ class JsonHistoryStoreTest {
         byte[] original = Files.readAllBytes(directory.resolve("history.json"));
 
         try (JsonHistoryStore store = JsonHistoryStore.open(directory)) {
-            CalculatorPresenter presenter = new CalculatorPresenter(new CalculatorEngine(), store);
-            CalculatorViewModel opened = presenter.createInitialView();
+            HistoryLoadResult loaded = store.loadHistory();
 
-            assertEquals("Historique créé par une version plus récente de Calc : ouvert en lecture seule.", opened.statusMessage());
-            assertEquals(List.of("1 + 2 = 3"), opened.historyEntries().stream().map(Object::toString).toList(),
+            assertEquals(Condition.NEWER_VERSION_READ_ONLY, loaded.condition());
+            assertEquals(List.of("1 + 2 = 3"), loaded.records().stream().map(Object::toString).toList(),
                     "The entries this version understands are shown.");
             assertTrue(store.isReadOnly());
 
-            CalculatorViewModel afterCalculation = presenter.onCalculate("10", "5");
-            assertEquals(StatusTone.SUCCESS, afterCalculation.statusTone());
-            assertTrue(afterCalculation.statusMessage().contains("en lecture seule"), afterCalculation.statusMessage());
-            presenter.onClearHistory();
+            store.saveHistory(List.of(ONE_PLUS_TWO));
             store.saveHistory(List.of());
         }
 

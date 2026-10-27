@@ -114,6 +114,11 @@ final class NotebookDriver {
         return this;
     }
 
+    NotebookDriver nextMode() {
+        show(presenter.onNextDisplayMode(field));
+        return this;
+    }
+
     NotebookDriver newDocument() {
         show(presenter.onNew(field));
         return this;
