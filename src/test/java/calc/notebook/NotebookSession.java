@@ -5,11 +5,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.regex.Matcher;
@@ -30,6 +32,9 @@ import java.util.regex.Pattern;
  *   <li>undo then redo gives back an equal notebook with equal results ({@link #undoThenRedo()});</li>
  *   <li>undoing every command gives back the initial notebook ({@link #undoEverything()}).</li>
  * </ol>
+ *
+ * It also checks that the texts alone rebuild the same results (what E11 persists), and computes the value of every line
+ * that is only {@code $n}, {@code ans} or a name from the bindings and the texts above, independently of the resolver.
  *
  * The record of the bindings is kept by the session itself, from the texts it types, with its own scan of the
  * references; it never asks the notebook which line a reference designates.
@@ -153,6 +158,17 @@ final class NotebookSession {
         assertEquals(full, evaluated, "the incremental evaluation equals a full one");
         assertEquals(!undone.isEmpty(), editor.canUndo());
         assertEquals(!redone.isEmpty(), editor.canRedo());
+        // The texts alone rebuild the same notebook (what E11 persists): same kinds, values, errors and names.
+        EvaluatedNotebook reloaded = NotebookEvaluator.evaluate(
+                NotebookTestSupport.notebook(notebook.texts().toArray(String[]::new)));
+        for (int index = 0; index < notebook.size(); index++) {
+            LineResult original = evaluated.results().get(index);
+            LineResult read = reloaded.results().get(index);
+            assertEquals(
+                    Arrays.asList(original.text(), original.kind(), original.value(), original.error(), original.definedName()),
+                    Arrays.asList(read.text(), read.kind(), read.value(), read.error(), read.definedName()),
+                    "reloaded from its text");
+        }
 
         for (LineResult result : evaluated.results()) {
             List<String> tokens = tokens(result.text());
@@ -205,6 +221,38 @@ final class NotebookSession {
                     assertTrue(notebook.numberOf(id).getAsInt() < result.number(), () -> "points down: " + result);
                 }
             }
+            checkValueOfABareName(result, evaluated);
+        }
+    }
+
+    // The value of a line that is only a reference, `ans` or a name, computed from the bindings and the texts above.
+    private void checkValueOfABareName(LineResult result, EvaluatedNotebook evaluated) {
+        int comment = result.text().indexOf('#');
+        String content = (comment < 0 ? result.text() : result.text().substring(0, comment)).strip();
+        LineResult expected;
+        if (content.matches("\\$[0-9]+")) {
+            Target target = bindings.get(result.id()).get(0);
+            OptionalInt number = target instanceof Bound bound ? evaluated.notebook().numberOf(bound.id()) : OptionalInt.empty();
+            expected = number.isPresent() && number.getAsInt() < result.number() ? evaluated.result(number.getAsInt()) : null;
+        } else if (content.equals("ans")) {
+            expected = evaluated.results().subList(0, result.number() - 1).reversed().stream()
+                    .filter(LineResult::hasValue).findFirst().orElse(null);
+            if (expected == null) {
+                assertTrue(result.isError(), () -> "ans without a value above: " + result);
+                return;
+            }
+        } else if (content.matches("[abx]")) {
+            Pattern definition = Pattern.compile(" *" + content + " *=.*");
+            expected = evaluated.results().subList(0, result.number() - 1).reversed().stream()
+                    .filter(line -> definition.matcher(line.text()).matches()).findFirst().orElse(null);
+        } else {
+            return;
+        }
+        see("bare reference or name");
+        if (expected == null || !expected.hasValue()) {
+            assertTrue(result.isError(), () -> "no value to use for " + result);
+        } else {
+            assertEquals(expected.value(), result.value(), () -> result + " uses " + expected);
         }
     }
 
@@ -220,23 +268,29 @@ final class NotebookSession {
     private static List<Target> bind(String text, Notebook notebook) {
         List<Target> targets = new ArrayList<>();
         for (String token : tokens(text)) {
-            String digits = token.substring(1);
-            if (digits.equals("?") || digits.length() > 10 || Long.parseLong(digits) > Integer.MAX_VALUE
-                    || Long.parseLong(digits) == 0) {
+            long number = number(token);
+            if (number < 1 || number > Integer.MAX_VALUE) {
                 targets.add(new Literal(token));
-            } else if (Long.parseLong(digits) > notebook.size()) {
+            } else if (number > notebook.size()) {
                 targets.add(new PastTheEnd());
             } else {
-                targets.add(new Bound(notebook.line(Integer.parseInt(digits)).id(), Integer.parseInt(digits)));
+                targets.add(new Bound(notebook.line((int) number).id(), (int) number));
             }
         }
         return targets;
     }
 
-    // The number of a reference token, -1 for $? or a number beyond int.
+    // The number of a reference token as the lexer reads it (leading zeros ignored): -1 for $?, Long.MAX_VALUE beyond int.
     private static long number(String token) {
         String digits = token.substring(1);
-        return digits.equals("?") || digits.length() > 10 ? -1 : Long.parseLong(digits);
+        if (digits.equals("?")) {
+            return -1;
+        }
+        digits = digits.replaceFirst("^0+", "");
+        if (digits.isEmpty()) {
+            return 0;
+        }
+        return digits.length() > 10 ? Long.MAX_VALUE : Long.parseLong(digits);
     }
 
     private static List<String> tokens(String text) {

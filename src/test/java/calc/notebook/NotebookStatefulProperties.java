@@ -1,6 +1,6 @@
 package calc.notebook;
 
-import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import net.jqwik.api.Arbitraries;
@@ -24,9 +24,11 @@ import net.jqwik.api.statistics.Statistics;
 @Tag("robustness")
 class NotebookStatefulProperties {
     private static final int MAX_ACTIONS = 40;
-    private static final List<String> SITUATIONS = List.of("line with a value", "reference above",
-            "renumbered reference above", "reference not above", "reference to a deleted line", "reference past the end",
-            "literal reference");
+    // Each situation must occur in at least this share of the sequences (about half of the measured share), so that a
+    // generator that stops producing it fails the property instead of passing it vacuously.
+    private static final Map<String, Integer> MINIMUM_PERCENT = Map.of("line with a value", 30, "reference above", 50,
+            "renumbered reference above", 40, "reference not above", 50, "reference to a deleted line", 20,
+            "reference past the end", 50, "literal reference", 50, "bare reference or name", 40);
 
     @Provide
     Arbitrary<ActionChain<NotebookSession>> sessions() {
@@ -49,9 +51,10 @@ class NotebookStatefulProperties {
     void everyInvariantHoldsAfterEveryCommand(@ForAll("sessions") ActionChain<NotebookSession> chain) {
         NotebookSession session = chain.run();
         session.undoEverything();
-        for (String situation : SITUATIONS) {
+        MINIMUM_PERCENT.forEach((situation, minimum) -> {
             Statistics.label(situation).collect(session.seen().containsKey(situation));
-        }
+            Statistics.label(situation).coverage(coverage -> coverage.check(true).percentage(p -> p >= minimum));
+        });
     }
 
     /**
