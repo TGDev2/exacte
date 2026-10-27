@@ -9,9 +9,7 @@ import calc.engine.RejectedLine;
 import calc.number.CertifiedValue;
 import calc.number.NumericException;
 import calc.number.Rational;
-import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
-import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -101,6 +99,11 @@ public final class HistoryCodec {
         StringBuilder quoted = new StringBuilder(text.length() + 2).append('"');
         for (int index = 0; index < text.length(); index++) {
             char current = text.charAt(index);
+            // A lone surrogate has no UTF-8 form: it is written as an escape, or it would come back as a question mark.
+            if (Character.isSurrogate(current) && !pairedSurrogate(text, index)) {
+                quoted.append(String.format("\\u%04x", (int) current));
+                continue;
+            }
             switch (current) {
                 case '"' -> quoted.append("\\\"");
                 case '\\' -> quoted.append("\\\\");
@@ -117,6 +120,13 @@ public final class HistoryCodec {
             }
         }
         return quoted.append('"').toString();
+    }
+
+    private static boolean pairedSurrogate(String text, int index) {
+        char current = text.charAt(index);
+        return Character.isHighSurrogate(current)
+                ? index + 1 < text.length() && Character.isLowSurrogate(text.charAt(index + 1))
+                : index > 0 && Character.isHighSurrogate(text.charAt(index - 1));
     }
 
     // ------------------------------------------------------------------------------------------------ reading
@@ -163,11 +173,7 @@ public final class HistoryCodec {
 
     private static String decodeUtf8(byte[] bytes) throws HistoryFormatException {
         try {
-            return StandardCharsets.UTF_8.newDecoder()
-                    .onMalformedInput(CodingErrorAction.REPORT)
-                    .onUnmappableCharacter(CodingErrorAction.REPORT)
-                    .decode(ByteBuffer.wrap(bytes))
-                    .toString();
+            return StrictUtf8.decode(bytes);
         } catch (CharacterCodingException exception) {
             throw new HistoryFormatException(HistoryFormatException.Reason.NOT_UTF8, exception);
         }
