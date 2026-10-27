@@ -125,7 +125,9 @@ class NotebookFrameFilesTest {
                 JComponent field = candidate.row(0).field;
                 for (int key : new int[] {KeyEvent.VK_N, KeyEvent.VK_O, KeyEvent.VK_S}) {
                     assertNotNull(field.getInputMap(JComponent.WHEN_FOCUSED).get(KeyStroke.getKeyStroke(key, mask)), KeyEvent.getKeyText(key));
-                    assertNull(field.getInputMap(JComponent.WHEN_FOCUSED).get(KeyStroke.getKeyStroke(key, other)), KeyEvent.getKeyText(key));
+                    // Only the map of the field itself: the look and feel binds its own keys above it (Aqua: Ctrl+N is caret-end).
+                    KeyStroke[] own = field.getInputMap(JComponent.WHEN_FOCUSED).keys();
+                    assertFalse(own != null && List.of(own).contains(KeyStroke.getKeyStroke(key, other)), KeyEvent.getKeyText(key));
                 }
                 assertNotNull(field.getInputMap(JComponent.WHEN_FOCUSED).get(KeyStroke.getKeyStroke(KeyEvent.VK_S, mask | shift)));
             } finally {

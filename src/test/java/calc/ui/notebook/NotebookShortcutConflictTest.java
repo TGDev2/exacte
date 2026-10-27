@@ -7,6 +7,7 @@ import calc.ui.notebook.NotebookShortcuts.Command;
 import java.awt.event.InputEvent;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import javax.swing.InputMap;
 import javax.swing.KeyStroke;
 import javax.swing.LookAndFeel;
@@ -49,6 +50,12 @@ class NotebookShortcutConflictTest {
             }
         }
         assertTrue(modified.size() >= 12, "both modifiers are covered: " + modified);
+        // Aqua text fields bind Emacs keys on Ctrl (Ctrl+N is caret-end), but macOS never uses Ctrl for the menu shortcuts:
+        // the keys that only exist with the Ctrl menu modifier are not checked against Aqua (Ctrl+M and the moves are).
+        List<KeyStroke> ctrlMenuOnly = new ArrayList<>(modified);
+        for (Command command : Command.values()) {
+            ctrlMenuOnly.remove(new NotebookShortcuts(InputEvent.META_DOWN_MASK).stroke(command));
+        }
 
         List<String> checked = new ArrayList<>();
         List<String> conflicts = new ArrayList<>();
@@ -60,6 +67,7 @@ class NotebookShortcutConflictTest {
                 continue;
             }
             UIDefaults defaults = UIManager.getLookAndFeelDefaults();
+            boolean aqua = info.getClassName().toLowerCase(Locale.ROOT).contains("aqua");
             int maps = 0;
             for (Object key : new ArrayList<>(defaults.keySet())) {
                 if (key instanceof String name && name.contains("TextField") && name.endsWith("InputMap")
@@ -67,7 +75,8 @@ class NotebookShortcutConflictTest {
                     maps++;
                     for (InputMap level = map; level != null; level = level.getParent()) {
                         for (KeyStroke stroke : modified) {
-                            if (level.get(stroke) != null) {
+                            boolean notUsedHere = aqua && ctrlMenuOnly.contains(stroke);
+                            if (!notUsedHere && level.get(stroke) != null) {
                                 conflicts.add(info.getName() + ": " + name + " binds " + stroke);
                             }
                         }
