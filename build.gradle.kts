@@ -135,11 +135,17 @@ fun toolchainTool(name: String): Provider<String> = toolchainHome.map {
     it.file("bin/" + name + if (packagingOs == "windows") ".exe" else "").asFile.absolutePath
 }
 
+val toolchainJdkVersion = javaToolchains.launcherFor(java.toolchain).map { it.metadata.jvmVersion }
+
 val packagingDir = layout.buildDirectory.dir("packaging")
 
 abstract class ComputeModules @Inject constructor(private val execOperations: ExecOperations) : DefaultTask() {
     @get:Input
     abstract val jdeps: Property<String>
+
+    // The version of the JDK is an input: a JDK updated in place under the same path must run the tool again.
+    @get:Input
+    abstract val jdkVersion: Property<String>
 
     @get:Input
     abstract val release: Property<Int>
@@ -172,6 +178,9 @@ abstract class PackageAppImage @Inject constructor(
 ) : DefaultTask() {
     @get:Input
     abstract val jpackage: Property<String>
+
+    @get:Input
+    abstract val jdkVersion: Property<String>
 
     @get:Input
     abstract val appName: Property<String>
@@ -272,6 +281,7 @@ val stageAppInput = tasks.register<Sync>("stageAppInput") {
 val appModules = tasks.register<ComputeModules>("appModules") {
     description = "Computes the JDK modules the application needs with jdeps (written to build/packaging/modules.txt)."
     jdeps = toolchainTool("jdeps")
+    jdkVersion = toolchainJdkVersion
     release = java.toolchain.languageVersion.map { it.asInt() }
     jars.from(stageAppInput.map { it.outputs.files.asFileTree.matching { include("*.jar") } })
     modulesFile = packagingDir.map { it.file("modules.txt") }
@@ -280,6 +290,7 @@ val appModules = tasks.register<ComputeModules>("appModules") {
 val packageAppImage = tasks.register<PackageAppImage>("packageAppImage") {
     description = "Builds the self-contained application image with the jpackage of the toolchain."
     jpackage = toolchainTool("jpackage")
+    jdkVersion = toolchainJdkVersion
     appName = "Calc"
     appVersion = project.version.toString()
     vendor = "Calc"
