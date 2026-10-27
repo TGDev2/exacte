@@ -48,6 +48,8 @@ public final class DocumentService {
     private DisplayMode savedMode;
     private boolean newerVersion;
     private String autosaveProblem;
+    // True while the autosaved draft holds work that an opened file has taken off the screen: a new document would replace it.
+    private boolean draftOffScreen;
 
     /** A service on the notebook that {@code store} has just loaded, as the untitled document. */
     public DocumentService(NotebookStore store, LoadedNotebook loaded) {
@@ -105,9 +107,13 @@ public final class DocumentService {
         return Optional.ofNullable(autosaveProblem);
     }
 
-    /** Whether replacing the document (new, open) would lose something that is not in a file: ask the user first. */
+    /**
+     * Whether replacing the document (new, open) would lose something that is not in a file: ask the user first. An unsaved
+     * edit of a document with a file does, and so does the autosaved draft that opening a file took off the screen (new
+     * replaces it).
+     */
     public boolean wouldLoseWork() {
-        return path == null ? !editor.notebook().isEmpty() : isModified();
+        return path == null ? !editor.notebook().isEmpty() : isModified() || draftOffScreen;
     }
 
     // ------------------------------------------------------------------------------------------------ editing
@@ -157,6 +163,7 @@ public final class DocumentService {
     public EvaluatedNotebook newDocument() {
         install(Notebook.empty(), null, false);
         autosave();
+        draftOffScreen = false;
         return editor.current();
     }
 
@@ -182,6 +189,7 @@ public final class DocumentService {
                     "Ce carnet a été créé par une version plus récente de Calc : il ne peut pas être lu.");
         }
         displayMode = decoded.displayMode();
+        draftOffScreen |= path == null && !editor.notebook().isEmpty() && !store.isReadOnly();
         install(decoded.notebook(), target, decoded.isNewerVersion());
         return editor.current();
     }
@@ -206,6 +214,9 @@ public final class DocumentService {
      * @return the path actually written
      */
     public Path saveAs(Path file) throws DocumentException {
+        if (file.getFileName() == null) {
+            throw new DocumentException(DocumentException.Kind.INPUT_OUTPUT, "Ce chemin ne désigne pas un fichier : " + file);
+        }
         Path target = withExtension(absolute(file));
         refuseReserved(target);
         if (newerVersion && sameFile(target, path)) {
@@ -219,6 +230,7 @@ public final class DocumentService {
         if (wasUntitled) {
             try {
                 store.saveCurrent(Notebook.empty(), displayMode);
+                draftOffScreen = false;
             } catch (NotebookStoreException exception) {
                 LOGGER.log(Level.WARNING, "The saved document is in " + target + " but the draft could not be emptied", exception);
             }

@@ -452,6 +452,41 @@ class DocumentServiceTest {
     }
 
     @Test
+    void newAfterOpenWarnsThatTheDraftOffScreenWouldBeReplaced() throws Exception {
+        append("draft 1", "draft 2");
+        Path file = documents.resolve("received.calc.json");
+        Files.write(file, NotebookCodec.encode(calc.testing.NotebookGenerators.notebook(List.of("1 + 1")), DisplayMode.AUTO).bytes());
+        service.open(file);
+
+        assertFalse(service.isModified());
+        assertTrue(service.wouldLoseWork(), "the draft is no longer on screen, and new would overwrite it");
+        assertEquals(List.of("draft 1", "draft 2"), draft(), "until then it is intact");
+
+        service.open(file);
+        assertTrue(service.wouldLoseWork(), "opening again does not forget it");
+        service.newDocument();
+        assertEquals(List.of(), draft());
+        assertFalse(service.wouldLoseWork());
+    }
+
+    @Test
+    void anEmptyDraftIsNotWorthAWarningAfterOpen() throws Exception {
+        Path file = documents.resolve("received.calc.json");
+        Files.write(file, NotebookCodec.encode(calc.testing.NotebookGenerators.notebook(List.of("1 + 1")), DisplayMode.AUTO).bytes());
+
+        service.open(file);
+
+        assertFalse(service.wouldLoseWork());
+    }
+
+    @Test
+    void aPathWithoutAFileNameIsRefusedNotACrash() {
+        Path root = documents.getRoot();
+
+        assertEquals(Kind.INPUT_OUTPUT, assertThrows(DocumentException.class, () -> service.saveAs(root)).kind());
+    }
+
+    @Test
     void newDocumentAfterAnAssociatedOneLeavesItsFileAlone() throws Exception {
         append("1");
         Path file = service.saveAs(documents.resolve("kept"));

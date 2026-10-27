@@ -166,7 +166,10 @@ public final class NotebookExporter {
 
     // ------------------------------------------------------------------------------------------------ files
 
-    /** Writes {@link #markdown} to {@code file}, atomically, in UTF-8 without a byte order mark. */
+    /**
+     * Writes {@link #markdown} to {@code file}, atomically, in UTF-8 without a byte order mark. The path is written as
+     * given: the caller must not pass a file Calc keeps for itself (see {@code NotebookStore.isReserved}).
+     */
     public static void writeMarkdown(Path file, EvaluatedNotebook notebook, String title, DisplayMode mode) throws IOException {
         AtomicFileWriter.write(file, markdown(notebook, title, mode).getBytes(StandardCharsets.UTF_8));
     }

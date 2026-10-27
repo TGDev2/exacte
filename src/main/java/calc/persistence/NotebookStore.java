@@ -226,7 +226,7 @@ public final class NotebookStore implements AutoCloseable {
             AtomicFileWriter.write(currentFile, out -> out.write(encoded.bytes()), mover);
         } catch (IOException | NotebookFormatException exception) {
             LOGGER.log(Level.WARNING, "Cannot convert the history to " + currentFile + ": every source is left as it was", exception);
-            return notConverted("L'historique n'a pas pu être converti en carnet : il reste tel quel et sera converti au prochain démarrage.");
+            return notConverted("L'historique n'a pas pu être converti en carnet : il reste tel quel et sera converti au prochain démarrage, tant que vous n'aurez rien saisi.");
         }
         int lines = converted.notebook().size();
         LOGGER.info("Converted " + historyFile + " to " + currentFile + ": " + lines + " lines, " + converted.commentedEntries()

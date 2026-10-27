@@ -62,7 +62,8 @@ undoing back to the saved state clears it). The untitled document is never « mo
 The path is a **parameter** (no dialog in this Epic); the extension is **`.calc.json`**, added when the name does not already
 end with it (case-insensitively). Everything else is accepted when opening: the extension is a convention, not a guard.
 
-- **Open** leaves the autosaved draft untouched: nothing the user typed is lost by opening a file.
+- **Open** leaves the autosaved draft untouched: nothing the user typed is lost by opening a file. The draft is then off the
+  screen, and a later **New** would replace it, so `wouldLoseWork()` stays true until it has been replaced or saved.
 - **Save as** from the untitled document **promotes** the draft: once the file is written, the draft file is reset to an empty
   notebook, so the next run does not resurrect a second copy of what the user has just saved.
 - **New** replaces the current document with an empty untitled one and writes it to the draft file. The service reports whether

@@ -269,7 +269,7 @@ class NotebookMigrationTest {
 
             assertEquals(Condition.HISTORY_NOT_CONVERTED, loaded.condition());
             assertTrue(loaded.notebook().isEmpty());
-            assertEquals("L'historique n'a pas pu être converti en carnet : il reste tel quel et sera converti au prochain démarrage.",
+            assertEquals("L'historique n'a pas pu être converti en carnet : il reste tel quel et sera converti au prochain démarrage, tant que vous n'aurez rien saisi.",
                     loaded.status());
         }
         assertEquals(before, Snapshot.of(directory), "no file created, removed or modified");
@@ -277,6 +277,28 @@ class NotebookMigrationTest {
         try (NotebookStore store = NotebookStore.open(directory)) {
             assertEquals(Condition.MIGRATED, store.load().condition(), "the next start converts");
         }
+    }
+
+    @Test
+    void onceANotebookHasBeenWrittenAfterAFailedMigrationTheHistoryIsNotConvertedAnymore(@TempDir Path directory) throws Exception {
+        try (JsonHistoryStore history = JsonHistoryStore.open(directory)) {
+            history.saveHistory(List.of(RecordGenerators.calculated(Operation.ADDITION, "40", "2")));
+        }
+        byte[] json = Files.readAllBytes(directory.resolve("history.json"));
+        try (NotebookStore store = NotebookStore.open(directory, null, Clock.systemDefaultZone(), (source, target) -> {
+            throw new IOException("simulated full disk");
+        }, Files::move)) {
+            assertEquals(Condition.HISTORY_NOT_CONVERTED, store.load().condition());
+            store.saveCurrent(calc.testing.NotebookGenerators.notebook(List.of("typed after the failure")), DisplayMode.AUTO);
+        }
+
+        try (NotebookStore store = NotebookStore.open(directory)) {
+            LoadedNotebook loaded = store.load();
+
+            assertEquals(Condition.NORMAL, loaded.condition());
+            assertEquals(List.of("typed after the failure"), loaded.notebook().texts());
+        }
+        assertArrayEquals(json, Files.readAllBytes(directory.resolve("history.json")), "the history itself is intact");
     }
 
     @Test
