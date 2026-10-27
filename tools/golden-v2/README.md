@@ -1,7 +1,7 @@
 # tools/golden-v2 - reference outputs of the exact engine
 
 `GoldenV2.java` is a standalone program (default package). It replays the 70 inputs of
-`src/test/resources/golden/engine-v1.tsv` (version 1, kept for the record) on the current engine and presenter, and writes:
+`src/test/resources/golden/engine-v1.tsv` (version 1, kept for the record) on the current engine, and writes:
 
 - `src/test/resources/golden/engine-v2.tsv`: same format and same inputs as v1, the reference that `GoldenOutputsTest`
   replays;
@@ -30,6 +30,6 @@ running it twice gives the same bytes.
 ## Format
 
 The columns and the input notation (`<U+XXXX>`, `<rep:N:text>`) are those of v1 (`tools/baseline/README.md`). The
-`display` column is the Auto text of the result (or the error message), `reusable` is the canonical text the presenter
+`display` column is the Auto text of the result (or the error message), `reusable` is the canonical text the old window
 puts back in the first field. They are no longer the same string (docs/adr/0004-regles-affichage.md). A text longer than
 100 characters is stored as `len=<characters> sha256=<hex>`.

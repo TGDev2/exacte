@@ -155,5 +155,5 @@ record), `CalculatorHistoryBackupTest` → `calc.persistence.JsonHistoryBackupTe
 - A new notebook after an opened file uses the remembered preference, not the mode of the file that was open.
 - `history.json` and its copy stay on disk; the old history code remains only as the source of the migration. Removing them is a
   decision for a later Epic.
-- `tools/baseline/Baseline.java` still targets the removed presenter (it already needed a pre-E07 commit for the legacy files).
+- `tools/baseline/Baseline.java` (unbuildable since E07, it also called the removed presenter) was deleted and its README kept as an archive; `tools/golden-v2/GoldenV2.java` no longer needs the presenter and regenerates `engine-v2.tsv` byte for byte.
 - Not checked here: a real macOS keyboard (Cmd) and the native file chooser of macOS and Linux.
