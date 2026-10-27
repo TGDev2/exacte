@@ -220,6 +220,20 @@ class NotebookEditingTest {
     }
 
     @Test
+    void anUndoNeverLetsANewLineTakeTheIdentifierOfAnotherOne() throws NotebookException {
+        NotebookEditor editor = new NotebookEditor();
+        LineId a = editor.apply(new NotebookCommand.Append("a")).notebook().line(1).id();
+        editor.undo();
+        LineId b = editor.apply(new NotebookCommand.Append("b")).notebook().line(1).id();
+        assertNotEquals(a, b);
+        editor.undo();
+        editor.redo();
+        LineId c = editor.apply(new NotebookCommand.Append("c")).notebook().line(2).id();
+        assertFalse(List.of(a, b).contains(c));
+        assertEquals(Notebook.empty(), new NotebookEditor(Notebook.empty()).notebook(), "equality ignores the counter");
+    }
+
+    @Test
     void invalidCommandsAreProgrammingErrors() {
         Notebook notebook = notebook("1", "2");
         LineId unknown = new LineId(99);

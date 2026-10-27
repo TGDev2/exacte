@@ -75,7 +75,7 @@ public final class NotebookEditor {
             throw new IllegalStateException("nothing to undo");
         }
         redo.push(current.notebook());
-        current = NotebookEvaluator.reevaluate(current, undo.pop());
+        current = NotebookEvaluator.reevaluate(current, undo.pop().continuingAfter(current.notebook()));
         return current;
     }
 
@@ -85,7 +85,7 @@ public final class NotebookEditor {
             throw new IllegalStateException("nothing to redo");
         }
         undo.push(current.notebook());
-        current = NotebookEvaluator.reevaluate(current, redo.pop());
+        current = NotebookEvaluator.reevaluate(current, redo.pop().continuingAfter(current.notebook()));
         return current;
     }
 }

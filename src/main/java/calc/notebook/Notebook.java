@@ -139,6 +139,14 @@ public final class Notebook {
         return lines.isEmpty() ? this : new Notebook(new ArrayList<>(), nextId);
     }
 
+    /**
+     * This notebook, with identifiers that continue after those of {@code latest}: a notebook restored by undo or redo
+     * never gives a new line the identifier of a line that existed in between.
+     */
+    Notebook continuingAfter(Notebook latest) {
+        return latest.nextId <= nextId ? this : new Notebook(new ArrayList<>(lines), latest.nextId);
+    }
+
     private Notebook insertAt(int index, String text) throws NotebookException {
         requireRoom(lines.size() + 1);
         Line inserted = new Line(new LineId(nextId), text);
@@ -208,14 +216,15 @@ public final class Notebook {
         }
     }
 
+    /** Two notebooks are equal when they have the same lines (identifiers and texts) in the same order. */
     @Override
     public boolean equals(Object other) {
-        return other instanceof Notebook notebook && nextId == notebook.nextId && lines.equals(notebook.lines);
+        return other instanceof Notebook notebook && lines.equals(notebook.lines);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(lines, nextId);
+        return lines.hashCode();
     }
 
     @Override
