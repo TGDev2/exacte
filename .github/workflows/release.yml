@@ -138,13 +138,14 @@ jobs:
       TAG: ${{ needs.prepare.outputs.tag }}
       PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
       EVENT: ${{ github.event_name }}
-      GH_TOKEN: ${{ github.token }}
     steps:
       # The full history is needed for the release notes (commits since the previous tag).
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          # The write token must not stay in the git configuration while Gradle runs.
+          persist-credentials: false
 
       - name: Set up Java 21
         uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
@@ -199,9 +200,9 @@ jobs:
               echo
               git log --no-merges --pretty='- %s (%h)' "${previous}..${GITHUB_SHA}"
             else
-              echo "## Changes"
+              echo "## First release: the 30 latest changes"
               echo
-              git log --no-merges --pretty='- %s (%h)' "${GITHUB_SHA}"
+              git log --no-merges -n 30 --pretty='- %s (%h)' "${GITHUB_SHA}"
             fi
             echo
             echo "## Vérifier et ouvrir"
@@ -211,6 +212,9 @@ jobs:
           cat release-notes.md
 
       - name: Create the GitHub Release
+        # The token is given to this step only, after Gradle has run.
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           flags=()
           title="Calc $VERSION"

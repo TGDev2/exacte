@@ -34,10 +34,15 @@ Le dépôt n'a pas de `CHANGELOG` : les notes de la release reprennent les messa
    ```
 
 4. Le workflow « Release » se lance tout seul (onglet **Actions**) : il valide la version, construit et teste sur les trois systèmes,
-   démarre chaque application empaquetée, puis crée la release avec les cinq fichiers.
+   vérifie les modules embarqués et lance chaque application empaquetée (le test contrôle que le processus reste vivant 8 secondes sans erreur Java dans sa sortie ; il ne vérifie pas la fenêtre), puis crée la release avec les cinq fichiers.
 5. Ouvrir la release, vérifier la présence des cinq fichiers, puis suivre la section « Vérifier un téléchargement ».
 
 Le workflow ne vérifie pas que le tag pointe vers un commit de `main` : c'est à la personne qui tague de le faire.
+
+**Si l'exécution échoue après la création de la release (ou à moitié)** : relancer les jobs échoue, car `gh release create` refuse une
+release ou un tag qui existe déjà. Supprimer d'abord la release (brouillon compris), puis relancer :
+`gh release delete vX.Y.Z --yes` (le tag `vX.Y.Z` reste, c'est voulu : ne pas ajouter `--cleanup-tag`, sauf pour recréer le tag
+sur un autre commit).
 
 ### Faire un essai sans tag
 
@@ -116,7 +121,7 @@ périmètre de cette livraison. Conséquence au premier lancement d'un fichier t
 - **Pas d'installeur natif** (`.msi`, `.exe`, `.dmg`, `.deb`, `.rpm`). Un installeur demande des outils sur la machine de construction
   (WiX pour Windows, par exemple). L'image WiX 3.14 est listée sur l'image de runner Windows Server 2025, mais aucun installeur n'a
   été construit ni vérifié : c'est une suite possible, non une promesse.
-- **Reproductibilité : le JAR seulement.** Deux `gradlew clean jar` donnent le même SHA-256, et la CI le contrôle à chaque push.
+- **Reproductibilité : le JAR seulement.** Deux `gradlew clean jar` donnent le même SHA-256, et la CI le contrôle (job `reproducible jar`) sur chaque push vers `main` et sur chaque pull request, sous Linux. Le contrôle ne tourne pas lors d'un push de tag et ne compare pas les JAR des trois systèmes.
   L'image `jpackage` n'est pas garantie identique d'une construction à l'autre : elle contient une copie du JDK installé sur la machine
   (deux releases construites à des semaines d'écart peuvent embarquer deux versions de Java 21), et les archives `.tar.gz` enregistrent
   les dates des fichiers. Deux constructions Windows faites sur le poste de développement sont sorties identiques, ce qui ne prouve rien

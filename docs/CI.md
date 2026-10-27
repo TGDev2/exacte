@@ -24,7 +24,7 @@ système n'interrompt pas les autres). Chaque job :
    les runners Linux n'ont pas d'écran ; `xvfb` est préinstallé sur `ubuntu-latest`) ;
 5. publie les rapports de test comme artefacts, même en cas d'échec.
 
-Un second job, `reproducible jar` (Linux seulement : le contenu du JAR ne dépend pas du système), lance deux fois
+Un second job, `reproducible jar` (Linux seulement ; le JAR construit sous Windows et macOS n'est pas comparé), lance deux fois
 `./gradlew clean jar --rerun-tasks --no-build-cache`, affiche les deux sommes SHA-256 de `build/libs/calc.jar` et échoue
 si elles diffèrent. Il n'est pas dans la liste des vérifications exigées par la protection de `main` ci-dessous : l'ajouter
 après sa première exécution si on veut en faire une condition de fusion.

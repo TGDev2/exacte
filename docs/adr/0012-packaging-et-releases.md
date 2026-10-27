@@ -85,7 +85,7 @@ Windows uses a Gradle `Zip`; macOS and Linux use the system `tar`, which keeps p
 
 `tasks.jar` already fixed the file order and the time stamps (`isReproducibleFileOrder`, `isPreserveFileTimestamps = false`), and
 the file name does not carry the version, so the version does not change the jar. Checked (E14): two `gradlew clean jar --rerun-tasks
---no-build-cache` give the same SHA-256 (`docs/RELEASE.md`). CI repeats the check on every push and pull request (job
+--no-build-cache` give the same SHA-256 (`docs/RELEASE.md`). CI repeats the check on every push to `main` and every pull request, on Linux only (job
 `reproducible-jar` of `ci.yml`).
 
 The application **image** is not promised to be reproducible, and the CI does not check it. Two local Windows builds of the image and of
@@ -106,11 +106,13 @@ only reads Gradle configurations). A later Epic can add it as a component by han
 ### 8. Release workflow (`.github/workflows/release.yml`)
 
 Jobs: `prepare` (validates the version once), `build` (matrix `ubuntu-latest`, `windows-latest`, `macos-latest`: `check` with
-`-PrequireUiTests=true` and xvfb on Linux as in `ci.yml`, `packageApp`, a smoke test that unpacks the archive and starts the application,
+`-PrequireUiTests=true` and xvfb on Linux as in `ci.yml`, `packageApp`, a smoke test that unpacks the archive, checks the embedded modules, starts the application and checks it is alive after 8 s with no Java error in its output (no window check),
 upload), `publish` (Linux: downloads the three archives, generates the SBOM, writes `SHA256SUMS.txt`, writes the notes from the commit
 subjects since the previous `vX.Y.Z` tag, creates the Release with `gh release create`).
 
-Permissions: `contents: read` for the workflow, `contents: write` **only** on `publish`. Values coming from the event (tag name, input)
+Permissions: `contents: read` for the workflow, `contents: write` **only** on `publish`. In that job the checkout does not keep the
+token (`persist-credentials: false`) and `GH_TOKEN` is given to the `gh release create` step alone, so Gradle (the build script and the
+CycloneDX plugin run in `publish` to produce the SBOM) never sees a token that can write. Values coming from the event (tag name, input)
 reach the scripts through `env`, never inside the script text. Every action is pinned by commit SHA like in `ci.yml`
 (`download-artifact` v8.0.2 added: `9000827...`). The release is created by `gh`, which is preinstalled on the runner, so no further third-party action is needed.
 
