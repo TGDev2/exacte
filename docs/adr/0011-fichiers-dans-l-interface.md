@@ -42,6 +42,10 @@ Nouveau, Ouvrir and Quitter (the close button, Cmd+Q and the Quitter item take t
 whether the window closes) ask « Enregistrer / Ne pas enregistrer / Annuler » when a document with a file is modified. « Enregistrer »
 that fails or is cancelled (no name given) cancels the action. The line being typed is validated first, so it counts as a change.
 
+« Autosaved » is a fact, not a name: an untitled notebook that has lines **and is not actually being saved** (another instance holds
+the data directory, the file is from a newer version, or the last automatic save failed) is unsaved work for Open and Quit too, and
+the same three choices are asked; « Enregistrer » goes to « Enregistrer sous » (found by the independent review of E13).
+
 Two points where the brief and ADR 0009 pull apart, and the careful reading was kept:
 
 - **Nouveau on an untitled notebook that has lines asks too.** The untitled notebook is autosaved, but a new document **replaces** the
@@ -142,10 +146,13 @@ record), `CalculatorHistoryBackupTest` → `calc.persistence.JsonHistoryBackupTe
 
 - Closing, Nouveau and Ouvrir can ask a question; every answer is a test.
 - `DocumentService` gained two read-only accessors (`isReservedPath`, `isDraftOffScreen`); its behaviour is unchanged.
-- An over-long line being typed (more than 16 384 characters) is not kept when the window closes (it was not before either); only the
-  validated lines count. A follow-up could ask.
-- A display-mode change alone does not mark a document with a file as modified (the mode is written at the next command or save), so
-  closing after only changing the mode does not offer to save it.
+- A line being typed that cannot be validated (more than 16 384 characters, or a notebook already at 5000 lines) keeps the window open
+  with the reason, like New and Open: Escape drops it, then the window closes.
+- A change of display mode marks a document with a file as modified at once (ADR 0009), so closing offers to save it. For the untitled
+  notebook the mode still follows at the next command, so that a mode change alone never writes.
+- A confirmation of a file operation (saved, exported) is shown even over the permanent read-only warnings; the warning comes back
+  with the next command.
+- A new notebook after an opened file uses the remembered preference, not the mode of the file that was open.
 - `history.json` and its copy stay on disk; the old history code remains only as the source of the migration. Removing them is a
   decision for a later Epic.
 - `tools/baseline/Baseline.java` still targets the removed presenter (it already needed a pre-E07 commit for the legacy files).

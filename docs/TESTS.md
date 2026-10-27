@@ -428,7 +428,7 @@ interface (`NotebookDialogs`) que les tests remplacent par `FakeDialogs`. Aucun 
 | `calc.engine.DisplayRulesTest`, `SizeLimitsTest`, `GoldenOutputsTest` | aucune | les anciens tests du moteur qui passaient par l'ancien présentateur, déplacés sans perdre une assertion du moteur |
 | `calc.persistence.JsonHistoryBackupTest`, `PersistenceLoggingTest` | aucune | copies `.bak` et journaux de l'ancien historique (désormais seulement la source de la migration), plus le journal d'un échec de sauvegarde automatique du carnet |
 
-Mesures (`gradlew clean check`, Windows 11, JDK 21) : 1050 tests, 0 ignoré, 0 échec, contre 1090 avant E13 (3505 lignes retirées avec l'ancien formulaire et ses tests, les tests du menu Fichier et de la parité ajoutés).
+Mesures (`gradlew clean check`, Windows 11, JDK 21) : 1057 tests, 0 ignoré, 0 échec, contre 1090 avant E13 (3505 lignes retirées avec l'ancien formulaire et ses tests, les tests du menu Fichier et de la parité ajoutés).
 
 ## Défauts trouvés par les propriétés
 
