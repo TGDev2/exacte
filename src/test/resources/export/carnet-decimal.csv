@@ -1,0 +1,19 @@
+﻿n°;Expression;Résultat affiché;Valeur exacte;Statut
+1;# Devis cuisine;;;
+2;surface = 12,5;12,5;12,5;exact
+3;prix = 42;42;42;exact
+4;surface * prix;525;525;exact
+6;1 / 3;0,333333333333…;1/3;exact
+7;√2;≈ 1,41421356237… (± 2,1 × 10⁻²⁵);;approché
+8;ans ^ 2;≈ 2,00000000000… (± 5,9 × 10⁻²⁵);;approché
+9;2 +;Opérande manquant après « + ».;;erreur
+10;# Note : a|b *gras* _it_ [lien](x) <b> $1 ~~x~~ & \ `code`;;;
+11;'-5 + 2;'-3;'-3;exact
+12;'=1+2;Le signe « = » ne peut suivre qu'un nom de variable en début de ligne.;;erreur
+13;'@x;Caractère inattendu « @ ».;;erreur
+14;1000000 * 1000000 * 1000000 * 1000000;1000000000000000000000000;1000000000000000000000000;exact
+15;surface * 3 # sur trois côtés;37,5;37,5;exact
+16;$4 / 7;75;75;exact
+17;"# =HYPERLINK(""http://example.org"";""clic"")";;;
+18;0,000001 / 3;0,000000333333333333…;1/3000000;exact
+19;x = ;Expression manquante après « = ».;;erreur
