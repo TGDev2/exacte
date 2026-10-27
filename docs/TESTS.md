@@ -7,11 +7,11 @@ lancer une partie, comment rejouer un échec trouvé par un test aléatoire et c
 
 | Niveau | Où | Étiquette (tag) | Rôle |
 |---|---|---|---|
-| Exemples JUnit 5 | `src/test/java/calc/engine`, `calc/ui`, `calc/number`, `calc/format`, `calc/expression` | aucune | Un cas précis, un message exact, un comportement décidé. Rapides, faciles à lire. |
+| Exemples JUnit 5 | `src/test/java/calc/engine`, `calc/ui`, `calc/number`, `calc/format`, `calc/expression`, `calc/notebook` | aucune | Un cas précis, un message exact, un comportement décidé. Rapides, faciles à lire. |
 | Sorties de référence | `GoldenOutputsTest`, `src/test/resources/golden`, `legacy/v1` | aucune | Rejoue 70 calculs (`engine-v2.tsv`, mêmes entrées que `engine-v1.tsv`) et 11 fichiers d'historique enregistrés : tout changement de sortie est vu. |
 | Fenêtre Swing | `CalculatorFrameTest` | `ui` | Raccourcis, focus, accessibilité. Demande un écran (ignoré sans écran, voir `docs/CI.md`). |
 | Propriétés | `*Properties` (hors fuzzing) | `property` | Une promesse vraie pour des milliers d'entrées générées, comparée à un oracle indépendant. |
-| Robustesse | `*FuzzProperties`, `PresenterStatefulProperties` | `robustness` | Entrées hostiles et séquences d'actions aléatoires : jamais d'exception inattendue, jamais de perte de données. |
+| Robustesse | `*FuzzProperties`, `PresenterStatefulProperties`, `NotebookStatefulProperties` | `robustness` | Entrées hostiles et séquences d'actions aléatoires : jamais d'exception inattendue, jamais de perte de données. |
 
 Un test d'exemple dit « pour cette entrée, voici la sortie ». Une propriété dit « pour toute entrée de cette forme, ceci
 reste vrai » : jqwik génère les entrées (en visant les cas limites), cherche un contre-exemple et le réduit au plus petit
@@ -287,6 +287,26 @@ Mesures (Windows 11, JDK 21, `gradlew cleanTest check`) : 832 tests, 0 échec, 0
 (`-2^2` lu `(-2)^2`) : 8 tests échouent, dont trois propriétés à elles seules (`printedTreesParseBackToTheSameTree`,
 `theCanonicalTextIsAFixedPoint`, `theEvaluatorMatchesTheCoreAppliedDirectly`) ; la modification a été retirée sans être
 commitée.
+
+## Modèle de carnet (E10)
+
+La sémantique est dans `docs/adr/0008-semantique-carnet.md`. Tout se lance avec `.\gradlew.bat test --tests "calc.notebook.*"`.
+
+Mesures (Windows 11, JDK 21, `gradlew cleanTest check`, trois exécutions avec de nouvelles graines) : 874 tests, 0 échec,
+0 ignoré (832 avant E10, dont 42 pour `calc.notebook`), de 37 à 38 s.
+
+| Classe | Étiquette | Ce qu'elle garantit |
+|---|---|---|
+| `NotebookSemanticsTest` | - | `ans` enchaîné et qui saute les lignes vides, commentaires et lignes en erreur ; `$n` valide, vers la ligne elle-même, vers le bas ou au-delà de la fin (erreur), vers une ligne vide, un commentaire, une ligne en erreur ; variables visibles sous leur définition, masquage, nom inconnu, mot réservé, affectation en erreur qui définit quand même son nom ; propagation « Dépend de la ligne n » en chaîne ; chaque message avec son code et sa position exacte |
+| `NotebookEditingTest` | - | modifier une ligne haute recalcule les lignes qui en dépendent ; insérer au-dessus d'une ligne référencée réécrit `$3` en `$4` avec la même valeur ; supprimer donne `$?` et une erreur explicite ; déplacer la cible en dessous rend la référence en erreur sans changer sa cible, la redéplacer la rétablit ; référence au-delà de la fin qui y reste ; tout effacer puis annuler ; annuler / rétablir, commande sans effet non enregistrée, pile bornée à 200 ; 5000 lignes au plus, commande refusée sans effet ; identifiants stables jamais réutilisés ; évaluation incrémentale égale à l'évaluation complète |
+| `NotebookStatefulProperties` | `robustness` | 300 séquences d'au plus 40 commandes (modifier, insérer avant ou après, ajouter, supprimer, déplacer, tout effacer, annuler, rétablir) sur des lignes qui se référencent ; après **chaque** pas : (1) chaque référence désigne la ligne (même identifiant) qu'elle désignait à sa saisie, ou est explicitement en erreur (`$?`, numéro au-delà de la fin) ; (2) aucune référence valide ne pointe vers le bas, et une ligne qui a une valeur utilise exactement les lignes rattachées au-dessus ; (3) deux évaluations du même carnet sont égales, et l'évaluation incrémentale de l'éditeur égale une évaluation complète ; (4) annuler puis rétablir redonne un carnet et des résultats égaux ; (5) tout annuler redonne le carnet initial. Le rattachement attendu est tenu par le test lui-même, avec sa propre lecture des références. Couverture mesurée : référence renumérotée dans 76 % des séquences, supprimée dans 44 %, vers le bas dans 93 % |
+| `HistoryBridgeProperties`, `HistoryBridgeTest` | `property` | toute entrée d'historique produite par le moteur public (opérandes de toute taille, fractions, négatifs, racines) donne le texte documenté (`1,5 + 2,5`, `2 ^ (-3)`, `(1/3) * 3`, `√(9)`), qui s'évalue exactement à la même valeur, ou au même intervalle ; seules les entrées qu'aucune ligne ne peut écrire n'en donnent pas : opérande plus long qu'une ligne (3 % des entrées générées), opérande approché (racine mémorisée) |
+| `NotebookPerformanceTest` | - | 1000 lignes avec références, variables, `ans` et commentaires : la modification de la ligne 1 recalcule tout le carnet en moins de 200 ms (meilleur de 10 après échauffement). Mesuré sur les trois exécutions : 9,4 à 9,9 ms avec des rationnels exacts (médianes 13,5 à 14,2 ms, pire 20 ms), 4,6 ms avec des intervalles (médiane 4,8 ms) ; annuler recalcule en 4 à 14 ms ; aucune optimisation par graphe n'est nécessaire |
+| `NotebookDependenciesTest` | - | le package n'importe que `java.util`, le langage, le noyau numérique et trois classes du moteur : ni Swing, ni AWT, ni persistance |
+
+**Preuve d'efficacité** : la réécriture des références a été retirée temporairement de l'insertion (`insertAt` construisait
+le nouveau carnet sans renuméroter) : 3 tests échouent, dont `NotebookStatefulProperties` à lui seul, réduit à une seule
+action (`insertAfter` d'une ligne `x = $11`) ; la modification a été retirée sans être commitée.
 
 ## Défauts trouvés par les propriétés
 

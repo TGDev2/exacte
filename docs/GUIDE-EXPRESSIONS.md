@@ -73,12 +73,17 @@ ne peuvent pas servir de nom de variable.
 - Un nom commence par une lettre (accents et autres alphabets compris) ou `_`, puis lettres, chiffres ou `_` :
   `prix`, `taux_TVA`, `année2`, `_x`.
 - **Les majuscules comptent** : `Prix` et `prix` sont deux variables différentes.
-- Quelle définition s'applique quand un nom est affecté plusieurs fois : c'est le carnet qui le décidera (Epic E10).
+- Une variable n'existe qu'en dessous de sa définition. Si un nom est affecté plusieurs fois, c'est l'affectation la
+  plus proche au-dessus qui compte (`x = x + 1` repart du `x` précédent). Une affectation en erreur rend les lignes qui
+  utilisent ce nom en erreur, elle ne laisse jamais reprendre une définition plus ancienne (ADR 0008).
 
 ## Références à d'autres lignes
 
-- `ans` : le résultat de la ligne précédente.
-- `$3` : le résultat de la ligne 3. Les lignes sont numérotées à partir de 1 (`$0` est une erreur).
+- `ans` : le résultat de la ligne au-dessus la plus proche qui a une valeur (les lignes vides, les commentaires et les
+  lignes en erreur sont sautés, comme la touche Ans d'une calculatrice).
+- `$3` : le résultat de la ligne 3. Les lignes sont numérotées à partir de 1 (`$0` est une erreur). Une ligne ne peut
+  désigner qu'une ligne située au-dessus d'elle ; une ligne qui dépend d'une ligne en erreur est en erreur (« Dépend de
+  la ligne 3, qui est en erreur. »).
 - Quand des lignes sont insérées, déplacées ou supprimées, les références sont renumérotées automatiquement ; une
   référence vers une ligne supprimée devient `$?` et la ligne affiche « Référence vers une ligne supprimée ».
 
