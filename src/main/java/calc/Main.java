@@ -1,10 +1,14 @@
 package calc;
 
-import calc.engine.CalculatorEngine;
-import calc.persistence.JsonHistoryStore;
-import calc.ui.CalculatorPresenter;
-import calc.ui.CalculatorFrame;
+import calc.persistence.NotebookStore;
+import calc.ui.DisplayModeStore;
 import calc.ui.PreferencesDisplayModeStore;
+import calc.ui.notebook.NotebookFrame;
+import calc.ui.notebook.NotebookPresenter;
+import java.awt.Desktop;
+import java.awt.desktop.QuitStrategy;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.SwingUtilities;
@@ -16,14 +20,33 @@ public class Main {
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
             useSystemLookAndFeel();
-            JsonHistoryStore historyStore = JsonHistoryStore.openForCurrentUser();
-            // The system releases the lock with the process; releasing it on a normal exit is only tidier.
-            Runtime.getRuntime().addShutdownHook(new Thread(historyStore::close, "history-lock-release"));
-            CalculatorPresenter presenter = new CalculatorPresenter(
-                    new CalculatorEngine(), historyStore, PreferencesDisplayModeStore.forCurrentUser());
-            CalculatorFrame calculatorFrame = new CalculatorFrame(presenter);
-            calculatorFrame.setVisible(true);
+            closeWindowsOnQuit();
+            // Opens the data directory (taking the lock that makes a second instance read only), migrates the old history
+            // into a notebook on the first start and loads the current notebook. The system releases the lock with the
+            // process; releasing it on a normal exit is only tidier.
+            NotebookStore store = NotebookStore.openForCurrentUser();
+            Runtime.getRuntime().addShutdownHook(new Thread(store::close, "notebook-lock-release"));
+            NotebookFrame frame = createWindow(store, PreferencesDisplayModeStore.forCurrentUser());
+            frame.addWindowListener(new WindowAdapter() {
+                @Override
+                public void windowClosed(WindowEvent event) {
+                    System.exit(0);
+                }
+            });
+            frame.setVisible(true);
         });
+    }
+
+    /** The main window: the notebook that {@code store} keeps, with the old history migrated into it on the first start. */
+    static NotebookFrame createWindow(NotebookStore store, DisplayModeStore modeStore) {
+        return new NotebookFrame(NotebookPresenter.open(store, modeStore));
+    }
+
+    // Cmd+Q on macOS quits without closing the windows by default: close them, so that a line being typed is validated.
+    private static void closeWindowsOnQuit() {
+        if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.APP_QUIT_STRATEGY)) {
+            Desktop.getDesktop().setQuitStrategy(QuitStrategy.CLOSE_ALL_WINDOWS);
+        }
     }
 
     private static void useSystemLookAndFeel() {

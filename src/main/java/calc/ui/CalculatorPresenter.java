@@ -329,30 +329,12 @@ public class CalculatorPresenter {
         }
     }
 
-    // Explains the exactness mark: the error bound of an approximate value, the exact value behind a cut text.
-    private static String describe(FormattedValue result) {
-        if (!result.exact()) {
-            return "Erreur maximale : " + result.errorBound().orElseThrow();
-        }
-        if (result.truncated()) {
-            return "Valeur exacte : " + result.exactFraction().orElse(result.canonical()) + " (affichage arrondi)";
-        }
-        return "";
-    }
-
-    // The exact fraction is secondary information when the main text cuts the value and does not already show it.
-    private static String secondaryFraction(FormattedValue result) {
-        return result.exactFraction()
-                .filter(fraction -> result.truncated() && !fraction.equals(result.text()))
-                .orElse("");
-    }
-
     private HistoryLine historyLine(CalculationRecord record) {
         return historyLines.computeIfAbsent(record, entry -> {
             FormattedValue formatted = displayMode == DisplayMode.AUTO
                     ? entry.getFormatted()
                     : ValueFormatter.format(entry.getResult(), displayMode);
-            return new HistoryLine(entry.getExpression(), formatted.text(), formatted.exact(), describe(formatted));
+            return new HistoryLine(entry.getExpression(), formatted.text(), formatted.exact(), ResultDescription.describe(formatted));
         });
     }
 
@@ -395,8 +377,8 @@ public class CalculatorPresenter {
                 shownFormatted == null || shownFormatted.exact(),
                 shownFormatted != null && shownFormatted.truncated(),
                 shownFormatted != null ? shownFormatted.errorBound().orElse("") : "",
-                shownFormatted != null ? secondaryFraction(shownFormatted) : "",
-                shownFormatted != null ? describe(shownFormatted) : "",
+                shownFormatted != null ? ResultDescription.secondaryFraction(shownFormatted) : "",
+                shownFormatted != null ? ResultDescription.describe(shownFormatted) : "",
                 statusMessage,
                 statusTone,
                 history,
