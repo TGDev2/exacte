@@ -52,6 +52,19 @@ public final class Notebook {
         return new Notebook(lines, id);
     }
 
+    /**
+     * A notebook of these lines, identifiers included, to rebuild a persisted notebook. The identifiers must be distinct;
+     * new lines continue after the largest one.
+     */
+    public static Notebook restore(List<Line> lines) throws NotebookException {
+        requireRoom(lines.size());
+        long next = 1;
+        for (Line line : lines) {
+            next = Math.max(next, line.id().value() + 1);
+        }
+        return new Notebook(new ArrayList<>(lines), next);
+    }
+
     public List<Line> lines() {
         return lines;
     }

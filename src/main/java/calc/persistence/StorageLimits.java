@@ -35,6 +35,19 @@ public final class StorageLimits {
     /** Longest JSON number literal, in characters. Only {@code version} is a number: no value is ever one. */
     public static final int MAX_NUMBER_LENGTH = 32;
 
+    /**
+     * Largest notebook file, in bytes (docs/adr/0009-documents-et-exports.md, section 5): 5000 lines of 1000 characters of
+     * three bytes each fill about 15 MB, and a notebook is never shortened to fit, so the limit is higher than the history's.
+     */
+    public static final int MAX_NOTEBOOK_FILE_BYTES = 16 * 1024 * 1024;
+
+    /**
+     * Most JSON values (objects, arrays, strings, numbers...) in a notebook file. A line is three values, so this leaves a
+     * factor of six over a full notebook for the unknown fields of later versions, and refuses a file of millions of tiny
+     * values before it fills the memory.
+     */
+    public static final int MAX_NOTEBOOK_JSON_VALUES = 100_000;
+
     private StorageLimits() {
     }
 }
