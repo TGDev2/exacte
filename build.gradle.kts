@@ -1,4 +1,5 @@
 import java.io.ByteArrayOutputStream
+import java.util.Properties
 import javax.inject.Inject
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import org.gradle.api.tasks.testing.logging.TestLogEvent
@@ -6,7 +7,9 @@ import org.gradle.api.tasks.testing.logging.TestLogEvent
 plugins {
     java
     application
+    jacoco
     id("org.cyclonedx.bom") version "3.5.1"
+    id("info.solidsoft.pitest") version "1.19.0"
 }
 
 group = "calc"
@@ -81,6 +84,73 @@ tasks.test {
         showCauses = true
         showStackTraces = true
     }
+}
+
+jacoco {
+    toolVersion = "0.8.16"
+}
+
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+    reports {
+        xml.required = true
+        html.required = true
+        csv.required = false
+    }
+}
+
+tasks.test {
+    finalizedBy(tasks.jacocoTestReport)
+}
+
+// Coverage thresholds per package, fixed from the measures (config/quality-thresholds.properties, docs/TESTS.md).
+val qualityThresholds = Properties().apply {
+    file("config/quality-thresholds.properties").reader(Charsets.UTF_8).use { load(it) }
+}
+
+tasks.jacocoTestCoverageVerification {
+    dependsOn(tasks.test)
+    violationRules {
+        qualityThresholds.stringPropertyNames().filter { it.startsWith("jacoco.line.") }.sorted().forEach { key ->
+            val pkg = key.removePrefix("jacoco.line.")
+            rule {
+                element = "PACKAGE"
+                includes = listOf(pkg)
+                limit {
+                    counter = "LINE"
+                    minimum = BigDecimal(qualityThresholds.getProperty(key)).movePointLeft(2)
+                }
+                limit {
+                    counter = "BRANCH"
+                    minimum = BigDecimal(qualityThresholds.getProperty("jacoco.branch.$pkg")).movePointLeft(2)
+                }
+            }
+        }
+    }
+}
+
+tasks.check {
+    dependsOn(tasks.jacocoTestCoverageVerification)
+}
+
+apply(from = "gradle/conformity.gradle.kts")
+
+// Mutation testing of the critical packages (measures, thresholds and CI strategy: docs/TESTS.md).
+pitest {
+    pitestVersion = "1.30.1"
+    junit5PluginVersion = "1.2.3"
+    // `-PpitTargets=calc.number.*` narrows a run to one package (faster while working on surviving mutants).
+    targetClasses = providers.gradleProperty("pitTargets").map { it.split(",") }
+        .orElse(listOf("calc.number.*", "calc.format.*", "calc.expression.*", "calc.notebook.*", "calc.persistence.*"))
+    targetTests = listOf("calc.*")
+    // The window tests need a display and do not exercise the mutated packages.
+    excludedGroups = listOf("ui", "property", "robustness")
+    // Tests of speed and of huge files: slow, and their budgets are meaningless under mutation.
+    excludedTestClasses = listOf("calc.persistence.HostileFilesTest", "calc.persistence.NotebookHostileFilesTest", "calc.persistence.StoreLockTest", "*PerformanceTest", "*ResponsivenessTest", "calc.number.NumericLimitsTest", "calc.expression.ExpressionRobustnessTest")
+    timeoutConstInMillis = 8000
+    threads = Runtime.getRuntime().availableProcessors()
+    outputFormats = listOf("XML", "HTML")
+    timestampedReports = false
 }
 
 tasks.jar {

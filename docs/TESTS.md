@@ -430,6 +430,44 @@ interface (`NotebookDialogs`) que les tests remplacent par `FakeDialogs`. Aucun 
 
 Mesures (`gradlew clean check`, Windows 11, JDK 21) : 1057 tests, 0 ignoré, 0 échec, contre 1090 avant E13 (3505 lignes retirées avec l'ancien formulaire et ses tests, les tests du menu Fichier et de la parité ajoutés).
 
+## Garanties du produit
+
+Chaque ligne du tableau est une promesse faite à l'utilisateur, avec les classes de test qui la vérifient. Le rapport de
+conformité (`gradlew conformityReport`, voir « Couverture, mutation et rapport de conformité ») lit ce tableau : il échoue
+si une garantie n'a aucune classe de test, si une classe citée n'a produit aucun résultat, et il signale une garantie dont
+un test a échoué ou a été ignoré. Les identifiants sont stables ; ajouter une garantie, c'est ajouter une ligne.
+
+| Id | Garantie | Classes de test |
+|---|---|---|
+| G01 | Les calculs `+ − × ÷` et les puissances entières sont exacts (fractions), égaux à un oracle indépendant | `ArithmeticProperties`, `ExactnessProperties`, `RationalProperties`, `CalculatorEngineTest` |
+| G02 | Une valeur approchée (racine non exacte) contient toujours la vraie valeur et porte une borne d'erreur | `CertifiedValueProperties`, `CertifiedValueTest`, `ExactnessProperties` |
+| G03 | Une valeur non nulle n'est jamais affichée 0, et « ≈ » marque exactement les valeurs approchées, dans les quatre modes | `FormatterProperties`, `ValueFormatterTest`, `DisplayRulesTest` |
+| G04 | Réutiliser un résultat (`ans`, `$n`) ne perd rien : `1 / 3` puis `× 3` donne exactement 1 | `NotebookLosslessChainProperties`, `NotebookParityTest`, `HistoryBridgeProperties`, `HistoryBridgeTest` |
+| G05 | La saisie accepte virgule ou point, notation scientifique, fractions et milliers insécables, et ne lève jamais d'exception inattendue | `InputProperties`, `InputFuzzProperties`, `RationalParseFuzzProperties` |
+| G06 | Chaque erreur a un message en français, un code et une position exacte | `ErrorProperties`, `ExpressionErrorsTest`, `CalculatorEngineTest` |
+| G07 | Les tailles sont bornées avant tout calcul coûteux : pas de gel sur une entrée énorme | `SizeLimitsTest`, `NumericLimitsTest`, `ExpressionRobustnessTest` |
+| G08 | Le langage d'expressions est cohérent : imprimer puis relire redonne l'arbre, l'évaluation égale le noyau, les exemples du guide sont vrais | `ExpressionRoundTripProperties`, `ExpressionDifferentialProperties`, `ExpressionEvaluationTest`, `ExpressionGuideTest` |
+| G09 | L'analyseur donne un résultat ou une erreur positionnée pour toute ligne, sans débordement de pile | `ExpressionFuzzProperties`, `ExpressionRobustnessTest` |
+| G10 | Insérer, déplacer ou supprimer des lignes renumérote les références `$n` sans changer leur cible | `ReferenceRewriteProperties`, `ReferenceRewriterTest`, `NotebookEditingTest`, `NotebookStatefulProperties` |
+| G11 | La sémantique du carnet (`ans`, variables, dépendances, erreurs en cascade) est celle de l'ADR 0008 | `NotebookSemanticsTest`, `NotebookEditingTest`, `NotebookStatefulProperties` |
+| G12 | Annuler et rétablir restituent exactement le carnet et ses résultats | `NotebookEditingTest`, `NotebookStatefulProperties`, `NotebookPresenterTest` |
+| G13 | Un carnet enregistré puis relu est identique (textes, identifiants, mode, résultats après recalcul), octet pour octet à la réécriture | `NotebookRoundTripProperties`, `NotebookCodecTest` |
+| G14 | Un fichier hostile ou abîmé est refusé avec une cause, vite, sans exception inattendue, et ne remplace jamais le fichier existant | `NotebookFileFuzzProperties`, `NotebookHostileFilesTest`, `HostileFilesTest`, `HistoryJsonFuzzProperties` |
+| G15 | L'écriture est atomique : un échec laisse l'ancien fichier intact, sans fichier temporaire | `NotebookStoreTest`, `JsonHistoryStoreTest`, `AtomicFileWriterTest`, `DocumentServiceTest` |
+| G16 | Un fichier d'une version plus récente s'ouvre en lecture seule et n'est jamais réécrit | `NotebookStoreTest`, `JsonHistoryStoreTest`, `DocumentServiceTest` |
+| G17 | Une seule instance écrit : la seconde est en lecture seule, et le verrou est rendu si le processus est tué | `StoreLockTest`, `NotebookStoreTest` |
+| G18 | L'ancien historique est migré sans perte (sauvegarde identique octet pour octet, migration idempotente) | `LegacyMigrationTest`, `NotebookMigrationTest`, `LegacyTsvReaderFuzzProperties`, `LegacyTsvReaderTest` |
+| G19 | Les documents (nouveau, ouvrir, enregistrer, enregistrer sous, modifié, confirmations) ne perdent aucune modification | `DocumentServiceTest`, `NotebookFilesTest`, `NotebookFrameFilesTest` |
+| G20 | Les exports Markdown et CSV sont fidèles aux fichiers de référence et ne peuvent pas déclencher une formule de tableur ni injecter de balise | `NotebookExporterTest`, `NotebookExportProperties` |
+| G21 | Tout se fait au clavier, avec le modificateur de menu de chaque système, sans conflit de touche | `NotebookFrameTest`, `NotebookFrameFilesTest`, `NotebookShortcutConflictTest`, `ModeShortcutConflictTest` |
+| G22 | Chaque ligne est accessible (nom, description, ordre de focus) et chaque couleur de texte atteint un contraste de 4,5:1 | `NotebookFrameTest`, `NotebookPaletteContrastTest`, `PaletteContrastTest` |
+| G23 | L'interface reste réactive : 500 lignes se recalculent et se peignent en moins de 100 ms | `NotebookPerformanceTest`, `NotebookResponsivenessTest`, `NotebookFrameResponsivenessTest` |
+| G24 | Les textes visibles sont accentués | `VisibleTextsTest` |
+| G25 | Les couches ne dépendent que vers le bas : le modèle n'importe ni Swing ni la persistance, les services aucune interface | `NotebookDependenciesTest`, `ServicesDependenciesTest` |
+| G26 | L'application démarre sur un historique v1, le migre et retrouve son carnet au démarrage suivant | `MainStartupTest` |
+| G27 | Aucune sortie du moteur ne change sans qu'un test de référence le voie (70 cas rejoués) | `GoldenOutputsTest`, `DisplayRulesTest` |
+| G28 | Toute classe jqwik porte l'étiquette `property` ou `robustness` : aucune propriété ne sort silencieusement d'un sous-ensemble | `PropertyTagsTest` |
+
 ## Défauts trouvés par les propriétés
 
 1. **Une entrée valide était perdue au rechargement** (corrigé). Repéré d'abord par un exemple visant le piège noté en E4,
@@ -475,7 +513,8 @@ Mesures (`gradlew clean check`, Windows 11, JDK 21) : 1057 tests, 0 ignoré, 0 �
    est plafonnée à 100 ; `ExpressionRobustnessTest` le vérifie sur une pile de 512 Ko (256 Ko suffisaient sous Windows
    mais débordaient sous macOS arm64, découvert par la CI).
 
-## Limites connues
+## Limites connues et points non vérifiés
+
 
 - Le budget de 100 ms de `InputFuzzProperties` est une mesure de temps : il prend le meilleur de deux essais et suit un échauffement, mais une machine très chargée peut encore l'invalider.
 - Le recalcul d'un carnet hostile est borné par ligne, pas annulable : les neuf formes de lignes lourdes mesurées (E11) restent sous la seconde pour 5000 lignes, mais aucune preuve ne dit qu'aucune forme n'est plus lente.
@@ -485,3 +524,8 @@ Mesures (`gradlew clean check`, Windows 11, JDK 21) : 1057 tests, 0 ignoré, 0 �
 - Les générateurs choisissent leurs formes de valeurs : les cas non prévus (autres alphabets d'espaces, très gros nombres de lignes d'historique) ne sont pas couverts. `-Pjqwik.tries.default=20000` élargit la recherche sans rien changer au code.
 - Le modèle de session du présentateur reproduit la règle de la mémoire des champs : une erreur commune au modèle et au présentateur ne serait pas vue ; `CalculatorPresenterTest` la fixe aussi par des exemples.
 - L'oracle n'a qu'une précision de 200 chiffres : les propriétés qui l'utilisent gardent des opérandes assez courts pour que le résultat exact y tienne, et vérifient que c'est bien le cas.
+- Les applications publiées ne sont pas signées, et seul le JAR est reproductible d'une construction à l'autre (pas l'image d'application) : voir `docs/RELEASE.md`.
+- Le workflow `release.yml` et le packaging macOS et Linux n'ont pas encore été exécutés sur GitHub ; la CI n'a pas encore exécuté les contrôles de couverture et de mutation ajoutés en E15 : leurs résultats sur les trois systèmes ne sont pas vérifiés.
+- La mutation ne porte que sur les cinq packages critiques (`calc.number`, `calc.format`, `calc.expression`, `calc.notebook`, `calc.persistence`) : l'interface, le moteur historique, les documents et les exports ne sont pas mutés. Un score élevé dit que les tests détectent les défauts simulés par PIT, pas qu'il n'y en a aucun.
+- La couverture des packages `calc.ui*` dépend de la présence d'un affichage (tests `ui`) : elle est rapportée mais pas soumise à un seuil.
+- Le nombre d'essais des propriétés jqwik n'est pas dans les rapports JUnit quand tout réussit (voir « Couverture, mutation et rapport de conformité ») : le rapport de conformité l'indique « non disponible » tant que `jqwik.reporting.onlyfailures` reste à `true`.
