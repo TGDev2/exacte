@@ -54,6 +54,11 @@ public final class NotebookHelp {
         return text.toString();
     }
 
+    public static String about(String versionText) {
+        return "Calc\n" + versionText + "\n\n"
+                + "Le calcul et les données restent sur l'ordinateur : rien n'est envoyé sur le réseau.";
+    }
+
     public static String shortcuts(NotebookShortcuts shortcuts) {
         StringBuilder text = new StringBuilder();
         for (NotebookShortcuts.Command command : NotebookShortcuts.Command.values()) {

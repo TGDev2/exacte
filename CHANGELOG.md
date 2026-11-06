@@ -8,6 +8,8 @@ tout ce qui suit est dans la prochaine version. Le numéro sera choisi au moment
 
 ### Ajouté
 
+- **Aide > À propos de Calc** affiche la version de l'application (« Version de développement » hors application
+  empaquetée).
 - **Un carnet de calcul** comme fenêtre principale : une expression par ligne, avec variables (`prix = 12,5`), `ans` (le
   dernier résultat) et `$n` (le résultat de la ligne n), commentaires, annuler / rétablir, renumérotation automatique des
   références quand on insère, déplace ou supprime des lignes, sauvegarde automatique.

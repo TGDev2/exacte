@@ -107,6 +107,11 @@ Le modificateur de menu est `Ctrl` sous Windows et Linux, `Cmd` sous macOS. La l
 Sous macOS, ces touches sont vérifiées par leur liaison dans la fenêtre avec `Cmd` simulé ; elles n'ont pas été essayées sur
 un clavier Mac réel.
 
+## Version
+
+Le numéro de version de l'application empaquetée se lit dans **Aide > À propos de Calc** ; une exécution depuis les sources
+affiche « Version de développement ».
+
 ## Où sont mes données
 
 Le dossier de données dépend du système :
