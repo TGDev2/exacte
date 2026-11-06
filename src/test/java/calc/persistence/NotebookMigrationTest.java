@@ -54,9 +54,9 @@ class NotebookMigrationTest {
                 new Expected("bom-header.tsv", List.of("1 + 2"), List.of("3"), "Votre historique a été converti en carnet (1 ligne)."),
                 new Expected("empty.tsv", List.of(), List.of(), "Votre historique a été converti en carnet (0 ligne)."),
                 new Expected("one-corrupted-line.tsv", List.of("1 + 2", "3 * 4"), List.of("3", "12"),
-                        "Votre historique a été converti en carnet (2 lignes)."),
-                new Expected("inconsistent.tsv", List.of(), List.of(), "Votre historique a été converti en carnet (0 ligne)."),
-                new Expected("wrong-result.tsv", List.of(), List.of(), "Votre historique a été converti en carnet (0 ligne)."))
+                        "Votre historique a été converti en carnet (2 lignes). 1 ligne n'a pas pu être reprise : elle reste dans history.tsv.v1.bak."),
+                new Expected("inconsistent.tsv", List.of(), List.of(), "Votre historique a été converti en carnet (0 ligne). 1 ligne n'a pas pu être reprise : elle reste dans history.tsv.v1.bak."),
+                new Expected("wrong-result.tsv", List.of(), List.of(), "Votre historique a été converti en carnet (0 ligne). 1 ligne n'a pas pu être reprise : elle reste dans history.tsv.v1.bak."))
                 .map(Arguments::of);
     }
 

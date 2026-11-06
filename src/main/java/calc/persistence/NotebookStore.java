@@ -106,7 +106,17 @@ public final class NotebookStore implements AutoCloseable {
     public boolean isReserved(Path file) {
         Path candidate = file.toAbsolutePath().normalize();
         return Stream.of(CURRENT_FILE, HISTORY_FILE, "history.tsv", "history.lock")
-                .anyMatch(name -> candidate.equals(directory.resolve(name).toAbsolutePath().normalize()));
+                .map(name -> directory.resolve(name).toAbsolutePath().normalize())
+                .anyMatch(reserved -> candidate.equals(reserved) || sameFileOnDisk(candidate, reserved));
+    }
+
+    // Another spelling of the same file: a link, a junction, or a trailing dot that Windows ignores.
+    private static boolean sameFileOnDisk(Path first, Path second) {
+        try {
+            return Files.exists(first) && Files.exists(second) && Files.isSameFile(first, second);
+        } catch (IOException | SecurityException exception) {
+            return false;
+        }
     }
 
     /** Releases the lock. The store still loads; it no longer protects the files from another instance. */
@@ -237,8 +247,21 @@ public final class NotebookStore implements AutoCloseable {
             status += " Les " + converted.omittedEntries() + " entrées les plus anciennes restent "
                     + (backup == null ? "dans l'historique d'origine." : "dans la sauvegarde " + backup.getFileName() + ".");
         }
+        status += rejectionNotice(loaded);
         return new LoadedNotebook(converted.notebook(), DisplayMode.AUTO, Condition.MIGRATED, status, lines,
                 converted.commentedEntries(), converted.omittedEntries(), backup);
+    }
+
+    // The lines of the history that are not in the notebook, and the file that still holds them.
+    private static String rejectionNotice(HistoryLoadResult loaded) {
+        int rejected = loaded.rejections().size();
+        if (rejected == 0) {
+            return "";
+        }
+        String holder = loaded.backupFile() == null ? "l'historique d'origine" : loaded.backupFile().getFileName().toString();
+        return rejected == 1
+                ? " 1 ligne n'a pas pu être reprise : elle reste dans " + holder + "."
+                : " " + rejected + " lignes n'ont pas pu être reprises : elles restent dans " + holder + ".";
     }
 
     private LoadedNotebook notConverted(String status) {

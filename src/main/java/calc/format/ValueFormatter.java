@@ -1,6 +1,7 @@
 package calc.format;
 
 import calc.number.CertifiedValue;
+import calc.number.NumericException;
 import calc.number.Rational;
 import java.math.BigDecimal;
 import java.math.MathContext;
@@ -56,7 +57,7 @@ public final class ValueFormatter {
         Optional<String> exactFraction = exact && !value.lower().isInteger()
                 ? Optional.of(value.lower().toString())
                 : Optional.empty();
-        Optional<String> errorBound = exact ? Optional.empty() : Optional.of("± " + errorBound(value.radius()));
+        Optional<String> errorBound = exact ? Optional.empty() : Optional.of("± " + errorBound(errorFromText(value)));
         return new FormattedValue(shown.text(), exactFraction, exact, shown.truncated(), shown.switched(), errorBound,
                 canonical(value));
     }
@@ -210,16 +211,50 @@ public final class ValueFormatter {
      * one significant digit.
      */
     private static Digits approximateDigits(CertifiedValue value) {
+        int digits = commonDigits(value);
+        if (digits > 0) {
+            return new Digits(withoutCarryDigit(round(value.lower(), digits - 1 - magnitudeExponent(value)), digits), false, true);
+        }
+        return new Digits(withoutCarryDigit(roughCentre(value), 1), false, true);
+    }
+
+    // The number of significant digits on which the whole interval agrees, 0 if there is none.
+    private static int commonDigits(CertifiedValue value) {
         int exponent = magnitudeExponent(value);
         for (int digits = SIGNIFICANT_DIGITS; digits >= 1; digits--) {
             int scale = digits - 1 - exponent;
-            BigDecimal lower = round(value.lower(), scale);
-            if (lower.compareTo(round(value.upper(), scale)) == 0) {
-                return new Digits(withoutCarryDigit(lower, digits), false, true);
+            if (round(value.lower(), scale).compareTo(round(value.upper(), scale)) == 0) {
+                return digits;
             }
         }
+        return 0;
+    }
+
+    private static BigDecimal roughCentre(CertifiedValue value) {
         Rational centre = value.midpoint();
-        return new Digits(withoutCarryDigit(round(centre, -exponent(centre)), 1), false, true);
+        return round(centre, -exponent(centre));
+    }
+
+    /**
+     * What « ± r » has to cover. Digits common to the whole interval are its correct rounding and r is its radius; but a
+     * text that reads 0 or a rough centre may lie far from the centre, and r then runs from that text to the farther bound.
+     */
+    private static Rational errorFromText(CertifiedValue value) {
+        if (!containsZero(value) && commonDigits(value) > 0) {
+            return value.radius();
+        }
+        Rational shown = containsZero(value) ? Rational.ZERO : exactly(roughCentre(value));
+        Rational toLower = shown.subtract(value.lower()).abs();
+        Rational toUpper = value.upper().subtract(shown).abs();
+        return toLower.compareTo(toUpper) >= 0 ? toLower : toUpper;
+    }
+
+    private static Rational exactly(BigDecimal decimal) {
+        try {
+            return Rational.parse(decimal.toPlainString());
+        } catch (NumericException exception) {
+            throw new IllegalStateException("A rounded value of the formatter cannot be read back: " + decimal, exception);
+        }
     }
 
     // 9,9996 rounded to four digits is 10,000: one digit too many, and the last one is a 0 that can be dropped exactly

@@ -1,5 +1,6 @@
 package calc.persistence;
 
+import calc.engine.Operation;
 import calc.number.CertifiedValue;
 import calc.number.Rational;
 import java.math.BigDecimal;
@@ -39,6 +40,31 @@ final class LegacyRounding {
     static Optional<BigDecimal> of(CertifiedValue value, Function<Rational, BigDecimal> policy) {
         BigDecimal lower = policy.apply(value.lower());
         return lower.compareTo(policy.apply(value.upper())) == 0 ? Optional.of(lower) : Optional.empty();
+    }
+
+    /**
+     * First version 1 writer: the operation computed in {@code double}, the result stored as {@code Double.toString}. Its
+     * text has up to 17 significant digits, which no decimal policy above can check, so it must be exactly what it wrote.
+     */
+    static boolean writtenAsDouble(Operation operation, String first, String second, String stored) {
+        try {
+            double a = number(first);
+            double result = switch (operation) {
+                case ADDITION -> a + number(second);
+                case SUBTRACTION -> a - number(second);
+                case MULTIPLICATION -> a * number(second);
+                case DIVISION -> a / number(second);
+                case POWER -> Math.pow(a, number(second));
+                case ROOT -> Math.sqrt(a);
+            };
+            return Double.toString(result).equals(stored.trim());
+        } catch (NumberFormatException exception) {
+            return false;
+        }
+    }
+
+    private static double number(String operand) {
+        return Double.parseDouble(operand.trim().replace(',', '.'));
     }
 
     /** Whether the decimal and the rational are the same number. */
