@@ -80,7 +80,7 @@ We will keep the model on the event thread and move only the evaluation.
   the selector of the modes, whose open list keeps the key. In a menu, the menu takes it.
 - The store loads on the main thread, before the event thread takes over: the migration of an old history checks each entry with
   one evaluation (`HistoryBridge`), and that is no longer on the event thread either.
-- The rows are still not virtualised. A large notebook takes about a second more to appear in full, and the scroll bar grows
+- The rows are still not virtualised. A notebook of 5000 lines takes 1.5 to 2.7 s to appear in full (measured), and the scroll bar grows
   meanwhile. The window of a test that reads a far row after an Open must wait for it (`NotebookDriver.awaitWindows`).
 - A command that changes the results of every line of a large notebook still updates its rows in one event: validating line 1 of
   5000 ordinary lines holds the event thread for about 170 to 400 ms (`NotebookFrameResponsivenessTest`). This is the existing

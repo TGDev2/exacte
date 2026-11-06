@@ -16,7 +16,7 @@ répétée ici) ; elle est aussi résumée dans le menu **Aide > Syntaxe des exp
 - Annuler et rétablir portent sur les lignes **validées**. `Échap` abandonne la saisie en cours dans la ligne.
 - Le calcul se fait en arrière-plan : la fenêtre répond toujours, même sur un très gros carnet. Une ligne pas encore calculée
   affiche « Calcul en cours… » et la barre d'état compte « Calcul en cours : n / N lignes ». Toute nouvelle commande remplace le
-  calcul en cours. Les lignes d'un très gros carnet apparaissent par tranches, en une seconde environ.
+  calcul en cours. Les lignes d'un très gros carnet apparaissent par tranches, en 2 à 3 secondes pour 5000 lignes.
 - Sans saisie en cours, `Échap` interrompt le calcul : les lignes restantes disent « Non calculée : calcul interrompu », et la
   commande suivante (valider, ajouter, supprimer, annuler, rétablir, changer de mode, ouvrir, Nouveau, exporter) relance le
   calcul. Se déplacer d'une ligne à l'autre ne le relance pas.
