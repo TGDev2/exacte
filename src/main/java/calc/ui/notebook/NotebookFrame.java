@@ -42,6 +42,7 @@ import javax.swing.JPanel;
 import javax.swing.JRadioButtonMenuItem;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
+import javax.swing.JViewport;
 import javax.swing.Scrollable;
 import javax.swing.SwingUtilities;
 
@@ -106,8 +107,10 @@ public final class NotebookFrame extends JFrame {
         scrollPane.getViewport().addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent event) {
-                // The empty space under the lines: go to the new line at the end.
-                rows.get(rows.size() - 1).field.requestFocusInWindow();
+                // The empty space under the lines: go to the new line at the end, which does not exist yet while the rows appear.
+                if (!growing) {
+                    rows.get(rows.size() - 1).field.requestFocusInWindow();
+                }
             }
         });
 
@@ -563,6 +566,11 @@ public final class NotebookFrame extends JFrame {
     /** Whether a calculation is under way or rows are still to build: a test waits for the end. */
     boolean isCalculating() {
         return presenter.isCalculating() || growing;
+    }
+
+    /** The view under the rows, which takes a click on the empty space. */
+    JViewport scrollViewport() {
+        return scrollPane.getViewport();
     }
 
     /** The view model now shown. */

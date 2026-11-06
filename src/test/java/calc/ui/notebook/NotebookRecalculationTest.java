@@ -25,6 +25,8 @@ import java.awt.SecondaryLoop;
 import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
 import java.awt.event.WindowEvent;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -43,6 +45,7 @@ import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import javax.swing.Action;
 import javax.swing.JComponent;
+import javax.swing.JViewport;
 import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
 import org.junit.jupiter.api.AfterEach;
@@ -607,6 +610,64 @@ class NotebookRecalculationTest {
                 assertEquals("302", frame[0].row(299).resultLabel.getText());
                 assertEquals("« autre.calc.json » ouvert (300 lignes).", frame[0].statusLabel().getText());
             });
+        } finally {
+            EventQueue.invokeAndWait(frame[0]::dispose);
+        }
+    }
+
+    /** On a tall screen the first rows do not fill the view: a click under them, while the others appear, is not on the last line. */
+    @Test
+    @Tag("ui")
+    void aClickUnderTheRowsWhileTheyAppearActivatesNoLine() throws Exception {
+        boolean headless = GraphicsEnvironment.isHeadless();
+        if (headless && Boolean.getBoolean("calc.ui.required")) {
+            fail("UI tests require a graphical environment (-PrequireUiTests=true): no display is available, so the ui tests cannot run.");
+        }
+        assumeFalse(headless, "UI tests require a graphical environment.");
+
+        List<String> lines = new ArrayList<>();
+        for (int line = 1; line <= 2000; line++) {
+            lines.add("1 + " + line);
+        }
+        Path file = root.resolve("grand.calc.json");
+        Files.write(file, NotebookCodec.encode(Notebook.of(lines), DisplayMode.AUTO).bytes());
+        store.saveCurrent(Notebook.empty(), DisplayMode.AUTO);
+
+        NotebookFrame[] frame = new NotebookFrame[1];
+        EventQueue.invokeAndWait(() -> {
+            frame[0] = new NotebookFrame(NotebookPresenter.open(store, store.load(), DisplayModeStore.noop(), dialogs, NotebookPresenter.newRecalculationExecutor()));
+            frame[0].setVisible(true);
+            frame[0].toFront();
+        });
+        try {
+            assumeTrue(awaitOnEdt(() -> frame[0].row(0).field.isFocusOwner()), "a system without a window manager gives no focus: nothing here can be observed");
+            dialogs.willOpen(file);
+            boolean[] clicked = new boolean[1];
+            EventQueue.invokeAndWait(() -> {
+                frame[0].row(0).field.getActionMap().get("notebook-OPEN_DOCUMENT").actionPerformed(new ActionEvent(frame[0], 0, ""));
+                assertTrue(frame[0].rowCount() < 2001, "the rows are still appearing");
+                JViewport viewport = frame[0].scrollViewport();
+                MouseEvent click = new MouseEvent(viewport, MouseEvent.MOUSE_PRESSED, System.currentTimeMillis(), 0, 5, 5, 1, false);
+                for (MouseListener listener : viewport.getMouseListeners()) {
+                    listener.mousePressed(click);
+                    clicked[0] = true;
+                }
+            });
+            assertTrue(clicked[0], "the view listens to the mouse");
+            NotebookDriver.awaitWindows();
+            assertTrue(awaitOnEdt(() -> frame[0].rowCount() == 2001));
+            NotebookDriver.awaitWindows();
+            EventQueue.invokeAndWait(() -> assertEquals(0, frame[0].shown().activeIndex(), "the first line stays active"));
+
+            // Once they are all there, the click goes to the new line at the end, as it always did.
+            EventQueue.invokeAndWait(() -> {
+                JViewport viewport = frame[0].scrollViewport();
+                MouseEvent click = new MouseEvent(viewport, MouseEvent.MOUSE_PRESSED, System.currentTimeMillis(), 0, 5, 5, 1, false);
+                for (MouseListener listener : viewport.getMouseListeners()) {
+                    listener.mousePressed(click);
+                }
+            });
+            assertTrue(awaitOnEdt(() -> frame[0].shown().activeIndex() == 2000), "the new line at the end");
         } finally {
             EventQueue.invokeAndWait(frame[0]::dispose);
         }
