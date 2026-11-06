@@ -39,7 +39,7 @@ Tests par tag, sur la branche de recette à `55a2a4f` (`-PincludeTags=...`, avec
 - Dernière CI verte sur `main` (run 40499634648, `137d4cb`) : Windows, macOS, Ubuntu et JAR reproductible. Le workflow impose `-PrequireUiTests=true` ; les journaux de ce run n'ont pas été lus.
 - Releases : **aucune**. `gh release list` est vide et `gh run list --workflow=Release` aussi : le workflow n'a jamais tourné. SHA256SUMS, SBOM et archives publiées n'ont pas pu être contrôlés.
 
-**Contrôle final de la branche.** Voir la dernière ligne de cette section : RESULTAT_FINAL
+**Contrôle final de la branche, rapport inclus.** `.\gradlew.bat test --rerun --tests *AcceptanceTest` : BUILD SUCCESSFUL, 92 tests, 0 échec, 0 ignoré. `.\gradlew.bat clean check -PrequireUiTests=true` : BUILD SUCCESSFUL en 1 min 8, 1209 tests (1114 + 92 de recette + 3 de ReservedFileAliasTest), 91 classes, 0 échec, 0 ignoré.
 
 ## 3. Résultats par garantie
 
