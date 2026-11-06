@@ -75,7 +75,7 @@ class ValueFormatterTest {
         assertTrue(ValueFormatter.format(root, DisplayMode.FRACTION).notationSwitched(), "The centre is a long binary fraction.");
 
         CertifiedValue maybeZero = root.subtract(root);
-        assertEquals("≈ 0", text(maybeZero, DisplayMode.AUTO), "An interval around 0 may really be 0.");
+        assertEquals("|x| ≤ 4,2 × 10⁻²⁵", text(maybeZero, DisplayMode.AUTO), "An interval around 0 may really be 0.");
         assertEquals("0", ValueFormatter.canonical(maybeZero));
     }
 

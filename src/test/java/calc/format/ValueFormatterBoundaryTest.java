@@ -70,9 +70,9 @@ class ValueFormatterBoundaryTest {
         CertifiedValue negative = between(Rational.of(-1, 3), Rational.ZERO);
 
         for (CertifiedValue value : new CertifiedValue[] {positive, negative}) {
-            assertEquals("≈ 0", text(value, DisplayMode.AUTO));
-            assertEquals("≈ 0", text(value, DisplayMode.DECIMAL));
-            assertEquals("≈ 0", text(value, DisplayMode.SCIENTIFIC));
+            assertEquals("|x| ≤ 3,4 × 10⁻¹", text(value, DisplayMode.AUTO));
+            assertEquals("|x| ≤ 3,4 × 10⁻¹", text(value, DisplayMode.DECIMAL));
+            assertEquals("|x| ≤ 3,4 × 10⁻¹", text(value, DisplayMode.SCIENTIFIC));
             assertEquals("0", ValueFormatter.canonical(value));
         }
     }

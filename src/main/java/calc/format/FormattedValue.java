@@ -6,7 +6,7 @@ import java.util.Optional;
 /**
  * A value as {@link ValueFormatter} shows it in one {@link DisplayMode}.
  *
- * @param text             the main text, for instance {@code 0,333333333333…} or {@code ≈ 1,41421356237…}
+ * @param text             the main text, for instance {@code 0,333333333333…}, {@code ≈ 1,41421356237…} or {@code |x| ≤ 4,2 × 10⁻²⁵}
  * @param exactFraction    {@code p/q} for an exact value that is not an integer, empty otherwise
  * @param exact            whether the value is exact (otherwise it is only known within an interval)
  * @param truncated        whether the main text leaves out part of the value (always the case for an approximate value)
