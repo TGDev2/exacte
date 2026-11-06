@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 import calc.persistence.NotebookCodec;
+import calc.persistence.LoadedNotebook;
 import calc.persistence.NotebookStore;
 import calc.ui.DisplayModeStore;
 import calc.ui.notebook.NotebookFrame;
@@ -88,6 +89,7 @@ class MainStartupTest {
         click(fields.get(6));
         SwingUtilities.invokeAndWait(() -> fields.get(6).setText("ans * 2"));
         press(fields.get(6), KeyEvent.VK_ENTER);
+        awaitTheCalculation();
         assertEquals("8", results().get(6), "ans is the result of the last line of the migrated history");
         assertEquals(List.of("0,1 + 0,2", "10 - 2,5", "1,5 * 4", "7 / 2", "2 ^ 10", "√(16)", "ans * 2"),
                 NotebookCodec.read(data.resolve("carnet-courant.calc.json")).notebook().texts());
@@ -113,9 +115,20 @@ class MainStartupTest {
 
     private void start() throws Exception {
         store = NotebookStore.open(data);
+        // As in Main: the store loads off the event thread, which only builds the window.
+        LoadedNotebook loaded = store.load();
         NotebookFrame[] holder = new NotebookFrame[1];
-        SwingUtilities.invokeAndWait(() -> holder[0] = Main.createWindow(store, DisplayModeStore.noop()));
+        SwingUtilities.invokeAndWait(() -> holder[0] = Main.createWindow(store, loaded, DisplayModeStore.noop()));
         frame = holder[0];
+        awaitTheCalculation();
+    }
+
+    // The notebook is calculated on a background thread: the status bar counts the lines until the last one has arrived.
+    private void awaitTheCalculation() throws Exception {
+        boolean[] calculating = {true};
+        while (calculating[0]) {
+            SwingUtilities.invokeAndWait(() -> calculating[0] = status().startsWith("Calcul en cours"));
+        }
     }
 
     private String status() {

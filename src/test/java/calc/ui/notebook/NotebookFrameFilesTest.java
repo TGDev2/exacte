@@ -313,5 +313,6 @@ class NotebookFrameFilesTest {
             SwingUtilities.invokeAndWait(runnable);
         }
         SwingUtilities.invokeAndWait(() -> { });
+        NotebookDriver.awaitWindows();
     }
 }

@@ -176,7 +176,9 @@ final class NotebookRowView extends JPanel {
 
         boolean error = row.status() == Status.ERROR;
         errorLabel.setVisible(error);
-        errorLabel.setText(error ? "Erreur : " + row.errorMessage() : "");
+        // A line left by an interruption is not wrong, it is not calculated: its sentence says so by itself.
+        boolean interrupted = NotebookPresenter.INTERRUPTED_LINE.equals(row.errorMessage());
+        errorLabel.setText(!error ? "" : interrupted ? row.errorMessage() : "Erreur : " + row.errorMessage());
         errorLabel.setToolTipText(error ? row.errorMessage() : null);
         errorLabel.getAccessibleContext().setAccessibleName("Erreur de la " + row.name().toLowerCase(java.util.Locale.ROOT));
 

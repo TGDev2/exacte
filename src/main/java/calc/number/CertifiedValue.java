@@ -19,8 +19,9 @@ import java.util.Objects;
  *       approximate result of {@code add}, {@code subtract}, {@code multiply}, {@code divide}, {@code pow} and
  *       {@code sqrt} is a binary number with at most {@link NumericLimits#BOUND_SIGNIFICANT_BITS} significant bits:
  *       bounds that would need more are rounded outward, the lower one down and the upper one up, to a grid whose step
- *       is relative to their magnitude. {@link #between(Rational, Rational)} and {@link #negate()} keep the bounds they
- *       are given, exactly.</li>
+ *       is relative to their magnitude. A bound that is not zero is never rounded to 0: when the finest grid cannot bound it
+ *       without touching 0, the operation throws {@link NumericError#SIZE_LIMIT_EXCEEDED}.
+ *       {@link #between(Rational, Rational)} and {@link #negate()} keep the bounds they are given, exactly.</li>
  * </ul>
  *
  * <p>Domain errors are {@link NumericException}s carrying a {@link NumericError} code. A bound order mistake in

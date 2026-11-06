@@ -68,6 +68,7 @@ class NotebookFrameResponsivenessTest {
                 holder[0].setVisible(true);
                 holder[0].getContentPane().validate();
             });
+            NotebookDriver.awaitWindows();
             double openMillis = (System.nanoTime() - openStart) / 1e6;
             NotebookFrame frame = holder[0];
             try {
@@ -85,6 +86,7 @@ class NotebookFrameResponsivenessTest {
                     onEdt(() -> frame.row(0).field.setText(text));
                     long start = System.nanoTime();
                     onEdt(() -> pressEnter(frame));
+                    NotebookDriver.awaitWindows();
                     double stateElapsed = (System.nanoTime() - start) / 1e6;
                     onEdt(() -> {
                         frame.getContentPane().validate();

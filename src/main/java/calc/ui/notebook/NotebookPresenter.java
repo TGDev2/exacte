@@ -31,6 +31,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.Executor;
+import java.util.function.BiFunction;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -45,6 +49,11 @@ import java.util.logging.Logger;
  * undo first drops a pending draft, so that nothing the user typed is lost by surprise; redo refuses to run while a draft
  * is pending.
  *
+ * <p>The model (the texts) changes here, on the event thread; the results come from a {@link NotebookRecalculation}, which
+ * calculates elsewhere (docs/adr/0014-calcul-hors-interface.md). A line without its result yet says {@value #PENDING_RESULT}, a
+ * view model never holds an old value, and files that only hold texts are written at once. An export needs the results: it
+ * waits for them, and follows the notebook until they are there.
+ *
  * <p>Not thread safe: the Swing event thread drives it.
  */
 public final class NotebookPresenter {
@@ -57,6 +66,14 @@ public final class NotebookPresenter {
     static final String DEFAULT_STATUS = "Une expression par ligne. Entrée valide la ligne, Échap annule la saisie en cours.";
     static final String READ_ONLY_STATUS = "Calc est déjà ouvert ou le carnet est en lecture seule : les modifications ne seront pas enregistrées.";
     private static final String WATERMARK = "Une expression par ligne, par exemple : " + String.join("   ·   ", EXAMPLES);
+
+    /** What the column of the results says of a line not calculated yet. */
+    static final String PENDING_RESULT = "Calcul en cours…";
+    /** Why a line left by an interruption has no result. */
+    static final String INTERRUPTED_LINE = "Non calculée : calcul interrompu";
+    private static final BiFunction<String, Supplier<LineResult>, LineResult> JUST_EVALUATE = (text, evaluation) -> evaluation.get();
+    // For the callers that do not choose: the application gives its own, one presenter having one calculation at a time.
+    private static final Executor SHARED_CALCULATION = NotebookRecalculation.newBackgroundThread();
 
     private static final Logger LOGGER = Logger.getLogger(NotebookPresenter.class.getName());
     static final String RESERVED_FILE_STATUS = "Ce fichier est réservé à Calc : choisissez un autre nom.";
@@ -79,6 +96,17 @@ public final class NotebookPresenter {
     // The sentence of the last intention, and the one that lasts for the whole session when nothing is saved.
     private Message transientMessage;
     private final Message lastingMessage;
+    private final NotebookRecalculation recalculation;
+    // What the window hears of a calculation between two intentions; null until it listens.
+    private Consumer<NotebookViewModel> viewListener;
+    // Formatted once for the mode in force: a calculation shows a state per line, and 5000 lines are a lot to format each time.
+    private final List<ShownResult> shownResults = new ArrayList<>();
+    // Set while the lines are left without a result by Escape: what the status bar says about it.
+    private Message interruption;
+    // The file just opened, whose sentence counts the lines in error and so waits for the end of the calculation.
+    private Path openedFile;
+    private String openedNotice = "";
+    private final List<WaitingExport> waitingExports = new ArrayList<>();
 
     /**
      * @param document  the document, the untitled current notebook loaded at start
@@ -91,6 +119,15 @@ public final class NotebookPresenter {
 
     /** @param dialogs how the user is asked for a file or a confirmation (the file menu) */
     public NotebookPresenter(DocumentService document, LoadedNotebook loaded, DisplayModeStore modeStore, NotebookDialogs dialogs) {
+        this(document, loaded, modeStore, dialogs, SHARED_CALCULATION, JUST_EVALUATE);
+    }
+
+    /**
+     * @param executor       what calculates: {@link #newRecalculationExecutor()} in the application, never the event thread
+     * @param aroundEachLine called on the calculating thread with the text of each line really evaluated and its evaluation
+     */
+    NotebookPresenter(DocumentService document, LoadedNotebook loaded, DisplayModeStore modeStore, NotebookDialogs dialogs, Executor executor,
+                      BiFunction<String, Supplier<LineResult>, LineResult> aroundEachLine) {
         this.document = Objects.requireNonNull(document, "document");
         this.modeStore = Objects.requireNonNull(modeStore, "modeStore");
         this.dialogs = Objects.requireNonNull(dialogs, "dialogs");
@@ -101,10 +138,30 @@ public final class NotebookPresenter {
                 ? new Message(first != null ? first.text() : READ_ONLY_STATUS, StatusTone.ERROR)
                 : null;
         transientMessage = first;
-        if (!document.current().notebook().isEmpty()) {
-            activeId = document.current().notebook().line(1).id();
-            draft = document.current().notebook().line(1).text();
+        recalculation = new NotebookRecalculation(executor, aroundEachLine, new NotebookRecalculation.Events() {
+            @Override
+            public void progressed() {
+                tellTheView();
+            }
+
+            @Override
+            public void finished() {
+                announceOpenedFile();
+                writeWaitingExports();
+                tellTheView();
+            }
+
+            @Override
+            public void failed() {
+                interrupt("Calcul interrompu par une erreur inattendue : ");
+                tellTheView();
+            }
+        });
+        if (!document.notebook().isEmpty()) {
+            activeId = document.notebook().line(1).id();
+            draft = document.notebook().line(1).text();
         }
+        recalculate();
     }
 
     /**
@@ -115,10 +172,36 @@ public final class NotebookPresenter {
         return open(store, modeStore, NotebookDialogs.cancelling());
     }
 
+    /** One background thread named {@value NotebookRecalculation#THREAD_NAME}: what calculates in the application. */
+    public static Executor newRecalculationExecutor() {
+        return NotebookRecalculation.newBackgroundThread();
+    }
+
     /** Same as {@link #open(NotebookStore, DisplayModeStore)}, with the dialogs the file menu uses. */
     public static NotebookPresenter open(NotebookStore store, DisplayModeStore modeStore, NotebookDialogs dialogs) {
         LoadedNotebook loaded = store.load();
         return new NotebookPresenter(new DocumentService(store, loaded), loaded, modeStore, dialogs);
+    }
+
+    /** The presenter of what {@code store} has already loaded (off the event thread: a migration evaluates), calculating on {@code executor}. */
+    public static NotebookPresenter open(NotebookStore store, LoadedNotebook loaded, DisplayModeStore modeStore, NotebookDialogs dialogs, Executor executor) {
+        return new NotebookPresenter(new DocumentService(store, loaded), loaded, modeStore, dialogs, executor, JUST_EVALUATE);
+    }
+
+    static NotebookPresenter open(NotebookStore store, DisplayModeStore modeStore, NotebookDialogs dialogs, Executor executor,
+                                  BiFunction<String, Supplier<LineResult>, LineResult> aroundEachLine) {
+        LoadedNotebook loaded = store.load();
+        return new NotebookPresenter(new DocumentService(store, loaded), loaded, modeStore, dialogs, executor, aroundEachLine);
+    }
+
+    /** {@code listener} hears, on the event thread, each new state a calculation produces (the count, the results, the end). */
+    void setViewListener(Consumer<NotebookViewModel> listener) {
+        viewListener = listener;
+    }
+
+    /** Whether a calculation is under way: a test waits for its end. */
+    boolean isCalculating() {
+        return recalculation.isRunning();
     }
 
     private static StatusTone toneOf(LoadedNotebook.Condition condition) {
@@ -134,7 +217,7 @@ public final class NotebookPresenter {
 
     /** The current state, without any change. */
     public NotebookViewModel currentView() {
-        return view(NotebookFocus.NONE);
+        return snapshot(NotebookFocus.NONE);
     }
 
     /** Enter: validates the active line, then moves to the next one, or adds a line at the end unless the last one is blank. */
@@ -143,7 +226,8 @@ public final class NotebookPresenter {
         if (!commitDraft()) {
             return view(NotebookFocus.ACTIVE_LINE);
         }
-        if (activeIndex() < document.current().notebook().size()) {
+        calculateAgainIfInterrupted();
+        if (activeIndex() < document.notebook().size()) {
             select(activeIndex() + 1);
         }
         return view(NotebookFocus.ACTIVE_LINE);
@@ -156,7 +240,7 @@ public final class NotebookPresenter {
             return view(NotebookFocus.ACTIVE_LINE);
         }
         int target = activeIndex() + delta;
-        if (target >= 0 && target <= document.current().notebook().size()) {
+        if (target >= 0 && target <= document.notebook().size()) {
             select(target);
         }
         return view(NotebookFocus.ACTIVE_LINE);
@@ -165,7 +249,7 @@ public final class NotebookPresenter {
     /** The user went to the row {@code index} (from 0) with the mouse: the line left is validated. */
     public NotebookViewModel onActivate(int index, String pending) {
         syncDraft(pending);
-        if (index == activeIndex() || index < 0 || index > document.current().notebook().size()) {
+        if (index == activeIndex() || index < 0 || index > document.notebook().size()) {
             return view(NotebookFocus.NONE);
         }
         if (!commitDraft()) {
@@ -175,12 +259,18 @@ public final class NotebookPresenter {
         return view(NotebookFocus.NONE);
     }
 
-    /** Escape: drops what was typed in the active line since it was last validated. */
+    /**
+     * Escape: drops what was typed in the active line since it was last validated. With nothing typed, it interrupts the
+     * calculation under way: the lines left say so, and the next command calculates again.
+     */
     public NotebookViewModel onCancelEdit(String pending) {
         syncDraft(pending);
         if (isDraftPending()) {
             dropDraft();
             say("Saisie annulée : la ligne retrouve son texte validé.", StatusTone.INFO);
+        } else if (recalculation.isRunning() && !recalculation.isComplete()) {
+            recalculation.stop();
+            interrupt("Calcul interrompu : ");
         }
         return view(NotebookFocus.ACTIVE_LINE);
     }
@@ -200,11 +290,12 @@ public final class NotebookPresenter {
         syncDraft(pending);
         if (activeId == null) {
             say("Cette ligne n'est pas encore validée : il n'y a rien à supprimer (Échap abandonne la saisie).", StatusTone.INFO);
+            calculateAgainIfInterrupted();
             return view(NotebookFocus.ACTIVE_LINE);
         }
         int index = activeIndex();
         if (apply(new NotebookCommand.Delete(activeId))) {
-            select(Math.min(index, document.current().notebook().size() - 1));
+            select(Math.min(index, document.notebook().size() - 1));
             say("Ligne " + (index + 1) + " supprimée. Les références à cette ligne sont signalées en erreur ; Annuler la rétablit.",
                     StatusTone.INFO);
         }
@@ -224,7 +315,7 @@ public final class NotebookPresenter {
     /** Deletes every line. */
     public NotebookViewModel onClear(String pending) {
         syncDraft(pending);
-        if (document.current().notebook().isEmpty()) {
+        if (document.notebook().isEmpty()) {
             say("Le carnet est déjà vide.", StatusTone.INFO);
         } else if (apply(new NotebookCommand.Clear())) {
             select(0);
@@ -244,11 +335,13 @@ public final class NotebookPresenter {
         }
         if (!document.canUndo()) {
             say("Il n'y a rien à annuler.", StatusTone.INFO);
+            calculateAgainIfInterrupted();
             return view(NotebookFocus.ACTIVE_LINE);
         }
         int index = activeIndex();
         syncMode();
         document.undo();
+        recalculate();
         reselect(index);
         say("Dernière modification annulée.", StatusTone.INFO);
         return view(NotebookFocus.ACTIVE_LINE);
@@ -263,21 +356,24 @@ public final class NotebookPresenter {
         }
         if (!document.canRedo()) {
             say("Il n'y a rien à rétablir.", StatusTone.INFO);
+            calculateAgainIfInterrupted();
             return view(NotebookFocus.ACTIVE_LINE);
         }
         int index = activeIndex();
         syncMode();
         document.redo();
+        recalculate();
         reselect(index);
         say("Modification rétablie.", StatusTone.INFO);
         return view(NotebookFocus.ACTIVE_LINE);
     }
 
-    /** Shows the results in {@code newMode}; nothing is calculated again, the mode is remembered and saved with the notebook. */
+    /** Shows the results in {@code newMode}; what is known is not calculated again, the mode is remembered and saved with the notebook. */
     public NotebookViewModel onDisplayModeChanged(DisplayMode newMode, String pending) {
         syncDraft(pending);
         if (newMode != null && newMode != mode) {
             mode = newMode;
+            shownResults.clear();
             if (!document.isUntitled()) {
                 // A document with a file is modified by a change of mode (ADR 0009): the title and the questions say so. The
                 // untitled notebook follows at its next command, so that a mode change alone never writes.
@@ -287,6 +383,9 @@ public final class NotebookPresenter {
             // a history that could not be converted).
             modeStore.save(mode);
             say("Affichage : " + DisplayModeText.label(mode) + ".", StatusTone.INFO);
+            recalculate();
+        } else {
+            calculateAgainIfInterrupted();
         }
         return view(NotebookFocus.NONE);
     }
@@ -313,8 +412,9 @@ public final class NotebookPresenter {
         }
         syncMode();
         document.newDocument();
+        recalculate();
         select(0);
-        say("Nouveau carnet.", StatusTone.INFO);
+        say("Nouveau carnet." + abandonWaitingExports(), StatusTone.INFO);
         return view(NotebookFocus.ACTIVE_LINE);
     }
 
@@ -373,15 +473,27 @@ public final class NotebookPresenter {
      */
     public NotebookViewModel onQuit(String pending) {
         syncDraft(pending);
-        closeRequested = commitDraft() && mayLeave(NotebookDialogs.Action.QUIT);
+        closeRequested = commitDraft() && mayLeave(NotebookDialogs.Action.QUIT) && mayAbandonWaitingExports();
+        if (closeRequested) {
+            recalculation.stop();
+        }
         return view(closeRequested ? NotebookFocus.NONE : NotebookFocus.ACTIVE_LINE);
+    }
+
+    // A file the user asked for is not lost in silence by closing the window: the user decides, as for unsaved changes.
+    private boolean mayAbandonWaitingExports() {
+        if (waitingExports.isEmpty() || !dialogs.confirmAbandonExport()) {
+            return waitingExports.isEmpty();
+        }
+        abandonWaitingExports();
+        return true;
     }
 
     // Whether the document may be replaced or closed. Unsaved work is asked about: the changes of a document with a file, and
     // the untitled notebook when New would replace the autosaved file (Open leaves it, Quit keeps it for the next start).
     private boolean mayLeave(NotebookDialogs.Action action) {
         boolean unsaved = document.isUntitled()
-                ? !document.current().notebook().isEmpty() && (action == NotebookDialogs.Action.NEW || !isAutosaved())
+                ? !document.notebook().isEmpty() && (action == NotebookDialogs.Action.NEW || !isAutosaved())
                 : document.isModified();
         if (unsaved) {
             switch (dialogs.askToSave(documentName(), action)) {
@@ -418,14 +530,27 @@ public final class NotebookPresenter {
         }
         // The file brings its display mode; the remembered preference is only for the untitled notebook.
         mode = document.displayMode();
+        shownResults.clear();
         select(0);
-        long errors = document.current().results().stream().filter(LineResult::isError).count();
-        int lines = document.current().notebook().size();
+        transientMessage = null;
+        openedNotice = abandonWaitingExports();
+        openedFile = file;
+        recalculate();
+    }
+
+    // The sentence of a file just opened, now that the lines in error are known.
+    private void announceOpenedFile() {
+        Path file = openedFile;
+        if (file == null) {
+            return;
+        }
+        long errors = recalculation.known().stream().filter(LineResult::isError).count();
+        int lines = document.notebook().size();
         String errorSentence = errors == 0 ? "" : errors == 1 ? " 1 ligne contient une erreur." : " " + errors + " lignes contiennent une erreur.";
         if (document.isReadOnlyFile()) {
-            say(READ_ONLY_FILE_STATUS + errorSentence, StatusTone.ERROR);
+            say(READ_ONLY_FILE_STATUS + errorSentence + openedNotice, StatusTone.ERROR);
         } else {
-            say("« " + fileName(file) + " » ouvert (" + lines + (lines > 1 ? " lignes)." : " ligne).") + errorSentence, StatusTone.INFO);
+            say("« " + fileName(file) + " » ouvert (" + lines + (lines > 1 ? " lignes)." : " ligne).") + errorSentence + openedNotice, StatusTone.INFO);
         }
     }
 
@@ -455,6 +580,12 @@ public final class NotebookPresenter {
             Path target = DocumentService.withExtension(file.toAbsolutePath().normalize());
             if (document.isReservedPath(target)) {
                 say(RESERVED_FILE_STATUS, StatusTone.ERROR);
+                return false;
+            }
+            try {
+                document.checkSaveAsTarget(file);
+            } catch (DocumentException exception) {
+                say(exception.getMessage(), StatusTone.ERROR);
                 return false;
             }
             boolean sameAsTheDocument = document.path().filter(target::equals).isPresent();
@@ -489,10 +620,35 @@ public final class NotebookPresenter {
         if (Files.exists(target) && !dialogs.confirmOverwrite(target)) {
             return;
         }
+        waitingExports.add(new WaitingExport(format, target));
+        if (!recalculation.isComplete() && !recalculation.isRunning()) {
+            recalculate();
+        }
+    }
+
+    // Writes what waits for the results: they are all known, and they are those of the notebook as it is now.
+    private void writeWaitingExports() {
+        List<WaitingExport> exports = List.copyOf(waitingExports);
+        waitingExports.clear();
+        for (WaitingExport export : exports) {
+            write(export.format(), export.target(), new EvaluatedNotebook(document.notebook(), recalculation.known()));
+        }
+    }
+
+    // The exports nobody will write any more, as the sentence that says so ("" if there are none).
+    private String abandonWaitingExports() {
+        if (waitingExports.isEmpty()) {
+            return "";
+        }
+        waitingExports.clear();
+        return " L'export demandé n'a pas été écrit.";
+    }
+
+    private void write(NotebookDialogs.ExportFormat format, Path target, EvaluatedNotebook evaluated) {
         try {
             switch (format) {
-                case MARKDOWN -> NotebookExporter.writeMarkdown(target, document.current(), exportTitle(), mode);
-                case CSV -> NotebookExporter.writeCsv(target, document.current(), mode);
+                case MARKDOWN -> NotebookExporter.writeMarkdown(target, evaluated, exportTitle(), mode);
+                case CSV -> NotebookExporter.writeCsv(target, evaluated, mode);
             }
         } catch (IOException exception) {
             LOGGER.log(Level.WARNING, "Cannot export to " + target, exception);
@@ -557,8 +713,10 @@ public final class NotebookPresenter {
         int target = index + delta;
         if (activeId == null) {
             say("Cette ligne n'est pas encore validée : elle ne peut pas être déplacée.", StatusTone.INFO);
-        } else if (target < 0 || target >= document.current().notebook().size()) {
+            calculateAgainIfInterrupted();
+        } else if (target < 0 || target >= document.notebook().size()) {
             say(delta < 0 ? "La ligne est déjà la première." : "La ligne est déjà la dernière.", StatusTone.INFO);
+            calculateAgainIfInterrupted();
         } else if (apply(new NotebookCommand.Move(activeId, target))) {
             select(target);
         }
@@ -573,7 +731,7 @@ public final class NotebookPresenter {
     }
 
     private String modelText() {
-        return activeId == null ? "" : document.current().notebook().line(activeIndex() + 1).text();
+        return activeId == null ? "" : document.notebook().line(activeIndex() + 1).text();
     }
 
     private boolean isDraftPending() {
@@ -598,7 +756,7 @@ public final class NotebookPresenter {
             if (!apply(new NotebookCommand.Append(draft))) {
                 return false;
             }
-            select(document.current().notebook().size() - 1);
+            select(document.notebook().size() - 1);
             return true;
         }
         return !isDraftPending() || apply(new NotebookCommand.Edit(activeId, draft));
@@ -607,8 +765,13 @@ public final class NotebookPresenter {
     private boolean apply(NotebookCommand command) {
         syncMode();
         try {
+            Notebook before = document.notebook();
             document.apply(command);
             transientMessage = null;
+            openedFile = null;
+            if (document.notebook() != before) {
+                recalculate();
+            }
             return true;
         } catch (NotebookException exception) {
             say(exception.getMessage(), StatusTone.ERROR);
@@ -624,14 +787,14 @@ public final class NotebookPresenter {
     }
 
     private int activeIndex() {
-        Notebook notebook = document.current().notebook();
+        Notebook notebook = document.notebook();
         return activeId == null ? notebook.size() : notebook.numberOf(activeId).orElseThrow() - 1;
     }
 
     // Makes the row at index (from 0) active; its draft is its text. The row after the last line is the new line, which
     // the model only knows once it holds something. An index out of range means that row.
     private void select(int index) {
-        Notebook notebook = document.current().notebook();
+        Notebook notebook = document.notebook();
         if (index < 0 || index >= notebook.size()) {
             activeId = null;
             draft = "";
@@ -643,7 +806,7 @@ public final class NotebookPresenter {
 
     // After an undo or a redo: the same line if it still exists, otherwise the line at the same place.
     private void reselect(int previousIndex) {
-        Notebook notebook = document.current().notebook();
+        Notebook notebook = document.notebook();
         if (activeId != null && notebook.contains(activeId)) {
             select(activeIndex());
         } else {
@@ -653,6 +816,44 @@ public final class NotebookPresenter {
 
     private void say(String text, StatusTone tone) {
         transientMessage = new Message(text, tone);
+        openedFile = null;
+    }
+
+    // ------------------------------------------------------------------------------------------------ the calculation
+
+    // Replaces the calculation under way by that of the notebook as it is now; called as soon as the notebook changes, so that
+    // what the window hears during a dialog is never about an old one.
+    private void recalculate() {
+        interruption = null;
+        if (recalculation.calculate(document.notebook())) {
+            announceOpenedFile();
+        }
+    }
+
+    // The next command after an interruption calculates again, even one that changes nothing.
+    private void calculateAgainIfInterrupted() {
+        if (interruption != null) {
+            recalculate();
+        }
+    }
+
+    private void interrupt(String sentence) {
+        transientMessage = null;
+        openedFile = null;
+        interruption = new Message(sentence + recalculation.knownCount() + " / " + document.notebook().size() + " lignes calculées."
+                + " La prochaine commande relance le calcul." + abandonWaitingExports(), StatusTone.ERROR);
+    }
+
+    private void tellTheView() {
+        if (viewListener != null) {
+            viewListener.accept(snapshot(NotebookFocus.NONE));
+        }
+    }
+
+    private record WaitingExport(NotebookDialogs.ExportFormat format, Path target) {
+    }
+
+    private record ShownResult(LineResult result, NotebookRow row) {
     }
 
     // A confirmation of a file operation (saved, exported) is shown even over the lasting read-only warnings: the user must
@@ -665,36 +866,58 @@ public final class NotebookPresenter {
 
     private void confirm(String text) {
         transientMessage = new Message(text, StatusTone.SUCCESS, true);
+        openedFile = null;
     }
 
     // ------------------------------------------------------------------------------------------------ view model
 
+    // The state an intention ends on. A quit that went on stopped the calculation for good; anything after it calculates again.
     private NotebookViewModel view(NotebookFocus focus) {
-        EvaluatedNotebook evaluated = document.current();
-        List<NotebookRow> rows = new ArrayList<>(evaluated.results().size() + 1);
-        for (LineResult result : evaluated.results()) {
-            rows.add(row(result));
+        if (!closeRequested && interruption == null && !recalculation.isRunning() && !recalculation.isComplete()) {
+            recalculate();
+        }
+        // Last, so that the sentence of the command does not hide whether the file was written.
+        if (recalculation.isComplete()) {
+            writeWaitingExports();
+        }
+        return snapshot(focus);
+    }
+
+    private NotebookViewModel snapshot(NotebookFocus focus) {
+        Notebook notebook = document.notebook();
+        List<NotebookRow> rows = new ArrayList<>(notebook.size() + 1);
+        for (int index = 0; index < recalculation.knownCount(); index++) {
+            rows.add(shownResult(index));
+        }
+        for (int number = rows.size() + 1; number <= notebook.size(); number++) {
+            String text = notebook.line(number).text();
+            rows.add(interruption != null ? interruptedRow(number, text) : pendingRow(number, text));
         }
         // The new line at the end: always there, it only becomes a line of the notebook when it is validated with a text.
         rows.add(new NotebookRow(rows.size() + 1, "", NotebookRow.Status.EMPTY, "", "", "", -1, -1, "", "Ligne vide"));
         Message status = status();
-        boolean showHelp = evaluated.notebook().isEmpty() && draft.isEmpty();
+        boolean showHelp = notebook.isEmpty() && draft.isEmpty();
         boolean close = closeRequested;
         closeRequested = false;
         return new NotebookViewModel(rows, activeIndex(), draft, focus, document.canUndo(), document.canRedo(), mode,
                 status.text(), status.tone(), showHelp ? WATERMARK : "", title(), !document.isReadOnlyFile(), close);
     }
 
-    // A refusal of the last intention (an error) is always shown, so that a key that did nothing says why. Then the failure of
-    // the automatic save, which the user must act on. Then, when the notebook is not being saved, that warning (an
+    // The count of a calculation under way comes first, followed by what cannot wait for its end: see urgentError. Then that
+    // error alone, then the interruption of the last calculation. Then, when the notebook is not being saved, that warning (an
     // information never replaces it), otherwise the last intention, then the usual hint.
     private Message status() {
-        if (transientMessage != null && transientMessage.tone() == StatusTone.ERROR) {
-            return transientMessage;
+        Message urgent = urgentError();
+        if (recalculation.isRunning()) {
+            String count = "Calcul en cours : " + recalculation.knownCount() + " / " + document.notebook().size() + " lignes";
+            return urgent == null ? new Message(count, StatusTone.INFO) : new Message(count + ". " + urgent.text(), StatusTone.ERROR);
         }
-        if (document.isUntitled() && document.autosaveProblem().isPresent()) {
-            return new Message("Enregistrement automatique impossible : " + document.autosaveProblem().get()
-                    + " Le carnet reste disponible dans cette fenêtre.", StatusTone.ERROR);
+        if (urgent != null) {
+            return urgent;
+        }
+        // Interrupting empties the sentence of the last intention: one that is there now is newer, and says what that intention did.
+        if (interruption != null && transientMessage == null) {
+            return interruption;
         }
         if (transientMessage != null && transientMessage.confirmation()) {
             return transientMessage;
@@ -707,6 +930,41 @@ public final class NotebookPresenter {
             return lastingMessage;
         }
         return transientMessage != null ? transientMessage : new Message(DEFAULT_STATUS, StatusTone.INFO);
+    }
+
+    // A refusal of the last intention, so that a key that did nothing says why; then the failure of the automatic save, which the
+    // user must act on. Null when there is neither.
+    private Message urgentError() {
+        if (transientMessage != null && transientMessage.tone() == StatusTone.ERROR) {
+            return transientMessage;
+        }
+        if (document.isUntitled() && document.autosaveProblem().isPresent()) {
+            return new Message("Enregistrement automatique impossible : " + document.autosaveProblem().get()
+                    + " Le carnet reste disponible dans cette fenêtre.", StatusTone.ERROR);
+        }
+        return null;
+    }
+
+    private NotebookRow shownResult(int index) {
+        LineResult result = recalculation.result(index);
+        if (index < shownResults.size() && shownResults.get(index).result() == result) {
+            return shownResults.get(index).row();
+        }
+        ShownResult shown = new ShownResult(result, row(result));
+        if (index < shownResults.size()) {
+            shownResults.set(index, shown);
+        } else {
+            shownResults.add(shown);
+        }
+        return shown.row();
+    }
+
+    private static NotebookRow pendingRow(int number, String text) {
+        return new NotebookRow(number, text, NotebookRow.Status.PENDING, PENDING_RESULT, "", "", -1, -1, "", PENDING_RESULT);
+    }
+
+    private static NotebookRow interruptedRow(int number, String text) {
+        return new NotebookRow(number, text, NotebookRow.Status.ERROR, "", "", INTERRUPTED_LINE, -1, -1, "", INTERRUPTED_LINE);
     }
 
     private NotebookRow row(LineResult result) {

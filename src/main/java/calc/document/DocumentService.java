@@ -31,6 +31,9 @@ import java.util.logging.Logger;
  * {@link #open} or {@link #saveAs}), which is never saved automatically: it changes the file only on {@link #save()}, and
  * {@link #isModified()} tells whether it differs from the file. A document from a newer version of the format is never
  * written back. Not thread safe: one thread (the Swing event thread) drives it.
+ *
+ * <p>Nothing here evaluates a line except {@link #current()}: the window calculates off its event thread
+ * (docs/adr/0014-calcul-hors-interface.md).
  */
 public final class DocumentService {
     private static final Logger LOGGER = Logger.getLogger(DocumentService.class.getName());
@@ -66,7 +69,12 @@ public final class DocumentService {
 
     // ------------------------------------------------------------------------------------------------ state
 
-    /** The notebook and the result of each of its lines. */
+    /** The notebook, without any calculation. */
+    public Notebook notebook() {
+        return editor.notebook();
+    }
+
+    /** The notebook and the result of each of its lines, evaluated now on the calling thread: never the event thread. */
     public EvaluatedNotebook current() {
         return editor.current();
     }
@@ -129,13 +137,11 @@ public final class DocumentService {
     // ------------------------------------------------------------------------------------------------ editing
 
     /** Applies {@code command}; an untitled document is saved automatically when it changed. */
-    public EvaluatedNotebook apply(NotebookCommand command) throws NotebookException {
+    public void apply(NotebookCommand command) throws NotebookException {
         Notebook before = editor.notebook();
-        EvaluatedNotebook result = editor.apply(command);
-        if (!result.notebook().equals(before)) {
+        if (!editor.apply(command).equals(before)) {
             autosave();
         }
-        return result;
     }
 
     public boolean canUndo() {
@@ -146,16 +152,14 @@ public final class DocumentService {
         return editor.canRedo();
     }
 
-    public EvaluatedNotebook undo() {
-        EvaluatedNotebook result = editor.undo();
+    public void undo() {
+        editor.undo();
         autosave();
-        return result;
     }
 
-    public EvaluatedNotebook redo() {
-        EvaluatedNotebook result = editor.redo();
+    public void redo() {
+        editor.redo();
         autosave();
-        return result;
     }
 
     /** The display mode saved with the document: a change of it modifies a document associated with a file. */
@@ -170,11 +174,10 @@ public final class DocumentService {
     // ------------------------------------------------------------------------------------------------ documents
 
     /** An empty untitled document, saved as the current notebook. The undo history is forgotten. */
-    public EvaluatedNotebook newDocument() {
+    public void newDocument() {
         install(Notebook.empty(), null, false);
         autosave();
         draftOffScreen = false;
-        return editor.current();
     }
 
     /**
@@ -182,7 +185,7 @@ public final class DocumentService {
      * under the limits of the format. The autosaved draft is left as it is. A file from a newer version is opened read only
      * when its lines can be read.
      */
-    public EvaluatedNotebook open(Path file) throws DocumentException {
+    public void open(Path file) throws DocumentException {
         Path target = absolute(file);
         refuseReserved(target);
         DecodedNotebook decoded;
@@ -201,7 +204,6 @@ public final class DocumentService {
         displayMode = decoded.displayMode();
         draftOffScreen |= path == null && !editor.notebook().isEmpty() && !store.isReadOnly();
         install(decoded.notebook(), target, decoded.isNewerVersion());
-        return editor.current();
     }
 
     /** Writes the document to its file. Only for a document associated with a file ({@link #isUntitled()} is false). */
@@ -232,6 +234,7 @@ public final class DocumentService {
         if (newerVersion && sameFile(target, path)) {
             throw readOnlyVersion();
         }
+        refuseNewerVersionFile(target);
         write(target);
         boolean wasUntitled = path == null;
         path = target;
@@ -248,6 +251,17 @@ public final class DocumentService {
             }
         }
         return target;
+    }
+
+    /**
+     * Refuses a file that {@link #saveAs} would replace when it comes from a newer version of the format: writing over it
+     * would lose the fields this version does not know. Meant for the caller to run before it asks « Remplacer ? ». A
+     * target that is missing, unreadable, not a notebook or of a version this one writes is not refused here.
+     */
+    public void checkSaveAsTarget(Path file) throws DocumentException {
+        if (file.getFileName() != null) {
+            refuseNewerVersionFile(withExtension(absolute(file)));
+        }
     }
 
     /** {@code file} with {@value #EXTENSION} appended unless its name already ends with it, whatever the case. */
@@ -304,6 +318,21 @@ public final class DocumentService {
         if (store.isReserved(target)) {
             throw new DocumentException(DocumentException.Kind.RESERVED_PATH,
                     "Ce fichier est réservé à Calc : choisissez un autre nom.");
+        }
+    }
+
+    // Reads the target with the reader of the format, under its size limits: whatever cannot be read is left to the usual
+    // confirmation of the replacement.
+    private static void refuseNewerVersionFile(Path target) throws DocumentException {
+        if (!Files.isRegularFile(target)) {
+            return;
+        }
+        try {
+            if (NotebookCodec.read(target).isNewerVersion()) {
+                throw readOnlyVersion();
+            }
+        } catch (NotebookFormatException | IOException | RuntimeException unreadable) {
+            LOGGER.log(Level.FINE, "Not checking the version of " + target, unreadable);
         }
     }
 

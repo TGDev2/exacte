@@ -118,7 +118,8 @@ left out; the numbers of the other lines are those of the notebook, so `$n` refe
 - **Markdown**: a title, then a table `| n° | Expression | Résultat |`. Every cell is escaped: the characters that Markdown
   or a renderer could read (`\ ` * _ [ ] < > | ~ & $`, the last one because lines contain `$n` and some renderers read `$...$` as
   maths) get a backslash, a line break becomes `<br>`. An approximate value shows « ≈ » and its error bound
-  (`≈ 1,41421356237… (± 3,4 × 10⁻¹³)`), a line in error shows `Erreur : message`, a comment shows its text without the `#`.
+  (`≈ 1,41421356237… (± 3,4 × 10⁻¹³)`), a value of unknown sign shows `|x| ≤ b` alone since that text is its bound (ADR 0004), a
+  line in error shows `Erreur : message`, a comment shows its text without the `#`.
 - **CSV**: separator `;`, UTF-8 **with a byte order mark** and **CRLF** line ends (what French Excel opens correctly), fields
   quoted when they hold `;`, `"`, CR or LF and quotes doubled (RFC 4180). Columns: `n°`, `Expression`, `Résultat affiché`,
   `Valeur exacte`, `Statut` (`exact`, `approché`, `erreur`, empty for a comment). The exact value is the canonical text of an

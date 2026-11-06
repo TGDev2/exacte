@@ -7,7 +7,7 @@ import java.util.Objects;
  *
  * @param number      the number shown, from 1
  * @param text        the source text of the line
- * @param status      what the line is: empty, comment, exact, approximate or in error
+ * @param status      what the line is: empty, comment, exact, approximate, in error, or not calculated yet
  * @param result      the result in the display mode in force, with its « ≈ » or « … » marker; empty without a value
  * @param detail      the sentence of the exactness tooltip (error bound, exact value behind a cut text), empty if none
  * @param errorMessage the message of a line in error, empty otherwise
@@ -24,7 +24,8 @@ public record NotebookRow(int number, String text, Status status, String result,
         COMMENT,
         EXACT,
         APPROXIMATE,
-        ERROR
+        ERROR,
+        PENDING
     }
 
     public NotebookRow {

@@ -25,6 +25,7 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import javax.swing.AbstractAction;
 import javax.swing.Action;
 import javax.swing.BorderFactory;
@@ -41,6 +42,7 @@ import javax.swing.JPanel;
 import javax.swing.JRadioButtonMenuItem;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
+import javax.swing.JViewport;
 import javax.swing.Scrollable;
 import javax.swing.SwingUtilities;
 
@@ -52,6 +54,13 @@ import javax.swing.SwingUtilities;
 public final class NotebookFrame extends JFrame {
     private static final long serialVersionUID = 1L;
     private static final String NEXT_MODE_ACTION = "next-display-mode";
+    private static final String CANCEL_EDIT_ACTION = "cancel-edit-or-calculation";
+    // A notebook with more rows than this is shown over several events, so that the event thread keeps answering: building or
+    // refilling 5000 rows at once takes more than a second (docs/adr/0014-calcul-hors-interface.md).
+    private static final int ROWS_AT_ONCE = 50;
+    // More lines than this with another text are another document: below the first rows, it builds its rows again.
+    private static final int TEXTS_FILLED_AT_ONCE = 200;
+    private static final long SLICE_NANOS = TimeUnit.MILLISECONDS.toNanos(15);
 
     // The frame is never serialized: the presenter is deliberately not Serializable.
     @SuppressWarnings("serial")
@@ -70,6 +79,10 @@ public final class NotebookFrame extends JFrame {
     private transient NotebookViewModel shown;
     private boolean applying;
     private boolean focusMoved;
+    // Until the window is first shown, every row is built at once: there is nothing to keep answering for.
+    private boolean built;
+    // Whether an event is on its way to build the next rows.
+    private boolean growing;
 
     public NotebookFrame(NotebookPresenter presenter) {
         this(presenter, new NotebookShortcuts(Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
@@ -94,8 +107,10 @@ public final class NotebookFrame extends JFrame {
         scrollPane.getViewport().addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent event) {
-                // The empty space under the lines: go to the new line at the end.
-                rows.get(rows.size() - 1).field.requestFocusInWindow();
+                // The empty space under the lines: go to the new line at the end, which does not exist yet while the rows appear.
+                if (!growing) {
+                    rows.get(rows.size() - 1).field.requestFocusInWindow();
+                }
             }
         });
 
@@ -148,7 +163,9 @@ public final class NotebookFrame extends JFrame {
         pack();
         setLocationRelativeTo(null);
 
+        presenter.setViewListener(this::applyCalculation);
         apply(presenter.initialView());
+        built = true;
     }
 
     // ------------------------------------------------------------------------------------------------ menus
@@ -317,6 +334,18 @@ public final class NotebookFrame extends JFrame {
                 perform(Command.NEXT_MODE);
             }
         });
+        // A line binds Escape itself. With the focus elsewhere (the selector of the modes), Escape still interrupts a calculation.
+        // An open list of the selector keeps the key: its own action is enabled then, and Swing looks no further.
+        JComponent content = (JComponent) getContentPane();
+        content.getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(shortcuts.stroke(Command.CANCEL_EDIT), CANCEL_EDIT_ACTION);
+        content.getActionMap().put(CANCEL_EDIT_ACTION, new AbstractAction() {
+            private static final long serialVersionUID = 1L;
+
+            @Override
+            public void actionPerformed(ActionEvent event) {
+                perform(Command.CANCEL_EDIT);
+            }
+        });
     }
 
     // The keys of a line are bound in the input map of its own field, so that they win over anything the look and feel
@@ -367,31 +396,41 @@ public final class NotebookFrame extends JFrame {
         return rows.get(shown.activeIndex()).field.getText();
     }
 
+    // A state the calculation produced, not the answer to something the user did: the line being typed keeps its text (the
+    // presenter only learns it with an intention), and neither the caret nor the scroll bar moves. Only what changed is touched:
+    // this runs for each line calculated, with up to 5001 rows.
+    private void applyCalculation(NotebookViewModel viewModel) {
+        applying = true;
+        try {
+            if (shown == null || shown.rows().size() != viewModel.rows().size() || shown.activeIndex() != viewModel.activeIndex()) {
+                // A dialog was open in the middle of an intention: nothing here is typed, the view catches up.
+                showRows(viewModel);
+                rowsPanel.revalidate();
+            } else {
+                for (int i = 0; i < rows.size(); i++) {
+                    NotebookRow row = viewModel.rows().get(i);
+                    if (i == viewModel.activeIndex()) {
+                        NotebookRowView active = rows.get(i);
+                        active.show(row, true, active.field.getText(), viewModel.watermark());
+                    } else if (!row.equals(shown.rows().get(i))) {
+                        rows.get(i).show(row, false, row.text(), "");
+                    }
+                }
+            }
+            showWindowState(viewModel);
+        } finally {
+            applying = false;
+        }
+    }
+
     private void apply(NotebookViewModel viewModel) {
         applying = true;
         try {
-            while (rows.size() < viewModel.rows().size()) {
-                addRow();
-            }
-            while (rows.size() > viewModel.rows().size()) {
-                rowsPanel.remove(rows.remove(rows.size() - 1));
-            }
-            String before = rows.get(viewModel.activeIndex()).field.getText();
+            // The field of a row that does not exist yet holds nothing, as a new field does.
+            String before = viewModel.activeIndex() < rows.size() ? rows.get(viewModel.activeIndex()).field.getText() : "";
             boolean moved = shown == null || shown.activeIndex() != viewModel.activeIndex();
-            for (int i = 0; i < rows.size(); i++) {
-                NotebookRow row = viewModel.rows().get(i);
-                boolean active = i == viewModel.activeIndex();
-                rows.get(i).show(row, active, active ? viewModel.activeDraft() : row.text(), i == viewModel.activeIndex()
-                        ? viewModel.watermark() : "");
-            }
-            setTitle(viewModel.title());
-            saveAction.setEnabled(viewModel.canSave());
-            undoAction.setEnabled(viewModel.canUndo());
-            redoAction.setEnabled(viewModel.canRedo());
-            modeSelector.showMode(viewModel.displayMode());
-            modeItems.get(viewModel.displayMode()).setSelected(true);
-            showStatus(viewModel.statusMessage(), viewModel.statusTone());
-            shown = viewModel;
+            showRows(viewModel);
+            showWindowState(viewModel);
             // The caret only moves when another line is active or the text of the active field was replaced.
             focusMoved = moved || !before.equals(rows.get(viewModel.activeIndex()).field.getText());
         } finally {
@@ -407,6 +446,81 @@ public final class NotebookFrame extends JFrame {
             }
         }
         scrollToActive();
+    }
+
+    // Every row that exists shows the state of now: the rows still to build are simply not there yet, never an old line.
+    private void showRows(NotebookViewModel viewModel) {
+        int size = viewModel.rows().size();
+        int atOnce = built ? Math.min(size, Math.max(ROWS_AT_ONCE, viewModel.activeIndex() + 1)) : size;
+        // Another document: the rows below are dropped and built again by slices, rather than filled again all at once.
+        removeRowsFrom(built && isAnotherDocument(viewModel) ? atOnce : size);
+        while (rows.size() < atOnce) {
+            addRow();
+        }
+        for (int i = 0; i < rows.size(); i++) {
+            NotebookRow row = viewModel.rows().get(i);
+            boolean active = i == viewModel.activeIndex();
+            rows.get(i).show(row, active, active ? viewModel.activeDraft() : row.text(), active ? viewModel.watermark() : "");
+        }
+    }
+
+    private void removeRowsFrom(int count) {
+        while (rows.size() > count) {
+            rows.remove(rows.size() - 1);
+            rowsPanel.remove(rows.size());
+        }
+    }
+
+    // Whether so many lines hold another text that this is no longer the same document.
+    private boolean isAnotherDocument(NotebookViewModel viewModel) {
+        if (shown == null) {
+            return false;
+        }
+        int common = Math.min(shown.rows().size(), viewModel.rows().size());
+        int different = Math.abs(shown.rows().size() - viewModel.rows().size());
+        for (int i = 0; i < common && different <= TEXTS_FILLED_AT_ONCE; i++) {
+            if (!shown.rows().get(i).text().equals(viewModel.rows().get(i).text())) {
+                different++;
+            }
+        }
+        return different > TEXTS_FILLED_AT_ONCE;
+    }
+
+    // The next rows, for a few milliseconds, then the events waiting: the window answers while a large notebook appears.
+    private void growRows() {
+        growing = false;
+        long deadline = System.nanoTime() + SLICE_NANOS;
+        applying = true;
+        try {
+            while (rows.size() < shown.rows().size() && System.nanoTime() < deadline) {
+                NotebookRow row = shown.rows().get(rows.size());
+                addRow();
+                rows.get(rows.size() - 1).show(row, false, row.text(), "");
+            }
+        } finally {
+            applying = false;
+        }
+        rowsPanel.revalidate();
+        growLater();
+    }
+
+    private void growLater() {
+        if (!growing && rows.size() < shown.rows().size()) {
+            growing = true;
+            SwingUtilities.invokeLater(this::growRows);
+        }
+    }
+
+    private void showWindowState(NotebookViewModel viewModel) {
+        setTitle(viewModel.title());
+        saveAction.setEnabled(viewModel.canSave());
+        undoAction.setEnabled(viewModel.canUndo());
+        redoAction.setEnabled(viewModel.canRedo());
+        modeSelector.showMode(viewModel.displayMode());
+        modeItems.get(viewModel.displayMode()).setSelected(true);
+        showStatus(viewModel.statusMessage(), viewModel.statusTone());
+        shown = viewModel;
+        growLater();
     }
 
     private void addRow() {
@@ -448,6 +562,16 @@ public final class NotebookFrame extends JFrame {
     }
 
     // ------------------------------------------------------------------------------------------------ for the tests
+
+    /** Whether a calculation is under way or rows are still to build: a test waits for the end. */
+    boolean isCalculating() {
+        return presenter.isCalculating() || growing;
+    }
+
+    /** The view under the rows, which takes a click on the empty space. */
+    JViewport scrollViewport() {
+        return scrollPane.getViewport();
+    }
 
     /** The view model now shown. */
     NotebookViewModel shown() {

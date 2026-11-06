@@ -21,7 +21,7 @@ public final class NotebookShortcuts {
         ENTER("Valider la ligne et passer à la suivante (la dernière ligne est suivie d'une nouvelle ligne)"),
         PREVIOUS("Ligne précédente (valide la ligne quittée)"),
         NEXT("Ligne suivante (valide la ligne quittée)"),
-        CANCEL_EDIT("Annuler la saisie en cours dans la ligne"),
+        CANCEL_EDIT("Annuler la saisie en cours dans la ligne ; sans saisie, interrompre le calcul"),
         UNDO("Annuler la dernière modification validée"),
         REDO("Rétablir la modification annulée"),
         REDO_ALTERNATE("Rétablir la modification annulée (autre combinaison)"),

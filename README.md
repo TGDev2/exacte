@@ -90,9 +90,9 @@ La fiabilité est **mesurée, vérifiée et publiée**, pas seulement affirmée 
   Les mesures et les seuils sont dans [docs/TESTS.md](docs/TESTS.md).
 - **Rapport de conformité** : `RAPPORT-CONFORMITE.md`, généré par `gradlew conformityReport` à partir des résultats réels
   (nombre de tests par étiquette, tests ignorés signalés, couverture, mutation, garanties et leurs tests, limites). Il est
-  publié comme artefact `conformity-report` par la [CI](docs/CI.md) sur `main` et à la demande (pas sur les pull requests), et joint à chaque release. Il échoue
+  publié comme artefact `conformity-report` par la [CI](docs/CI.md) à la demande, et joint à chaque release. Il échoue
   plutôt que de mentir si une donnée manque.
-- **Intégration continue** : `gradlew check` sur Windows, macOS et Linux à chaque pull request, tests d'interface obligatoires ;
+- **Intégration continue** : `gradlew check -PrequireUiTests=true` lancé en local avant chaque fusion (statut « check ») ; la CI GitHub sur Windows, macOS et Linux se lance à la demande ;
   un second job vérifie que le JAR est reproductible ([docs/CI.md](docs/CI.md)).
 
 Résumé des garanties (la liste complète, avec les classes de test de chacune, est dans la section « Garanties du produit »
@@ -113,9 +113,11 @@ de [docs/TESTS.md](docs/TESTS.md)) :
 - **Clavier macOS non essayé** : les raccourcis sont vérifiés par leur liaison dans la fenêtre (avec `Cmd` simulé), pas sur
   un Mac réel ni avec l'apparence Aqua.
 - **Interface** : les tests couvrent les parcours critiques, pas un rendu graphique pixel par pixel. Les lignes ne sont pas
-  virtualisées (ouverture d'environ 0,85 s pour 500 lignes, 1,5 s pour 5000, mesuré sur la machine de développement).
-- **Calcul synchrone** : le recalcul d'un carnet se fait sur le fil de l'interface ; il est borné par ligne (1000 caractères,
-  100 niveaux, 500 éléments, nombres de 4096 bits) et non annulable.
+  virtualisées : au démarrage, environ 0,85 s pour 500 lignes et 1,5 s pour 5000, mesuré sur la machine de développement ; Ouvrir
+  les crée par tranches, sans bloquer la fenêtre.
+- **Calcul en arrière-plan** : la fenêtre répond pendant le recalcul d'un carnet, que `Échap` peut interrompre
+  ([ADR 0014](docs/adr/0014-calcul-hors-interface.md)). Il n'est pas accéléré pour autant : borné par ligne (1000 caractères,
+  100 niveaux, 500 éléments, nombres de 4096 bits), un carnet de 5000 lignes conçu pour coûter cher prend environ 3 minutes.
 - **Éditeur** : une ligne de plus de 16 384 caractères est refusée ; coller du texte sur plusieurs lignes dans un champ les
   joint en une seule ; un carnet compte au plus 5000 lignes ; pas d'aperçu du résultat pendant la frappe.
 - **Langage** : pas de multiplication implicite (`2x`), de pourcentage, de constantes `π` ou `e`, ni de fonctions à plusieurs

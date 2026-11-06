@@ -154,14 +154,11 @@ public final class NotebookExporter {
 
     // ------------------------------------------------------------------------------------------------ shared
 
-    // The value as shown: an approximate value keeps its « ≈ » marker and gets the bound of its error.
+    // The value as shown: a text with « ≈ » gets the bound of its error; « |x| ≤ b » is that bound already.
     private static String displayed(LineResult line, DisplayMode mode) {
         FormattedValue formatted = ValueFormatter.format(line.value(), mode);
-        if (formatted.exact()) {
-            return formatted.text();
-        }
-        String text = formatted.text().startsWith("≈") ? formatted.text() : "≈ " + formatted.text();
-        return text + formatted.errorBound().map(bound -> " (" + bound + ")").orElse("");
+        String text = formatted.text();
+        return text.startsWith("≈") ? text + " (" + formatted.errorBound().orElseThrow() + ")" : text;
     }
 
     // ------------------------------------------------------------------------------------------------ files

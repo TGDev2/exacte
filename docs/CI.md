@@ -4,11 +4,28 @@
 
 ## Ce que fait la CI
 
-Le workflow [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) s'exécute :
+Le workflow [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) s'exécute **à la demande seulement**
+(`workflow_dispatch`) : il ne se déclenche ni sur un `push`, ni sur une pull request.
 
-- à chaque `push` sur `main` ;
-- à chaque pull request ;
-- à la demande (`workflow_dispatch`).
+### Pourquoi à la demande
+
+Le dépôt est un dépôt privé : ses minutes gratuites GitHub Actions sont limitées, et une minute Windows compte double
+et une minute macOS dix fois. Lancer trois systèmes en continu épuise ce quota, et la CI ne peut alors plus démarrer.
+Elle reste donc dans le dépôt, mais c'est une personne qui la lance.
+
+### Ce qui fait foi avant une fusion
+
+La vérification locale : `gradlew.bat check -PrequireUiTests=true`, lancée sur le poste de développement (avec affichage,
+donc les tests d'interface s'exécutent). Son résultat est publié comme statut de commit « check » sur le commit à fusionner,
+et c'est ce statut que la protection de `main` exige (voir plus bas).
+
+### Lancer la CI sur trois systèmes
+
+- depuis GitHub : onglet **Actions** > **CI** > **Run workflow**, en choisissant la branche ;
+- ou en ligne de commande : `gh workflow run ci.yml --ref <branche>`.
+
+À faire avant une publication (sur `main`, avant de poser le tag, voir [RELEASE.md](RELEASE.md)) et après une mise à jour de dépendance (par exemple une pull request de Dependabot), puisque seule la CI exécute le build sous Linux et macOS.
+
 
 Une nouvelle exécution sur la même branche annule la précédente (`concurrency`). Le workflow n'a que le droit
 `contents: read`.
@@ -26,8 +43,7 @@ système n'interrompt pas les autres). Chaque job :
 
 Un second job, `reproducible jar` (Linux seulement ; le JAR construit sous Windows et macOS n'est pas comparé), lance deux fois
 `./gradlew clean jar --rerun-tasks --no-build-cache`, affiche les deux sommes SHA-256 de `build/libs/calc.jar` et échoue
-si elles diffèrent. Il n'est pas dans la liste des vérifications exigées par la protection de `main` ci-dessous : l'ajouter
-après sa première exécution si on veut en faire une condition de fusion.
+si elles diffèrent. Il n'est pas dans la liste des vérifications exigées par la protection de `main` ci-dessous.
 
 Les publications ne passent pas par ce workflow mais par [`release.yml`](../.github/workflows/release.yml) (déclenché par un tag
 `vX.Y.Z`, voir [RELEASE.md](RELEASE.md)). Il reprend les mêmes vérifications (`check` avec les tests d'interface obligatoires)
@@ -77,16 +93,16 @@ artefact par système : `test-reports-ubuntu-latest`, `test-reports-windows-late
 À activer dans **Settings → Branches → Branch protection rules** (ou **Rulesets**) sur `main` :
 
 - exiger une pull request avant la fusion ;
-- exiger que les vérifications d'état réussissent avant la fusion, avec les trois jobs
-  `check (ubuntu-latest)`, `check (windows-latest)` et `check (macos-latest)` ;
+- exiger que les vérifications d'état réussissent avant la fusion, avec la vérification « check »
+  (le statut de commit publié après le `gradlew.bat check -PrequireUiTests=true` local), et non plus les trois jobs de la CI ;
 - exiger que la branche soit à jour avant la fusion.
 
-Ce réglage se fait dans l'interface GitHub ; il n'est pas versionné dans le dépôt. Les jobs n'apparaissent dans la liste
-des vérifications sélectionnables qu'après une première exécution du workflow.
+Ce réglage se fait dans l'interface GitHub ; il n'est pas versionné dans le dépôt. Le statut « check » n'apparaît dans la liste
+des vérifications sélectionnables qu'après sa première publication.
 
 ## Le rapport de conformité en CI
 
-Un troisième job, `conformity report`, tourne sous Linux (avec `xvfb`) **sur `main` et à la demande, pas sur les pull requests** : il
+Un troisième job, `conformity report`, tourne sous Linux (avec `xvfb`) **à la demande** : il
 lance `./gradlew conformity -PrequireUiTests=true -Pjqwik.reporting.onlyfailures=false` (la seconde option fait entrer le nombre d'essais des propriétés dans le rapport), c'est-à-dire `check` (tests et seuils de couverture), les tests de mutation (PIT) puis
 `conformityReport`. Les tests de mutation durent plusieurs minutes (mesure et justification dans [TESTS.md](TESTS.md)) ; une pull
 request ne lance que `check`, dont les seuils de couverture par package font partie.

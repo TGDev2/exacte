@@ -76,6 +76,9 @@ public interface NotebookDialogs {
     /** Whether to replace the existing file {@code file}. */
     boolean confirmOverwrite(Path file);
 
+    /** The window is closing while an export waits for the end of the calculation: whether to close without writing it. */
+    boolean confirmAbandonExport();
+
     /** Dialogs that answer nothing: every choice is cancelled. For a presenter that never opens a file. */
     static NotebookDialogs cancelling() {
         return new NotebookDialogs() {
@@ -101,6 +104,11 @@ public interface NotebookDialogs {
 
             @Override
             public boolean confirmReplaceDraft() {
+                return false;
+            }
+
+            @Override
+            public boolean confirmAbandonExport() {
                 return false;
             }
 

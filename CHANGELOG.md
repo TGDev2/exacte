@@ -27,6 +27,9 @@ tout ce qui suit est dans la prochaine version. Le numéro sera choisi au moment
 
 ### Modifié
 
+- **Calcul en arrière-plan** : la fenêtre répond pendant le calcul d'un carnet, même de 5000 lignes coûteuses. Une ligne pas
+  encore calculée affiche « Calcul en cours… », la barre d'état compte les lignes, et `Échap` interrompt le calcul quand aucune
+  saisie n'est en cours.
 - **Moteur exact** : les calculs utilisent des fractions exactes (`1 / 3` puis `× 3` redonne exactement `1`) ; une racine
   non exacte est un intervalle qui contient certainement la vraie valeur, avec sa borne d'erreur. Remplace l'arrondi à
   12 décimales de la version 1 (écarts justifiés dans [docs/changements-comportement-E06.md](docs/changements-comportement-E06.md)).
@@ -38,6 +41,12 @@ tout ce qui suit est dans la prochaine version. Le numéro sera choisi au moment
 
 - L'ancien formulaire à deux champs (deux nombres et une opération) : chacune de ses fonctions a son équivalent dans le
   carnet (tableau dans [docs/adr/0011-fichiers-dans-l-interface.md](docs/adr/0011-fichiers-dans-l-interface.md)).
+
+### Corrigé
+
+- **Une valeur non nulle n'est plus jamais affichée 0.** Une valeur dont le signe n'a pas pu être établi s'affiche `|x| ≤ b`
+  dans tous les modes, à la place de l'ancien texte ; une valeur trop petite pour être encadrée sans toucher 0 est refusée,
+  avec le même message que sa version exacte (`(sqrt(2) / 16) ^ 4096` comme `(1/16) ^ 4096`).
 
 ### Sécurité
 

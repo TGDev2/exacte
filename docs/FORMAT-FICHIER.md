@@ -209,7 +209,7 @@ de plus de 16 Mio, n'est **pas écrit** et l'erreur est signalée (l'enregistrem
 | `version` | Comportement |
 |---|---|
 | 3 | lu et écrit |
-| supérieure à 3 | ouvert en **lecture seule** quand les lignes se lisent avec les règles de la version 3 (« Carnet créé par une version plus récente de Calc : ouvert en lecture seule. »), sinon rien n'est affiché ; **jamais réécrit**, ni par l'enregistrement automatique ni par « Enregistrer » ; « Enregistrer sous » un autre nom reste possible |
+| supérieure à 3 | ouvert en **lecture seule** quand les lignes se lisent avec les règles de la version 3 (« Carnet créé par une version plus récente de Calc : ouvert en lecture seule. »), sinon rien n'est affiché ; **jamais réécrit**, ni par l'enregistrement automatique ni par « Enregistrer » ; « Enregistrer sous » un autre nom reste possible ; la règle vaut aussi pour la **cible** d'un « Enregistrer sous » : un fichier existant d'une version plus récente que 3 est refusé (même message), avant toute écriture et avant la question « Remplacer ? », qu'il soit ou non le carnet ouvert ; une cible illisible, qui n'est pas un carnet ou qui est de la version 3 ou d'une version plus ancienne garde la confirmation habituelle |
 | absente, inférieure à 3, non entière | fichier refusé |
 
 ## Écriture

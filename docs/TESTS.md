@@ -162,7 +162,8 @@ Les tests du noyau portent directement sur `Rational` et `CertifiedValue` (voir 
 - Racine certifiée : `lo² ≤ x ≤ hi²`, largeur au plus `2⁻ᵖ × lo` pour toute précision `p` de 1 à 120 bits, exacte si et
   seulement si numérateur et dénominateur sont des carrés parfaits.
 - Arrondi extérieur : `bas(x) ≤ x ≤ haut(x)`, au plus 128 bits significatifs, au plus 4096 bits par composante,
-  écart relatif d'au plus `2⁻¹²⁶`, idempotent ; refus seulement pour une magnitude d'au moins `2⁴⁰⁹⁵`.
+  écart relatif d'au plus `2⁻¹²⁶`, idempotent, signe de la valeur conservé ; refus seulement pour une magnitude d'au moins
+  `2⁴⁰⁹⁵`, ou inférieure à `2⁻⁴⁰⁹⁵` (la grille la plus fine ne l'encadre pas sans toucher 0).
 - Toute combinaison de `+ − × ÷` sur des valeurs exactes reste exacte et égale à l'oracle ; une chaîne d'opérations sur
   des intervalles contient toujours la valeur exacte de la même chaîne sur les points.
 - Chaque code de `NumericError` est déclenché par au moins un exemple (`everyErrorCodeIsTriggered` échoue si un code
@@ -189,8 +190,11 @@ Ces propriétés remplacent `RoundingPolicyProperties` (étiquette `rounding-pol
 **Formatage** (`FormatterProperties`, `property`)
 
 - Jamais 0 pour un non-nul : pour toute valeur non nulle générée (rationnels jusqu'à 4000 bits, intervalles qui ne
-  contiennent pas 0) et chacun des quatre modes, le texte principal ne se relit pas en 0 ; « ≈ » marque exactement les
-  valeurs approchées.
+  contiennent pas 0) et chacun des quatre modes, le texte principal ne se relit pas en 0 ; « ≈ » marque exactement ces
+  valeurs quand elles sont approchées.
+- `|x| ≤ b` (`NeverShownAsZeroProperties`, `NeverShownAsZeroAcceptanceTest`) : un intervalle tout près de 0 d'un seul côté ne se
+  relit jamais en 0 ; un intervalle qui contient 0 a le même texte dans les quatre modes, et il est inclus dans `[-b ; b]` relu
+  depuis ce texte ; un produit ou une puissance garde le signe de ses bornes ou est refusé.
 - Aller-retour : le texte canonique d'une valeur exacte tient dans la borne de saisie et se relit exactement ; celui d'une
   valeur approchée se relit en un point de son intervalle.
 - Chiffres garantis : tout point de l'intervalle (les deux bornes et le point connu) s'arrondit aux chiffres affichés ;
@@ -370,8 +374,9 @@ est borné par ligne (1000 caractères, 100 niveaux, 500 nœuds, nombres de 4096
 | 245 sommes de `1/3` (plus de 500 nœuds) | 5,1 Mo | 23 ms | 884 ms | 5000 erreurs |
 | des fractions `1/997` fois un nombre de 500 chiffres | 6,3 Mo | 28 ms | 138 ms | 5000 erreurs |
 
-Le plus lent est inférieur à une seconde sur la machine de développement (budget d'assertion de 60 s). Le recalcul reste **synchrone** : la borne est celle du langage, pas une
-annulation. Un fichier conçu pour être plus lent que ces neuf cas n'a pas été trouvé ; il resterait borné par ligne.
+Le plus lent est inférieur à une seconde sur la machine de développement (budget d'assertion de 60 s). La borne est celle du langage. Un fichier plus lent que ces neuf cas existe : les
+5000 lignes de la recette (défaut B1, environ 3 minutes). Le calcul se fait donc hors du thread de l'interface et s'interrompt
+(`BackgroundRecalculationAcceptanceTest`, [ADR 0014](adr/0014-calcul-hors-interface.md)).
 
 ### Preuves d'efficacité
 
@@ -494,7 +499,7 @@ un test a échoué ou a été ignoré. Les identifiants sont stables ; ajouter u
 |---|---|---|
 | G01 | Les calculs `+ − × ÷` et les puissances entières sont exacts (fractions), égaux à un oracle indépendant | `ArithmeticProperties`, `ExactnessProperties`, `RationalProperties`, `CalculatorEngineTest` |
 | G02 | Une valeur approchée (racine non exacte) contient toujours la vraie valeur et porte une borne d'erreur | `CertifiedValueProperties`, `CertifiedValueTest`, `ExactnessProperties` |
-| G03 | Une valeur non nulle n'est jamais affichée 0, et « ≈ » marque exactement les valeurs approchées, dans les quatre modes | `FormatterProperties`, `ValueFormatterTest`, `DisplayRulesTest` |
+| G03 | Une valeur non nulle n'est jamais affichée 0, et « ≈ » ou `\|x\| ≤ b` marquent exactement les valeurs approchées, dans les quatre modes | `FormatterProperties`, `ValueFormatterTest`, `DisplayRulesTest`, `NeverShownAsZeroAcceptanceTest`, `NeverShownAsZeroProperties` |
 | G04 | Réutiliser un résultat (`ans`, `$n`) ne perd rien : `1 / 3` puis `× 3` donne exactement 1 | `NotebookLosslessChainProperties`, `NotebookParityTest`, `HistoryBridgeProperties`, `HistoryBridgeTest` |
 | G05 | La saisie accepte virgule ou point, notation scientifique, fractions et milliers insécables, et ne lève jamais d'exception inattendue | `InputProperties`, `InputFuzzProperties`, `RationalParseFuzzProperties` |
 | G06 | Chaque erreur a un message en français, un code et une position exacte | `ErrorProperties`, `ExpressionErrorsTest`, `CalculatorEngineTest` |

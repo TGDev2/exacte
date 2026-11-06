@@ -24,6 +24,7 @@ final class FakeDialogs implements NotebookDialogs {
     private final Deque<Unsaved> unsaved = new ArrayDeque<>();
     private final Deque<Boolean> replaceDraft = new ArrayDeque<>();
     private final Deque<Boolean> overwrite = new ArrayDeque<>();
+    private final Deque<Boolean> abandonExport = new ArrayDeque<>();
 
     FakeDialogs willOpen(Path file) {
         toOpen.add(Optional.ofNullable(file));
@@ -45,6 +46,11 @@ final class FakeDialogs implements NotebookDialogs {
         return this;
     }
 
+    FakeDialogs willConfirmAbandonExport(boolean answer) {
+        abandonExport.add(answer);
+        return this;
+    }
+
     FakeDialogs willConfirmReplaceDraft(boolean answer) {
         replaceDraft.add(answer);
         return this;
@@ -63,6 +69,7 @@ final class FakeDialogs implements NotebookDialogs {
         unsaved.clear();
         replaceDraft.clear();
         overwrite.clear();
+        abandonExport.clear();
         asked.clear();
         suggestedExportNames.clear();
     }
@@ -70,7 +77,7 @@ final class FakeDialogs implements NotebookDialogs {
     /** Fails if an answer was queued and never used. */
     void assertAllUsed() {
         if (!toOpen.isEmpty() || !toSave.isEmpty() || !toExport.isEmpty() || !unsaved.isEmpty() || !replaceDraft.isEmpty()
-                || !overwrite.isEmpty()) {
+                || !overwrite.isEmpty() || !abandonExport.isEmpty()) {
             throw new AssertionError("answers queued but never asked for: open " + toOpen + ", save " + toSave + ", export " + toExport
                     + ", unsaved " + unsaved + ", draft " + replaceDraft + ", overwrite " + overwrite);
         }
@@ -105,6 +112,12 @@ final class FakeDialogs implements NotebookDialogs {
     public boolean confirmReplaceDraft() {
         asked.add("replace draft");
         return next(replaceDraft, "replace draft");
+    }
+
+    @Override
+    public boolean confirmAbandonExport() {
+        asked.add("abandon export");
+        return next(abandonExport, "abandon export");
     }
 
     @Override

@@ -16,8 +16,12 @@ import java.util.Optional;
  *   <li>at most {@link #SIGNIFICANT_DIGITS} significant digits, rounded {@code HALF_UP} on the magnitude and decided
  *       exactly; « … » when the value has more digits than shown;</li>
  *   <li>an approximate value shows « ≈ » and only the digits on which its whole interval agrees, so they are the
- *       correct rounding of the true value; « ≈ 0 » only when the interval contains 0;</li>
- *   <li>a value that is not zero is never shown as a text that reads 0;</li>
+ *       correct rounding of the true value;</li>
+ *   <li>an approximate value whose interval contains 0 has no established sign: it reads « |x| ≤ b » in every mode, where
+ *       b is the largest absolute value of its two bounds, rounded up and written like a « ± » bound;</li>
+ *   <li>a value that is not zero is never shown as a text that reads 0: the only text that does is the one of the exact
+ *       zero, and a value too small for the finest grid of the numeric core to bound it without touching 0 is refused
+ *       there ({@code SIZE_LIMIT_EXCEEDED}), before it can reach this class;</li>
  *   <li>the canonical text is read back by the input grammar and gives back an exact value exactly.</li>
  * </ul>
  */
@@ -35,10 +39,12 @@ public final class ValueFormatter {
     private static final int ERROR_BOUND_DIGITS = 2;
 
     private static final String APPROXIMATE_PREFIX = "≈ ";
+    private static final String UNKNOWN_SIGN_PREFIX = "|x| ≤ ";
     private static final String ELLIPSIS = "…";
     private static final String TIMES_TEN = " × 10";
     private static final String SUPERSCRIPT_DIGITS = "⁰¹²³⁴⁵⁶⁷⁸⁹";
     private static final char SUPERSCRIPT_MINUS = '⁻';
+    private static final Shown EXACT_ZERO = new Shown("0", false, false);
 
     private ValueFormatter() {
     }
@@ -47,12 +53,14 @@ public final class ValueFormatter {
     public static FormattedValue format(CertifiedValue value, DisplayMode mode) {
         Objects.requireNonNull(value, "value");
         Objects.requireNonNull(mode, "mode");
-        Shown shown = switch (mode) {
-            case AUTO -> auto(value, false);
-            case DECIMAL -> decimal(value);
-            case FRACTION -> fraction(value);
-            case SCIENTIFIC -> scientific(value);
-        };
+        Shown shown = !value.isExact() && containsZero(value)
+                ? new Shown(UNKNOWN_SIGN_PREFIX + errorBound(largestBound(value).abs()), true, false)
+                : switch (mode) {
+                    case AUTO -> auto(value, false);
+                    case DECIMAL -> decimal(value);
+                    case FRACTION -> fraction(value);
+                    case SCIENTIFIC -> scientific(value);
+                };
         boolean exact = value.isExact();
         Optional<String> exactFraction = exact && !value.lower().isInteger()
                 ? Optional.of(value.lower().toString())
@@ -112,8 +120,8 @@ public final class ValueFormatter {
     }
 
     private static Shown auto(CertifiedValue value, boolean switched) {
-        if (isZeroText(value)) {
-            return zero(value, switched);
+        if (isExactZero(value)) {
+            return EXACT_ZERO;
         }
         int exponent = magnitudeExponent(value);
         if (exponent >= AUTO_SMALLEST_EXPONENT && exponent <= AUTO_LARGEST_EXPONENT) {
@@ -127,8 +135,8 @@ public final class ValueFormatter {
     }
 
     private static Shown decimal(CertifiedValue value) {
-        if (isZeroText(value)) {
-            return zero(value, false);
+        if (isExactZero(value)) {
+            return EXACT_ZERO;
         }
         if (magnitudeExponent(value) >= DECIMAL_SMALLEST_EXPONENT) {
             Digits digits = positionalDigits(value);
@@ -152,20 +160,16 @@ public final class ValueFormatter {
     }
 
     private static Shown scientific(CertifiedValue value) {
-        if (isZeroText(value)) {
-            return zero(value, false);
+        if (isExactZero(value)) {
+            return EXACT_ZERO;
         }
         Digits digits = scientificDigits(value);
         return new Shown(scientific(digits), !digits.complete(), false);
     }
 
-    // Exact zero, or an approximate value that may be zero: the only values shown as 0.
-    private static boolean isZeroText(CertifiedValue value) {
-        return value.isExact() ? value.lower().signum() == 0 : containsZero(value);
-    }
-
-    private static Shown zero(CertifiedValue value, boolean switched) {
-        return value.isExact() ? new Shown("0", false, switched) : new Shown(APPROXIMATE_PREFIX + "0", true, switched);
+    // The only value shown as 0.
+    private static boolean isExactZero(CertifiedValue value) {
+        return value.isExact() && value.lower().signum() == 0;
     }
 
     private static boolean containsZero(CertifiedValue value) {
@@ -174,8 +178,11 @@ public final class ValueFormatter {
 
     // Exponent of the first significant digit of the value, or of the bound of largest magnitude.
     private static int magnitudeExponent(CertifiedValue value) {
-        Rational largest = value.lower().abs().compareTo(value.upper().abs()) >= 0 ? value.lower() : value.upper();
-        return exponent(largest);
+        return exponent(largestBound(value));
+    }
+
+    private static Rational largestBound(CertifiedValue value) {
+        return value.lower().abs().compareTo(value.upper().abs()) >= 0 ? value.lower() : value.upper();
     }
 
     // Positional notation never cuts the integer part: null when an approximate value does not guarantee the units.
@@ -237,13 +244,17 @@ public final class ValueFormatter {
 
     /**
      * What « ± r » has to cover. Digits common to the whole interval are its correct rounding and r is its radius; but a
-     * text that reads 0 or a rough centre may lie far from the centre, and r then runs from that text to the farther bound.
+     * rough centre may lie far from the centre of the interval, and r then runs from that text to the farther bound. Around
+     * 0, r runs from 0: it is the b of « |x| ≤ b ».
      */
     private static Rational errorFromText(CertifiedValue value) {
-        if (!containsZero(value) && commonDigits(value) > 0) {
+        if (containsZero(value)) {
+            return largestBound(value).abs();
+        }
+        if (commonDigits(value) > 0) {
             return value.radius();
         }
-        Rational shown = containsZero(value) ? Rational.ZERO : exactly(roughCentre(value));
+        Rational shown = exactly(roughCentre(value));
         Rational toLower = shown.subtract(value.lower()).abs();
         Rational toUpper = value.upper().subtract(shown).abs();
         return toLower.compareTo(toUpper) >= 0 ? toLower : toUpper;

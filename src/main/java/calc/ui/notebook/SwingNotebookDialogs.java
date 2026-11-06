@@ -72,6 +72,12 @@ public final class SwingNotebookDialogs implements NotebookDialogs {
     }
 
     @Override
+    public boolean confirmAbandonExport() {
+        return yesNo("Un export attend la fin du calcul : il ne sera pas écrit si vous fermez maintenant.\nFermer quand même ?",
+                "Abandonner l'export", "Fermer");
+    }
+
+    @Override
     public boolean confirmOverwrite(Path file) {
         return yesNo("Le fichier « " + file.getFileName() + " » existe déjà.\nVoulez-vous le remplacer ?", "Remplacer le fichier", "Remplacer");
     }

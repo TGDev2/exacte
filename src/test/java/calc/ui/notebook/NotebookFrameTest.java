@@ -475,6 +475,7 @@ class NotebookFrameTest {
             SwingUtilities.invokeAndWait(runnable);
         }
         SwingUtilities.invokeAndWait(() -> { });
+        NotebookDriver.awaitWindows();
     }
 
     /** Runs the action that a component binds to a key, as Swing does when the key is pressed in that component. */

@@ -9,7 +9,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 /**
- * A text that does not round the whole interval, « ≈ 0 » or a rough centre, is read with its « ± r »: the whole interval must be
+ * A text that does not round the whole interval, « |x| ≤ b » or a rough centre, is read with its « ± r »: the whole interval must be
  * within r of it. Digits common to the whole interval are its correct rounding and keep the radius (ADR 0004, section 4).
  */
 class ShownValueBoundTest {
@@ -31,9 +31,9 @@ class ShownValueBoundTest {
     }
 
     @Test
-    void anIntervalShownAsZeroHasABoundFromZero() throws NumericException {
-        assertEquals("≈ 0", text(Rational.of(-1), Rational.of(11)));
-        assertEquals(Optional.of("± 1,1 × 10¹"), bound(Rational.of(-1), Rational.of(11)), "11 is 11 away from the 0 shown");
+    void anIntervalAroundZeroHasABoundFromZero() throws NumericException {
+        assertEquals("|x| ≤ 1,1 × 10¹", text(Rational.of(-1), Rational.of(11)));
+        assertEquals(Optional.of("± 1,1 × 10¹"), bound(Rational.of(-1), Rational.of(11)), "11 is 11 away from 0");
         assertEquals(Optional.of("± 1,2 × 10¹"), bound(Rational.ZERO, Rational.of(12)));
     }
 
