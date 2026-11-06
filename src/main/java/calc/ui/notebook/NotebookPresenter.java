@@ -226,9 +226,7 @@ public final class NotebookPresenter {
         if (!commitDraft()) {
             return view(NotebookFocus.ACTIVE_LINE);
         }
-        if (interruption != null) {
-            recalculate();
-        }
+        calculateAgainIfInterrupted();
         if (activeIndex() < document.notebook().size()) {
             select(activeIndex() + 1);
         }
@@ -292,6 +290,7 @@ public final class NotebookPresenter {
         syncDraft(pending);
         if (activeId == null) {
             say("Cette ligne n'est pas encore validée : il n'y a rien à supprimer (Échap abandonne la saisie).", StatusTone.INFO);
+            calculateAgainIfInterrupted();
             return view(NotebookFocus.ACTIVE_LINE);
         }
         int index = activeIndex();
@@ -336,6 +335,7 @@ public final class NotebookPresenter {
         }
         if (!document.canUndo()) {
             say("Il n'y a rien à annuler.", StatusTone.INFO);
+            calculateAgainIfInterrupted();
             return view(NotebookFocus.ACTIVE_LINE);
         }
         int index = activeIndex();
@@ -356,6 +356,7 @@ public final class NotebookPresenter {
         }
         if (!document.canRedo()) {
             say("Il n'y a rien à rétablir.", StatusTone.INFO);
+            calculateAgainIfInterrupted();
             return view(NotebookFocus.ACTIVE_LINE);
         }
         int index = activeIndex();
@@ -470,20 +471,20 @@ public final class NotebookPresenter {
      */
     public NotebookViewModel onQuit(String pending) {
         syncDraft(pending);
-        closeRequested = commitDraft() && noExportIsWaiting() && mayLeave(NotebookDialogs.Action.QUIT);
+        closeRequested = commitDraft() && mayLeave(NotebookDialogs.Action.QUIT) && mayAbandonWaitingExports();
         if (closeRequested) {
             recalculation.stop();
         }
         return view(closeRequested ? NotebookFocus.NONE : NotebookFocus.ACTIVE_LINE);
     }
 
-    // A file the user asked for is not lost in silence by closing the window: the window stays and says what to do.
-    private boolean noExportIsWaiting() {
-        if (waitingExports.isEmpty()) {
-            return true;
+    // A file the user asked for is not lost in silence by closing the window: the user decides, as for unsaved changes.
+    private boolean mayAbandonWaitingExports() {
+        if (waitingExports.isEmpty() || !dialogs.confirmAbandonExport()) {
+            return waitingExports.isEmpty();
         }
-        say("Un export attend la fin du calcul : attendez-la, ou interrompez le calcul avec Échap pour l'abandonner.", StatusTone.ERROR);
-        return false;
+        abandonWaitingExports();
+        return true;
     }
 
     // Whether the document may be replaced or closed. Unsaved work is asked about: the changes of a document with a file, and
@@ -819,6 +820,13 @@ public final class NotebookPresenter {
         }
     }
 
+    // The next command after an interruption calculates again, even one that changes nothing.
+    private void calculateAgainIfInterrupted() {
+        if (interruption != null) {
+            recalculate();
+        }
+    }
+
     private void interrupt(String sentence) {
         transientMessage = null;
         openedFile = null;
@@ -897,7 +905,8 @@ public final class NotebookPresenter {
         if (urgent != null) {
             return urgent;
         }
-        if (interruption != null) {
+        // Interrupting empties the sentence of the last intention: one that is there now is newer, and says what that intention did.
+        if (interruption != null && transientMessage == null) {
             return interruption;
         }
         if (transientMessage != null && transientMessage.confirmation()) {

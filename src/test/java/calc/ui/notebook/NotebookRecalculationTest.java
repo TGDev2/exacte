@@ -24,11 +24,14 @@ import java.awt.SecondaryLoop;
 import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
+import java.awt.event.WindowEvent;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -53,6 +56,8 @@ import org.junit.jupiter.api.io.TempDir;
  */
 class NotebookRecalculationTest {
     private static final String BLOCKED_LINE = "a + 2";
+    private static final int EDT_LINES = 5000;
+    private static final long EDT_BUDGET_MILLIS = 300;
 
     @TempDir
     Path root;
@@ -229,23 +234,82 @@ class NotebookRecalculationTest {
 
 
     @Test
-    void closingIsRefusedWhileAnExportWaitsAndEscapeAbandonsIt() throws Exception {
+    void closingWhileAnExportWaitsAsksAndEscapeAbandonsIt() throws Exception {
         NotebookPresenter presenter = openBlocked();
         Path export = root.resolve("carnet.csv");
         dialogs.willExportTo(export);
         NotebookViewModel asked = onEdt(() -> presenter.onExport(ExportFormat.CSV, "a = 1"));
         assertTrue(asked.statusMessage().startsWith("Calcul en cours"), asked.statusMessage());
 
+        dialogs.willConfirmAbandonExport(false);
         NotebookViewModel refused = onEdt(() -> presenter.onQuit("a = 1"));
-        assertFalse(refused.closeWindow(), "a file the user asked for is not lost by closing");
-        assertTrue(refused.statusMessage().startsWith("Calcul en cours : 2 / 4 lignes. Un export attend la fin du calcul"), refused.statusMessage());
-        assertEquals(StatusTone.ERROR, refused.statusTone());
+        assertFalse(refused.closeWindow(), "a file the user asked for is not lost by closing, unless they say so");
+        assertEquals(List.of("export CSV", "abandon export"), dialogs.asked);
+        assertTrue(onEdt(presenter::isCalculating), "the calculation goes on");
 
         NotebookViewModel interrupted = onEdt(() -> presenter.onCancelEdit("a = 1"));
         assertTrue(interrupted.statusMessage().contains("n'a pas été écrit"), interrupted.statusMessage());
         assertTrue(onEdt(() -> presenter.onQuit("a = 1")).closeWindow(), "nothing waits any more");
         awaitTheEnd(presenter);
         assertFalse(Files.exists(export));
+    }
+
+    @Test
+    void closingAndAgreeingAbandonsAWaitingExportAndStopsTheCalculation() throws Exception {
+        NotebookPresenter presenter = openBlocked();
+        Path export = root.resolve("carnet.csv");
+        dialogs.willExportTo(export).willConfirmAbandonExport(true);
+        onEdt(() -> presenter.onExport(ExportFormat.CSV, "a = 1"));
+
+        assertTrue(onEdt(() -> presenter.onQuit("a = 1")).closeWindow());
+        assertFalse(onEdt(presenter::isCalculating), "closing cancels the calculation");
+        released.countDown();
+        assertFalse(Files.exists(export));
+    }
+
+    /** After an interruption, a command that changes nothing still calculates again, and what it said can be read at the end. */
+    @Test
+    void anUndoWithNothingToUndoCalculatesAgainAfterAnInterruption() throws Exception {
+        NotebookPresenter presenter = openBlocked();
+        onEdt(() -> presenter.onCancelEdit("a = 1"));
+        released.countDown();
+
+        NotebookViewModel view = onEdt(() -> presenter.onUndo("a = 1"));
+        assertTrue(view.statusMessage().startsWith("Calcul en cours"), view.statusMessage());
+        awaitTheEnd(presenter);
+
+        NotebookViewModel end = onEdt(presenter::currentView);
+        assertEquals(List.of("1", "2", "3", "4", ""), end.rows().stream().map(NotebookRow::result).toList());
+        assertEquals("Il n'y a rien à annuler.", end.statusMessage());
+    }
+
+    @Test
+    void aRedoWithNothingToRedoCalculatesAgainAfterAnInterruption() throws Exception {
+        NotebookPresenter presenter = openBlocked();
+        onEdt(() -> presenter.onCancelEdit("a = 1"));
+        released.countDown();
+
+        onEdt(() -> presenter.onRedo("a = 1"));
+        awaitTheEnd(presenter);
+
+        NotebookViewModel end = onEdt(presenter::currentView);
+        assertEquals(List.of("1", "2", "3", "4", ""), end.rows().stream().map(NotebookRow::result).toList());
+        assertEquals("Il n'y a rien à rétablir.", end.statusMessage());
+    }
+
+    @Test
+    void aSaveAfterAnInterruptionSaysItWasWrittenWhileTheLinesStayInterrupted() throws Exception {
+        NotebookPresenter presenter = openBlocked();
+        onEdt(() -> presenter.onCancelEdit("a = 1"));
+        released.countDown();
+        Path file = root.resolve("garde.calc.json");
+        dialogs.willSaveTo(file);
+
+        NotebookViewModel saved = onEdt(() -> presenter.onSaveAs("a = 1"));
+
+        assertEquals("Carnet enregistré dans " + file.toAbsolutePath().normalize() + ".", saved.statusMessage());
+        assertEquals(NotebookPresenter.INTERRUPTED_LINE, saved.rows().get(3).errorMessage(), "saving is not one of the commands that calculate");
+        assertFalse(onEdt(presenter::isCalculating));
     }
 
     @Test
@@ -328,6 +392,11 @@ class NotebookRecalculationTest {
             }
 
             @Override
+            public boolean confirmAbandonExport() {
+                return false;
+            }
+
+            @Override
             public boolean confirmOverwrite(Path file) {
                 return false;
             }
@@ -388,6 +457,92 @@ class NotebookRecalculationTest {
             awaitTheEnd(presenter);
             EventQueue.invokeAndWait(frame[0]::dispose);
         }
+    }
+
+    /**
+     * Defect B1 in the real window, what the frozen test measures in the presenter only: File > Open on 5000 hostile lines, on an
+     * empty window and on a full one, gives the event thread back within the budget, and it keeps answering while the rows appear.
+     */
+    @Test
+    @Tag("ui")
+    void openingTheFileOfB1InTheRealWindowKeepsTheEventThreadAnswering() throws Exception {
+        boolean headless = GraphicsEnvironment.isHeadless();
+        if (headless && Boolean.getBoolean("calc.ui.required")) {
+            fail("UI tests require a graphical environment (-PrequireUiTests=true): no display is available, so the ui tests cannot run.");
+        }
+        assumeFalse(headless, "UI tests require a graphical environment.");
+
+        String hostile = String.join("+", Collections.nCopies(65, "sqrt(2^4000+1)"));
+        Path first = root.resolve("b1.calc.json");
+        Path second = root.resolve("b1-bis.calc.json");
+        Files.write(first, NotebookCodec.encode(Notebook.of(Collections.nCopies(EDT_LINES, hostile)), DisplayMode.AUTO).bytes());
+        Files.write(second, NotebookCodec.encode(Notebook.of(Collections.nCopies(EDT_LINES, hostile + "+1")), DisplayMode.AUTO).bytes());
+        store.saveCurrent(Notebook.empty(), DisplayMode.AUTO);
+
+        NotebookFrame[] frame = new NotebookFrame[1];
+        EventQueue.invokeAndWait(() -> {
+            frame[0] = new NotebookFrame(NotebookPresenter.open(store, store.load(), DisplayModeStore.noop(), dialogs, NotebookPresenter.newRecalculationExecutor()));
+            frame[0].setVisible(true);
+        });
+        try {
+            long bestEmpty = Long.MAX_VALUE;
+            long bestFull = Long.MAX_VALUE;
+            List<Long> answers = new ArrayList<>();
+            // Twice from a window of one row, twice from a full one, after a first run that warms the code up.
+            for (int run = 0; run < 5; run++) {
+                boolean fromFull = run >= 3;
+                Path file = fromFull && run == 3 ? second : first;
+                if (!fromFull) {
+                    dialogs.willAnswer(NotebookDialogs.Unsaved.DISCARD).willConfirmReplaceDraft(true);
+                    EventQueue.invokeAndWait(() -> frame[0].row(0).field.getActionMap().get("notebook-NEW_DOCUMENT").actionPerformed(new ActionEvent(frame[0], 0, "")));
+                }
+                dialogs.reset();
+                dialogs.willOpen(file);
+                long elapsed = openAndSample(frame[0], answers);
+                if (run > 0) {
+                    bestEmpty = fromFull ? bestEmpty : Math.min(bestEmpty, elapsed);
+                    bestFull = fromFull ? Math.min(bestFull, elapsed) : bestFull;
+                }
+            }
+            List<Long> sorted = answers.stream().sorted().toList();
+            long worst = sorted.get(sorted.size() - 1);
+            long percentile = sorted.get(sorted.size() * 99 / 100);
+            System.out.printf("[acceptance] File > Open of %d hostile lines in the window: best %d ms from an empty window, best %d ms from a full one;"
+                    + " while the rows appear the event thread answers in %d ms at the 99th percentile, worst %d ms%n", EDT_LINES, bestEmpty, bestFull, percentile, worst);
+            assertTrue(bestEmpty < EDT_BUDGET_MILLIS, "from an empty window: " + bestEmpty + " ms");
+            assertTrue(bestFull < EDT_BUDGET_MILLIS, "from a full window: " + bestFull + " ms");
+            assertTrue(percentile < EDT_BUDGET_MILLIS, "the event thread answers: 99th percentile " + percentile + " ms");
+
+            EventQueue.invokeAndWait(() -> {
+                assertEquals(EDT_LINES + 1, frame[0].rowCount());
+                assertEquals(hostile, frame[0].row(EDT_LINES - 1).field.getText(), "every text is there");
+                assertEquals(NotebookPresenter.PENDING_RESULT, frame[0].row(EDT_LINES - 1).resultLabel.getText());
+            });
+        } finally {
+            dialogs.reset();
+            dialogs.willAnswer(NotebookDialogs.Unsaved.DISCARD);
+            EventQueue.invokeAndWait(() -> frame[0].dispatchEvent(new WindowEvent(frame[0], WindowEvent.WINDOW_CLOSING)));
+            EventQueue.invokeAndWait(frame[0]::dispose);
+        }
+    }
+
+    // Runs File > Open on the event thread and returns how long it held it; round trips are sampled until all the rows are there.
+    private static long openAndSample(NotebookFrame frame, List<Long> answers) throws Exception {
+        long[] elapsed = new long[1];
+        EventQueue.invokeAndWait(() -> {
+            long start = System.nanoTime();
+            frame.row(0).field.getActionMap().get("notebook-OPEN_DOCUMENT").actionPerformed(new ActionEvent(frame, 0, ""));
+            elapsed[0] = (System.nanoTime() - start) / 1_000_000;
+        });
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(60);
+        int[] rows = new int[1];
+        while (rows[0] <= EDT_LINES) {
+            assertTrue(System.nanoTime() < deadline, "the rows never all appeared: " + rows[0]);
+            long start = System.nanoTime();
+            EventQueue.invokeAndWait(() -> rows[0] = frame.rowCount());
+            answers.add((System.nanoTime() - start) / 1_000_000);
+        }
+        return elapsed[0];
     }
 
     @SuppressWarnings("unchecked")

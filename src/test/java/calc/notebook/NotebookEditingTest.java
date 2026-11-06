@@ -169,7 +169,9 @@ class NotebookEditingTest {
         LineId first = editor.notebook().line(1).id();
         editor.apply(new NotebookCommand.Edit(first, "3"));
         editor.undo();
-        editor.apply(new NotebookCommand.Edit(first, "1"));
+        Notebook before = editor.notebook();
+        assertSame(before, editor.apply(new NotebookCommand.Edit(first, "1")), "the command returns the notebook, unchanged");
+        assertSame(before, editor.notebook());
         EvaluatedNotebook same = editor.current();
         assertSame(editor.current(), same);
         assertFalse(editor.canUndo());

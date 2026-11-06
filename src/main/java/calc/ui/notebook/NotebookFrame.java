@@ -25,6 +25,7 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import javax.swing.AbstractAction;
 import javax.swing.Action;
 import javax.swing.BorderFactory;
@@ -53,6 +54,10 @@ public final class NotebookFrame extends JFrame {
     private static final long serialVersionUID = 1L;
     private static final String NEXT_MODE_ACTION = "next-display-mode";
     private static final String CANCEL_EDIT_ACTION = "cancel-edit-or-calculation";
+    // A notebook with more rows than this is shown over several events, so that the event thread keeps answering: building or
+    // refilling 5000 rows at once takes more than a second (docs/adr/0014-calcul-hors-interface.md).
+    private static final int ROWS_AT_ONCE = 200;
+    private static final long SLICE_NANOS = TimeUnit.MILLISECONDS.toNanos(15);
 
     // The frame is never serialized: the presenter is deliberately not Serializable.
     @SuppressWarnings("serial")
@@ -71,6 +76,10 @@ public final class NotebookFrame extends JFrame {
     private transient NotebookViewModel shown;
     private boolean applying;
     private boolean focusMoved;
+    // Until the window is first shown, every row is built at once: there is nothing to keep answering for.
+    private boolean built;
+    // Whether an event is on its way to build the next rows.
+    private boolean growing;
 
     public NotebookFrame(NotebookPresenter presenter) {
         this(presenter, new NotebookShortcuts(Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
@@ -151,6 +160,7 @@ public final class NotebookFrame extends JFrame {
 
         presenter.setViewListener(this::applyCalculation);
         apply(presenter.initialView());
+        built = true;
     }
 
     // ------------------------------------------------------------------------------------------------ menus
@@ -387,7 +397,7 @@ public final class NotebookFrame extends JFrame {
     private void applyCalculation(NotebookViewModel viewModel) {
         applying = true;
         try {
-            if (shown == null || rows.size() != viewModel.rows().size() || shown.activeIndex() != viewModel.activeIndex()) {
+            if (shown == null || shown.rows().size() != viewModel.rows().size() || shown.activeIndex() != viewModel.activeIndex()) {
                 // A dialog was open in the middle of an intention: nothing here is typed, the view catches up.
                 showRows(viewModel);
                 rowsPanel.revalidate();
@@ -433,17 +443,66 @@ public final class NotebookFrame extends JFrame {
         scrollToActive();
     }
 
+    // Every row that exists shows the state of now: the rows still to build are simply not there yet, never an old line.
     private void showRows(NotebookViewModel viewModel) {
-        while (rows.size() < viewModel.rows().size()) {
+        int size = viewModel.rows().size();
+        int atOnce = built ? Math.min(size, Math.max(ROWS_AT_ONCE, viewModel.activeIndex() + 1)) : size;
+        // Another document: the rows below are dropped and built again rather than filled again, which costs as much.
+        removeRowsFrom(built && isAnotherDocument(viewModel) ? atOnce : size);
+        while (rows.size() < atOnce) {
             addRow();
-        }
-        while (rows.size() > viewModel.rows().size()) {
-            rowsPanel.remove(rows.remove(rows.size() - 1));
         }
         for (int i = 0; i < rows.size(); i++) {
             NotebookRow row = viewModel.rows().get(i);
             boolean active = i == viewModel.activeIndex();
             rows.get(i).show(row, active, active ? viewModel.activeDraft() : row.text(), active ? viewModel.watermark() : "");
+        }
+    }
+
+    private void removeRowsFrom(int count) {
+        while (rows.size() > count) {
+            rows.remove(rows.size() - 1);
+            rowsPanel.remove(rows.size());
+        }
+    }
+
+    // Whether more lines hold another text than can be filled at once.
+    private boolean isAnotherDocument(NotebookViewModel viewModel) {
+        if (shown == null) {
+            return false;
+        }
+        int common = Math.min(shown.rows().size(), viewModel.rows().size());
+        int different = Math.abs(shown.rows().size() - viewModel.rows().size());
+        for (int i = 0; i < common && different <= ROWS_AT_ONCE; i++) {
+            if (!shown.rows().get(i).text().equals(viewModel.rows().get(i).text())) {
+                different++;
+            }
+        }
+        return different > ROWS_AT_ONCE;
+    }
+
+    // The next rows, for a few milliseconds, then the events waiting: the window answers while a large notebook appears.
+    private void growRows() {
+        growing = false;
+        long deadline = System.nanoTime() + SLICE_NANOS;
+        applying = true;
+        try {
+            while (rows.size() < shown.rows().size() && System.nanoTime() < deadline) {
+                NotebookRow row = shown.rows().get(rows.size());
+                addRow();
+                rows.get(rows.size() - 1).show(row, false, row.text(), "");
+            }
+        } finally {
+            applying = false;
+        }
+        rowsPanel.revalidate();
+        growLater();
+    }
+
+    private void growLater() {
+        if (!growing && rows.size() < shown.rows().size()) {
+            growing = true;
+            SwingUtilities.invokeLater(this::growRows);
         }
     }
 
@@ -456,6 +515,7 @@ public final class NotebookFrame extends JFrame {
         modeItems.get(viewModel.displayMode()).setSelected(true);
         showStatus(viewModel.statusMessage(), viewModel.statusTone());
         shown = viewModel;
+        growLater();
     }
 
     private void addRow() {
@@ -498,9 +558,9 @@ public final class NotebookFrame extends JFrame {
 
     // ------------------------------------------------------------------------------------------------ for the tests
 
-    /** Whether a calculation is under way: a test waits for its end. */
+    /** Whether a calculation is under way or rows are still to build: a test waits for the end. */
     boolean isCalculating() {
-        return presenter.isCalculating();
+        return presenter.isCalculating() || growing;
     }
 
     /** The view model now shown. */
