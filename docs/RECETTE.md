@@ -47,13 +47,13 @@ Tests par tag, sur la branche de recette à `55a2a4f` (`-PincludeTags=...`, avec
 |---|---|---|
 | Idée 1 : `1 / 3` puis `ans * 3` donne `1` exact | ExactEngineAcceptanceTest ; sonde du JRE embarqué | OK |
 | Idée 1 : `√2` approché, borne d'erreur, vraie valeur dans l'intervalle | ExactEngineAcceptanceTest | OK |
-| Idée 1 : un texte `≈ 0` ou un centre grossier et sa borne contiennent la vraie valeur (ailleurs, les chiffres sont l'arrondi correct de tout l'intervalle et la borne reste le rayon autour du centre, ADR 0004) | ShownValueBoundTest | Corrigé |
+| Idée 1 : un texte `\|x\| ≤ b` ou un centre grossier et sa borne contiennent la vraie valeur (ailleurs, les chiffres sont l'arrondi correct de tout l'intervalle et la borne reste le rayon autour du centre, ADR 0004) | ShownValueBoundTest ; NeverShownAsZeroProperties | Corrigé |
 | Idée 1 : `1 / 3000000000000` et `3 ^ -30` non nuls dans les 4 modes | ExactEngineAcceptanceTest | OK |
 | Idée 1 : `√(9/4)` donne `3/2` exact | ExactEngineAcceptanceTest ; relecture du noyau | OK |
 | Idée 1 : 50 opérations exactes enchaînées restent exactes | ExactEngineAcceptanceTest | OK |
 | Idée 1 : entrées énormes refusées rapidement | ExactEngineAcceptanceTest (0 à 3 ms) | OK |
 | Idée 1 : réutilisation sans perte | NotebookLosslessChainProperties | OK |
-| Idée 1 : une valeur non nulle n'est jamais affichée « 0 » | ExactEngineAcceptanceTest pour les cas prévus ; contre-exemple D1 | Non tenu, décision requise |
+| Idée 1 : une valeur non nulle n'est jamais affichée « 0 » | ExactEngineAcceptanceTest pour les cas prévus ; NeverShownAsZeroAcceptanceTest et NeverShownAsZeroProperties pour le contre-exemple D1 | Corrigé |
 | Idée 2 : scénario devis, cascade | NotebookScenariosAcceptanceTest | OK |
 | Idée 2 : scénario budget, `$n`, `$?`, déplacement, annuler et rétablir tout | NotebookScenariosAcceptanceTest ; NotebookPresenterStatefulProperties | OK |
 | Idée 2 : enregistrer sous, rouvrir, mêmes lignes et résultats | NotebookScenariosAcceptanceTest | OK |
@@ -88,12 +88,11 @@ Chaque test échouait avant sa correction. Le contrôle final les exécute tous.
 | Perte silencieuse : les lignes d'historique encore rejetées à la migration (`POWER 2 0,5`, résultat incohérent) disparaissaient du carnet sans message. Le statut annonce maintenant leur nombre et le fichier qui les conserve (`history.tsv.v1.bak`). Elles ne sont toujours pas dans le carnet. | MigrationRejectionNoticeTest | 130973e |
 | Perte de données : le temporaire au nom fixe `<nom>.tmp` détruisait un fichier de l'utilisateur portant ce nom, sans confirmation. | TemporaryNameCollisionTest | 714a506 |
 | Gel de la fenêtre : un carnet valide de 5000 lignes coûteuses bloquait le thread Swing environ 3 minutes (B1, paragraphe ci-dessous). Corrigé après la recette. | BackgroundRecalculationAcceptanceTest | ba3ec1f |
+| Garantie violée : une valeur non nulle pouvait s'afficher `≈ 0` (D1, paragraphe ci-dessous). Corrigé après la recette, preuve dans NeverShownAsZeroAcceptanceTest. | NeverShownAsZeroAcceptanceTest, NeverShownAsZeroProperties | 7e250dd, eaf5e73 |
 
 **B1. Gel de la fenêtre par un carnet hostile : corrigé après la recette, par le calcul hors du thread Swing (E17, [ADR 0014](adr/0014-calcul-hors-interface.md)), preuve dans `BackgroundRecalculationAcceptanceTest`.** Constat de la recette : le recalcul était synchrone sur le thread Swing, sans budget global. Mesuré par le recetteur avec des lignes `sqrt(2^4000+1)+…` de 974 caractères : 3,9 s pour 100 lignes, 11,2 s pour 300. Mesuré par la relecture : 182 s pour 5000 lignes (5,07 Mo), et environ 11,5 s à chaque Entrée à 300 lignes dans une vraie fenêtre. Après correction, Fichier > Ouvrir sur ces 5000 lignes dans la vraie fenêtre rend la main en moins de 300 ms, y compris la création des lignes, désormais par tranches (`NotebookRecalculationTest`) ; les lignes se comptent dans la barre d'état et `Échap` interrompt le calcul. Les 3 minutes de calcul restent, en arrière-plan : le moteur n'a pas été optimisé.
 
-### Défauts bloquants non corrigés : décision de conception requise
-
-**D1. Une valeur non nulle s'affiche `≈ 0`.** C'est une garantie violée : `(sqrt(2) / 16) ^ 4096` donne `≈ 0`, APPROXIMATE, car l'arrondi extérieur ramène la borne basse à 0 (`OutwardRounding.java:50`), alors que l'exact `(1/16)^4096` est refusé. Aussi `√2 - √2 + 1e-40`. Le marqueur `≈` et la borne restent vrais, mais la promesse écrite ne l'est pas. Il faut choisir entre refuser ces valeurs, ce qui retire des résultats aujourd'hui acceptés, et reformuler la promesse : ce choix revient aussi au propriétaire.
+**D1. Une valeur non nulle s'affichait `≈ 0` : corrigé après la recette (E18, [ADR 0004](adr/0004-regles-affichage.md)), preuve dans `NeverShownAsZeroAcceptanceTest` et `NeverShownAsZeroProperties`.** Constat de la recette : `(sqrt(2) / 16) ^ 4096` donnait `≈ 0`, car l'arrondi extérieur ramenait la borne basse à 0, alors que l'exact `(1/16)^4096` était refusé ; de même `√2 - √2 + 1e-40`. Après correction, une borne non nulle qui deviendrait 0 est refusée avec le message de l'exact (`OutwardRounding.java:63`), ce qui retire ces résultats-là, et un intervalle qui contient 0 s'affiche `|x| ≤ b` dans tous les modes : `√2 - √2 + 1e-40` donne `|x| ≤ 4,2 × 10⁻²⁵`.
 
 ### Autres défauts consignés
 
@@ -103,8 +102,8 @@ Chaque test échouait avant sa correction. Le contrôle final les exécute tous.
 | D11 | Majeure | Sous un petit tas, `OutOfMemoryError` dans le constructeur de la fenêtre : le processus reste vivant, sans fenêtre (`NotebookFrame.java:148-151`, `Main.java:22-38`). Exige un tas non standard : 110 Mo suffisent | Carnet courant de 15,1 Mo avec `-Xmx64m` ; encore vivant, sans fenêtre, après 20 s |
 | D13 | Moyenne | Après une conversion échouée, Fichier > Nouveau sans rien taper fait abandonner la conversion au démarrage suivant, contrairement à `NotebookStore.java:239` | Historique non convertible, Nouveau, relance : état `NORMAL`, carnet vide |
 | D5 | Faible | Enregistrer sous remplace un fichier de version future après une confirmation générique (`DocumentService.java:232`) | Enregistrer sous vers un fichier `version: 99` : champ inconnu perdu |
-| D6 | Faible | Le texte d'un intervalle très large reste son centre arrondi, qui peut sortir de l'intervalle (`ValueFormatter.java:221`). La borne, elle, est désormais vraie | `1,5+(sqrt(2)-sqrt(2))*2e23` donne `≈ 2…` |
-| D7 | Faible | Pour un intervalle contenant 0, Fraction et Auto diffèrent (`ValueFormatter.java:147`) | `5+(sqrt(2)-sqrt(2))*1e26` : Fraction `≈ 5`, Auto `≈ 0` |
+| D6 | Faible | Le texte d'un intervalle très large reste son centre arrondi, qui peut sortir de l'intervalle (`ValueFormatter.java:225`). La borne, elle, est désormais vraie | `1,5+(sqrt(2)-sqrt(2))*2e23` donne `≈ 2…` |
+| D7 | Faible | Corrigé après la recette, preuve dans `NeverShownAsZeroAcceptanceTest` : pour un intervalle contenant 0, Fraction et Auto différaient ; tous les modes donnent maintenant le même texte | `5+(sqrt(2)-sqrt(2))*1e26` : avant, Fraction `≈ 5` et Auto `≈ 0` ; après, `\|x\| ≤ 4,7 × 10¹` partout |
 | D9 | Faible | `hs_err_*.log` et `replay_*.log` ne sont pas ignorés par git : le rapport de conformité d'un clone propre indique « + modifications non commitées » | `gradlew conformity` sous manque de mémoire, voir `git status` ; sans plantage, le même rapport indique bien `0bdd5343ecac` seul |
 | D14 | Faible | Le message sur les entrées les plus anciennes est inexact (`NotebookStore.java:247`) | 12 000 entrées : annonce 7000 dans `v2.bak`, qui en contient 10 000 ; les 2000 plus anciennes sont seulement dans `v1.bak` |
 | D15 | Faible | Répertoire de données invalide : sortie silencieuse, code 0, sans fenêtre (`DataDirectory.java:67`) | `APPDATA=C:\bad\|dir` |
@@ -143,7 +142,7 @@ Un défaut consigné à tort a été retiré : `x = 1`, `x = 2 +`, `x` n'utilise
 Environ 90 affirmations du README et 105 du guide utilisateur ont été contrôlées (ordre de grandeur, non décomptées une à une). Écarts :
 
 - `README.md:104` : fichier abîmé « jamais écrasé ». En réalité, il est remplacé à la première ligne validée, le `.bak` étant conservé. Trompeur.
-- `README.md:102`, `docs/GUIDE-UTILISATEUR.md:33` : « jamais 0 ». Voir D1.
+- `README.md:102`, `docs/GUIDE-UTILISATEUR.md` : « jamais 0 ». Écart levé par la correction de D1.
 - `README.md:105`, guide:114 : migration « sans perte », une ligne par calcul. Au-delà de 5000 entrées, les plus anciennes restent seulement dans la sauvegarde ; certaines deviennent des commentaires, et d'autres sont rejetées, ce que le statut annonce désormais.
 - `README.md:24-25`, guide:80 et 91 : seul `Ctrl+M` est signalé « toujours Ctrl », or `Ctrl+Maj+↑/↓` l'est aussi (`NotebookShortcuts.java:68`). Trompeur sur macOS.
 - Guide:72-73 : le résultat est le texte affiché, mais les exports ajoutent la borne (`≈ 1,41421356237… (± 2,1 × 10⁻²⁵)`).
@@ -163,7 +162,7 @@ Environ 90 affirmations du README et 105 du guide utilisateur ont été contrôl
 
 ### Idée 1 : moteur exact — livrée avec réserves
 
-Exactitude, borne certifiée, modes d'affichage et réutilisation sans perte tiennent dans tous les scénarios prévus. La relecture complète du noyau a trouvé corrects les sens d'arrondi, la racine et les limites vérifiées avant calcul (15 000 puis 20 000 essais aléatoires sans échec). Elle a aussi trouvé un défaut bloquant, corrigé : la borne affichée pouvait exclure la vraie valeur pour un intervalle très large. Un défaut bloquant reste ouvert, D1 : hors de la plage usuelle, une valeur non nulle peut s'afficher `≈ 0`. Le marqueur et la borne restent vrais, mais la promesse écrite est plus forte que le comportement. Il faut trancher entre refuser ce cas et corriger la promesse.
+Exactitude, borne certifiée, modes d'affichage et réutilisation sans perte tiennent dans tous les scénarios prévus. La relecture complète du noyau a trouvé corrects les sens d'arrondi, la racine et les limites vérifiées avant calcul (15 000 puis 20 000 essais aléatoires sans échec). Elle a aussi trouvé un défaut bloquant, corrigé : la borne affichée pouvait exclure la vraie valeur pour un intervalle très large. Un second défaut bloquant, D1, a été corrigé après la recette : une valeur non nulle ne s'affiche plus jamais 0. Une valeur trop petite pour être encadrée sans toucher 0 est refusée, et une valeur de signe inconnu s'affiche `|x| ≤ b`, sous réserve du contrôle manuel de la section 8. Reste D6 : le texte d'un intervalle très large peut sortir de l'intervalle.
 
 ### Idée 2 : carnet de calcul — livrée avec réserves
 
@@ -185,7 +184,8 @@ Build Gradle, JUnit 5, tests par propriétés et de robustesse, tests d'interfac
 - [ ] Avertissements SmartScreen (Windows) et Gatekeeper (macOS) au premier lancement.
 - [ ] Ouvrir un carnet de 5000 lignes hostiles : la fenêtre se déplace et les menus s'ouvrent pendant le calcul, la barre d'état compte les lignes.
 - [ ] Pendant ce calcul, appuyer sur Échap : le calcul s'arrête et les lignes restantes disent « Non calculée : calcul interrompu ».
-- [ ] Trancher D1 : refuser la valeur, ou reformuler la promesse « jamais 0 ».
+- [ ] Taper `√2 - √2` dans la fenêtre : le résultat se lit `|x| ≤ …` et ne contient pas `≈ 0`.
+- [ ] Taper `(sqrt(2) / 16) ^ 4096` : la ligne est en erreur avec le même message que `(1/16) ^ 4096`.
 
 ## 9. Recommandations hiérarchisées
 
@@ -194,10 +194,9 @@ Classées par criticité, puis impact, puis coût.
 | Rang | Recommandation | Criticité | Impact | Coût |
 |---|---|---|---|---|
 | 1 | Rétablir la CI et exécuter une première release | Haute | Prouve la partie non démontrée de l'idée 3 | Faible |
-| 2 | Décider et traiter D1 | Haute | Lève le dernier défaut bloquant restant | Faible à moyen |
-| 3 | Contrôler à la main le calcul hors du thread Swing (section 8) | Haute | Confirme la correction de B1 dans une vraie fenêtre | Faible |
-| 4 | Éprouver R1 dans Excel, puis élargir la neutralisation si besoin | Haute | Sécurité des exports | Faible |
-| 5 | Corriger D13 | Moyenne | Confiance dans la migration | Faible |
-| 6 | Conserver une ligne en cours de saisie à l'annulation (D10) | Moyenne | Évite la perte d'une saisie | Faible |
-| 7 | Mettre à jour README, guides, `CLAUDE.md` (section 6) ; ignorer `hs_err_*` (D9) | Moyenne | Documentation fiable | Faible |
-| 8 | Gérer les erreurs au démarrage (D11, D15, R7), borner `HistoryCodec` (R2) | Faible | Marge de sûreté | Faible |
+| 2 | Contrôler à la main le calcul hors du thread Swing et le texte `\|x\| ≤ b` (section 8) | Haute | Confirme les corrections de B1 et D1 dans une vraie fenêtre | Faible |
+| 3 | Éprouver R1 dans Excel, puis élargir la neutralisation si besoin | Haute | Sécurité des exports | Faible |
+| 4 | Corriger D13 | Moyenne | Confiance dans la migration | Faible |
+| 5 | Conserver une ligne en cours de saisie à l'annulation (D10) | Moyenne | Évite la perte d'une saisie | Faible |
+| 6 | Mettre à jour README, guides, `CLAUDE.md` (section 6) ; ignorer `hs_err_*` (D9) | Moyenne | Documentation fiable | Faible |
+| 7 | Gérer les erreurs au démarrage (D11, D15, R7), borner `HistoryCodec` (R2) | Faible | Marge de sûreté | Faible |

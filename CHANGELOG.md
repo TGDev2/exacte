@@ -42,6 +42,12 @@ tout ce qui suit est dans la prochaine version. Le numéro sera choisi au moment
 - L'ancien formulaire à deux champs (deux nombres et une opération) : chacune de ses fonctions a son équivalent dans le
   carnet (tableau dans [docs/adr/0011-fichiers-dans-l-interface.md](docs/adr/0011-fichiers-dans-l-interface.md)).
 
+### Corrigé
+
+- **Une valeur non nulle n'est plus jamais affichée 0.** Une valeur dont le signe n'a pas pu être établi s'affiche `|x| ≤ b`
+  dans tous les modes, à la place de l'ancien texte ; une valeur trop petite pour être encadrée sans toucher 0 est refusée,
+  avec le même message que sa version exacte (`(sqrt(2) / 16) ^ 4096` comme `(1/16) ^ 4096`).
+
 ### Sécurité
 
 - Entrées bornées avant tout calcul (taille des nombres, profondeur, longueur des lignes, taille des fichiers) ; fichiers

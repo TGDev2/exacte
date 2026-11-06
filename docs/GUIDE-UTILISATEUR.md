@@ -31,13 +31,14 @@ exactement `1`. Seule une racine carrée qui ne tombe pas juste est approchée.
 | badge **Exact** | la valeur est exacte (une fraction). Le texte peut être arrondi pour l'affichage, la valeur gardée ne l'est pas |
 | badge **≈ Approché** | la valeur est une approximation (racine non exacte) ; la vraie valeur est certainement dans l'intervalle calculé |
 | **≈** devant un nombre | même chose : seuls les chiffres garantis sont affichés (`√2 ≈ 1,41421356237…`) |
+| **\|x\| ≤ …** | le signe de la valeur n'a pas pu être établi : elle vaut peut-être 0, et elle est au plus … en valeur absolue (`√2 - √2` donne `\|x\| ≤ 4,2 × 10⁻²⁵`) |
 | **…** après les chiffres | des chiffres existent mais ne sont pas affichés (`1 / 3 = 0,333333333333…`) |
 | info-bulle (survol du résultat) | « Erreur maximale : ± … » pour une valeur approchée ; « Valeur exacte : 1/3 (affichage arrondi) » quand le texte est arrondi |
 | `m × 10ⁿ` | notation scientifique, utilisée en dehors de `[10⁻⁶, 10¹⁵[` en mode Auto |
 | message sous la ligne, partie soulignée | la ligne est en erreur ; le message dit pourquoi et le soulignement montre où |
 
-Un nombre non nul n'est jamais affiché `0`. Le badge est toujours accompagné d'un texte : la couleur seule ne porte pas
-l'information.
+Un nombre non nul n'est jamais affiché `0` : une valeur trop petite pour être encadrée sans toucher 0 est refusée, avec le
+même message que `(1/16) ^ 4096`. Le badge est toujours accompagné d'un texte : la couleur seule ne porte pas l'information.
 
 ## Modes d'affichage
 

@@ -44,10 +44,16 @@ the only code that turns a value into text; the engine, the history and the pres
   position is monotone, every point of the interval, the true value included, has that same rounding: the digits shown
   are the correct rounding of the true value. If no digit is common to both bounds (very wide interval), the centre is
   shown with one significant digit. An approximate text always ends with « … » (`≈ 1,41421356237…`).
-- An approximate value whose interval contains 0 is shown `≈ 0`: it may really be 0 (`√2 - √2` computed on intervals).
-  Every other value is non-zero for sure, and **its text never reads as 0**: significant digits are counted from the
+- An approximate value whose interval contains 0 has no established sign: it may really be 0 (`√2 - √2` computed on
+  intervals), and it may not (`√2 - √2 + 1e-40`). It reads `|x| ≤ b`, the same text in every mode, where `b` is the
+  largest absolute value of its two bounds, rounded up and written like a `±` bound (section 4): `|x| ≤ 4,2 × 10⁻²⁵`.
+  Added by E18 (docs/RECETTE.md, defects D1 and D7), which also removes the former text of these values.
+- Every other value is non-zero for sure, and **its text never reads as 0**: significant digits are counted from the
   first non-zero digit, and a positional text that would need too many leading zeros switches to the scientific
-  notation.
+  notation. Only the exact zero reads `0`.
+- A value too small for its bound to stay non-zero is refused. When the finest grid of the outward rounding (`2^-4095`,
+  ADR 0003) cannot bound a non-zero value without touching 0, the operation fails with `SIZE_LIMIT_EXCEEDED`, so with the
+  same message as its exact twin: `(sqrt(2) / 16) ^ 4096` is refused like `(1/16) ^ 4096`.
 - The integer part of a positional text is never cut: an exact integer below 10¹⁵ is shown in full, and an approximate
   value whose guaranteed digits do not reach the units is shown in scientific notation.
 - Decimal comma, no thousands grouping, ASCII minus sign, as before.
@@ -62,7 +68,8 @@ the only code that turns a value into text; the engine, the history and the pres
 | Scientifique | `m × 10ⁿ`, mantissa with a decimal comma, exponent in superscript digits (`3,33333333333… × 10⁻¹³`); `0` for zero. |
 
 The thresholds `10¹⁵` and `10⁻⁶` are the ones of the brief; `10⁻¹⁵` for Décimal mirrors `10¹⁵` and keeps a positional
-text under 30 characters.
+text under 30 characters. The text `|x| ≤ b` of an interval that contains 0 is outside this table: it is the same in the
+four modes and does not set the notation-switch flag.
 
 ### 4. Error bound
 
@@ -70,9 +77,10 @@ For an approximate value, `± r` with `r` the radius of the interval around its 
 `[centre - r, centre + r]`), rounded **up** to two significant digits so that it stays a bound, in scientific notation
 (`± 2,1 × 10⁻²⁵` for `√2`).
 
-Corrected by the final acceptance (docs/RECETTE.md): a text that does not round the whole interval, `≈ 0` or the rough centre
-of a very wide interval, may lie far from the centre, and the pair « text ± r » then excluded the true value (`≈ 2… ± 8,3 × 10⁻²`
-for `[1,41728 ; 1,58272]`). For these two texts only, `r` runs from the text to the farther bound (`≈ 2… ± 5,9 × 10⁻¹`).
+Corrected by the final acceptance (docs/RECETTE.md): a text that does not round the whole interval, the rough centre of a very
+wide interval, may lie far from the centre, and the pair « text ± r » then excluded the true value (`≈ 2… ± 8,3 × 10⁻²` for
+`[1,41728 ; 1,58272]`). For this text, `r` runs from the text to the farther bound (`≈ 2… ± 5,9 × 10⁻¹`). For an interval that
+contains 0, `r` runs from 0 to the farther bound: it is the `b` of `|x| ≤ b`.
 
 ### 5. Canonical text (the reusable text)
 
@@ -83,7 +91,8 @@ The canonical text is read back by the input grammar and gives back **exactly** 
 - other exact values: the shortest of the positional decimal (if finite), the exact scientific notation (`1e1000`, if
   finite) and the fraction (`1/3`); on a tie the decimal, then the scientific notation;
 - approximate value: the decimal with the fewest significant digits that lies inside the interval (`√2` gives
-  `1,414213562373095048801689`), positional up to 40 characters, scientific beyond; `0` when the interval contains 0.
+  `1,414213562373095048801689`), positional up to 40 characters, scientific beyond; `0` when the interval contains 0
+  (a point of the interval to read back, not a text shown as the result).
 
 Every canonical text of a value within the core limits fits the input bound (4100 characters): the longest is a
 fraction of two 4096-bit components, about 2470 characters.
@@ -176,6 +185,10 @@ version 1: it is written as is and rejected, with a backup, at the next load.
   golden file is listed and classified in `docs/changements-comportement-E06.md`, and `golden/engine-v2.tsv` is the new
   reference.
 - The display text and the reusable text are no longer the same string: the golden test checks both columns.
+- E18 refuses results that were accepted before, those whose bound was brought to 0 by the rounding. A notebook keeps such a
+  line and shows it in error. An entry of the version 2 history whose recorded bounds came from that rounding no longer matches
+  its recalculation: it is set aside and counted at the next load, like any entry that differs from its recalculation. The file
+  formats do not change: no display text goes to a file. The exports take the new text, alone since it is already the bound.
 - A version 1 file written by E06 cannot carry an interval: a line built from a remembered approximate value comes back
   as the exact result of its canonical operand (a point of the original interval), and a power of such a value above
   about 48 cannot be stored at all (rejected with a backup at the next load). E07 stores the intervals.

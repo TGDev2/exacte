@@ -51,8 +51,9 @@ internal library with its own tests; E06 integrates it into the engine.
    **up** to the grid of step `2^(e + 1 - 128)`, where `2^e <= |bound| < 2^(e + 1)`: the step is relative to the
    magnitude, each rounding widens a bound by less than `2^-127` of its magnitude, and the inclusion property is kept.
    A bound already on the grid is left unchanged; an exact value is never rounded. The finest step is `2^-4095`, so a
-   rounded denominator always fits the limit: an approximate bound below `2^-3968` keeps fewer significant bits (it may
-   reach 0 from above) but stays on the right side. A bound whose magnitude reaches `2^4096`, before or after rounding, is refused
+   rounded denominator always fits the limit: an approximate bound below `2^-3968` keeps fewer significant bits but stays on
+   the right side. A non-zero bound never reaches 0 and never changes sign: when the finest step cannot bound it without
+   touching 0, it is refused (`SIZE_LIMIT_EXCEEDED`, E18, ADR 0004). A bound whose magnitude reaches `2^4096`, before or after rounding, is refused
    (`SIZE_LIMIT_EXCEEDED`). Approximate powers are computed by square and multiply, every intermediate rounded in the
    direction of the bound it serves.
 5. **Square root.** Exact when the value is exact and its reduced numerator and denominator are perfect squares
@@ -156,8 +157,9 @@ warm-up, below 10 ms).
   the magnitude. The significant-bit budget keeps every approximate bound small and of the same shape.
 - **8192 bits per component.** 2.7 ms for a sum already, so less margin on slow CI runners; 4096 bits already cover
   every result of the current engine.
-- **Refusing tiny approximate values** instead of using the finest grid. Both are correct; refusing would fail
-  calculations such as `√2 / 10^1200` that have a valid enclosure.
+- **Refusing tiny approximate values** instead of using the finest grid. Refusing them all would fail calculations such as
+  `√2 / 10^1200` that have a valid enclosure with two non-zero bounds; only those the finest grid cannot bound that way are
+  refused (E18).
 - **An unchecked exception.** Rejected for consistency with `CalculationException` and so that the compiler makes E06
   translate every code.
 
