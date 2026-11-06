@@ -17,7 +17,8 @@ Nothing measured what the tests detect, nothing stopped a regression of the cove
 2. **PIT** (1.30.1, Gradle plugin 1.19.0, JUnit 5 plugin 1.2.3) mutates the five critical packages: `calc.number`, `calc.format`,
    `calc.expression`, `calc.notebook`, `calc.persistence`. The tests run by PIT are the example tests: the `ui`, `property` and
    `robustness` tags are excluded, and so are the tests of speed and of huge files. Reason: a first run with every tag but `ui` did not
-   finish in 10 minutes; the examples-only run takes about 6 minutes. This is a limit of the measure, written in `docs/TESTS.md`.
+   finish in 10 minutes; the examples-only run takes about 6 minutes on the development machine and about 10 on two cores. This is a
+   limit of the measure, written in `docs/TESTS.md`.
 3. **Thresholds are measured values, set slightly below** (never invented), per package, in `config/quality-thresholds.properties`.
    PIT has one global threshold only, so the per-package mutation thresholds are checked by `conformityReport`.
 4. **Strategy**: mutation takes several minutes, so it does not run on pull requests. It runs on `main`, on demand and in `release.yml`.
@@ -25,7 +26,7 @@ Nothing measured what the tests detect, nothing stopped a regression of the cove
 5. **`conformityReport`** (`gradle/conformity.gradle.kts`) reads the real results (JUnit XML, JaCoCo XML, PIT XML) and writes
    `build/reports/conformite/RAPPORT-CONFORMITE.md`. It fails, after writing the report, when a threshold is not met, and fails without
    a report when a source file is missing or empty. It does not run the tests itself (`gradlew conformity` does: check, pitest,
-   conformityReport).
+   conformityReport). CI and release pass `-Pjqwik.reporting.onlyfailures=false`, without which JUnit XML holds no number of tries.
 6. **Guarantees** are the table "Garanties du produit" of `docs/TESTS.md`: one row per promise with the test classes that prove it. The report
    fails for a guarantee without a test class or whose class produced no result, and flags a guarantee with a failed or skipped test.
 

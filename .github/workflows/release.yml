@@ -151,7 +151,7 @@ jobs:
 
       # check (tests, coverage thresholds), then PIT, then the report; the report fails if a threshold or a source is missing.
       - name: Check, mutation tests and conformity report
-        run: xvfb-run -a ./gradlew conformity "-PappVersion=$VERSION" -PrequireUiTests=true --console=plain
+        run: xvfb-run -a ./gradlew conformity "-PappVersion=$VERSION" -PrequireUiTests=true -Pjqwik.reporting.onlyfailures=false --console=plain
 
       - name: Upload the conformity report
         if: always()

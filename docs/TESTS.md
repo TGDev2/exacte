@@ -1,6 +1,6 @@
 # Tests
 
-La commande qui exécute tout est `.\gradlew.bat check`. Ce document explique comment les tests sont rangés, comment en
+La commande qui exécute les tests est `.\gradlew.bat check`. Ce document explique comment les tests sont rangés, comment en
 lancer une partie, comment rejouer un échec trouvé par un test aléatoire et ce que chaque propriété garantit.
 
 ## Pyramide des tests
@@ -430,6 +430,59 @@ interface (`NotebookDialogs`) que les tests remplacent par `FakeDialogs`. Aucun 
 
 Mesures (`gradlew clean check`, Windows 11, JDK 21) : 1057 tests, 0 ignoré, 0 échec, contre 1090 avant E13 (3505 lignes retirées avec l'ancien formulaire et ses tests, les tests du menu Fichier et de la parité ajoutés).
 
+## Couverture, mutation et rapport de conformité
+
+Trois commandes, du plus rapide au plus lent :
+
+```powershell
+.\gradlew.bat check                 # tests et seuils de couverture (JaCoCo), rapport dans build\reports\jacoco
+.\gradlew.bat pitest                # tests de mutation (PIT), rapport dans build\reports\pitest
+.\gradlew.bat pitest "-PpitTargets=calc.number.*"   # un seul package, pour travailler sur ses mutants
+.\gradlew.bat conformity "-PrequireUiTests=true" "-Pjqwik.reporting.onlyfailures=false"   # check + pitest + rapport
+```
+
+`conformityReport` seule ne lance rien : elle lit les résultats déjà sur le disque et écrit
+`build/reports/conformite/RAPPORT-CONFORMITE.md`. Elle échoue sans écrire de rapport si un fichier source manque ou est vide. Si un
+seuil n'est pas tenu, si une garantie n'a pas de test ou si une classe citée n'a produit aucun résultat, elle écrit un rapport
+« NON CONFORME » qui dit pourquoi, puis échoue. Des tests d'interface ignorés (pas d'affichage) sont signalés en tête de la section
+Tests, et les garanties concernées passent à « PARTIELLE ».
+
+Sans `-Pjqwik.reporting.onlyfailures=false`, jqwik ne dit rien des propriétés réussies et le rapport indique le nombre d'essais
+« non disponible ». Avec cette option, il compte les essais (97 415 pour 110 propriétés rapportées).
+
+**Les seuils sont des mesures**, inscrites dans `config/quality-thresholds.properties`, un à deux points sous la valeur mesurée. Pour changer un
+seuil : mesurer à nouveau et mettre à jour le tableau ci-dessous. Le refus d'un seuil de couverture vient de `check` ; celui d'un score
+de mutation vient de `conformityReport`, parce que PIT n'a qu'un seuil global (ADR 0013).
+
+Mesures (`gradlew clean conformity`, Linux sous `xvfb`, JDK 21, 2 cœurs) : 1114 tests dans 85 classes, 0 ignoré, 0 échec ;
+PIT dure 9 min 50 s, l'ensemble 11 min 16 s.
+
+| Package | Lignes | Seuil | Branches | Seuil | Mutants détectés | Score | Seuil |
+|---|---|---|---|---|---|---|---|
+| `calc.number` | 321/321 (100 %) | 99 | 253/256 (98,8 %) | 97 | 287/331 | 86,7 % | 85 |
+| `calc.format` | 136/137 (99,3 %) | 98 | 106/106 (100 %) | 99 | 124/129 | 96,1 % | 95 |
+| `calc.expression` | 681/700 (97,3 %) | 96 | 413/429 (96,3 %) | 93 | 384/389 | 98,7 % | 97 |
+| `calc.notebook` | 285/298 (95,6 %) | 94 | 142/155 (91,6 %) | 90 | 182/200 | 91,0 % | 90 |
+| `calc.persistence` | 860/917 (93,8 %) | 92 | 489/517 (94,6 %) | 93 | 462/526 | 87,8 % | 86 |
+| `calc.engine` | 200/209 (95,7 %) | 94 | 77/80 (96,3 %) | 95 | non muté | - | - |
+| `calc.document` | 134/137 (97,8 %) | 96 | 52/56 (92,9 %) | 91 | non muté | - | - |
+| `calc.export` | 69/70 (98,6 %) | 97 | 59/62 (95,2 %) | 94 | non muté | - | - |
+
+Les packages `calc`, `calc.ui`, `calc.ui.notebook` et `calc.ui.widget` sont mesurés sans seuil : leur couverture dépend de l'affichage.
+Les seuils tiennent sans affichage (27 tests ignorés, `check` passe). Deux exécutions complètes ont donné les mêmes scores de mutation ;
+la couverture bouge de quelques branches (`calc.expression` : 410 à 413), parce que jqwik tire d'autres entrées à chaque fois.
+
+Ce que disent les mutants survivants :
+
+- PIT n'exécute que les tests d'exemples (ADR 0013) : un mutant tué seulement par une propriété compte comme survivant. Les scores
+  sont donc des planchers.
+- `calc.number` : la plupart sont des bornes (`<` remplacé par `<=`) et des gardes de coût. Retirer `requirePowerFits`, par exemple,
+  ne change aucun résultat, car `withinLimits` refuse ensuite le même calcul ; seule la durée change, et `NumericLimitsTest` qui la
+  mesure est exclu de PIT, ses budgets de temps n'ayant pas de sens sous mutation. Ces mutants ne sont pas tous équivalents : ils n'ont
+  pas été examinés un par un.
+- `calc.persistence` : les survivants se concentrent dans `NotebookCodec`, `JsonParser`, `HistoryCodec` et `JsonHistoryStore` ; les tests de fichiers hostiles et de verrou sont exclus de PIT pour leur durée,
+  ce qui peut en expliquer une partie (non vérifié mutant par mutant).
+
 ## Garanties du produit
 
 Chaque ligne du tableau est une promesse faite à l'utilisateur, avec les classes de test qui la vérifient. Le rapport de
@@ -515,7 +568,6 @@ un test a échoué ou a été ignoré. Les identifiants sont stables ; ajouter u
 
 ## Limites connues et points non vérifiés
 
-
 - Le budget de 100 ms de `InputFuzzProperties` est une mesure de temps : il prend le meilleur de deux essais et suit un échauffement, mais une machine très chargée peut encore l'invalider.
 - Le recalcul d'un carnet hostile est borné par ligne, pas annulable : les neuf formes de lignes lourdes mesurées (E11) restent sous la seconde pour 5000 lignes, mais aucune preuve ne dit qu'aucune forme n'est plus lente.
 - Le modèle de carnet accepte une ligne plus longue que ce que le fichier écrit (16 384 caractères) : l'éditeur (E12) la refuse avec un message (`NotebookPresenterTest`), mais le modèle lui-même ne la borne toujours pas.
@@ -528,4 +580,5 @@ un test a échoué ou a été ignoré. Les identifiants sont stables ; ajouter u
 - Le workflow `release.yml` et le packaging macOS et Linux n'ont pas encore été exécutés sur GitHub ; la CI n'a pas encore exécuté les contrôles de couverture et de mutation ajoutés en E15 : leurs résultats sur les trois systèmes ne sont pas vérifiés.
 - La mutation ne porte que sur les cinq packages critiques (`calc.number`, `calc.format`, `calc.expression`, `calc.notebook`, `calc.persistence`) : l'interface, le moteur historique, les documents et les exports ne sont pas mutés. Un score élevé dit que les tests détectent les défauts simulés par PIT, pas qu'il n'y en a aucun.
 - La couverture des packages `calc.ui*` dépend de la présence d'un affichage (tests `ui`) : elle est rapportée mais pas soumise à un seuil.
-- Le nombre d'essais des propriétés jqwik n'est pas dans les rapports JUnit quand tout réussit (voir « Couverture, mutation et rapport de conformité ») : le rapport de conformité l'indique « non disponible » tant que `jqwik.reporting.onlyfailures` reste à `true`.
+- Le nombre d'essais des propriétés jqwik n'est pas dans les rapports JUnit quand tout réussit : le rapport de conformité l'indique « non disponible », sauf avec `-Pjqwik.reporting.onlyfailures=false`, que la CI et la release passent (voir « Couverture, mutation et rapport de conformité »).
+- Les seuils ont été fixés d'après des mesures sous Linux, sans CI : la couverture et les délais de PIT varient un peu selon le système et les entrées tirées par jqwik, ce qui explique la marge de un à deux points.

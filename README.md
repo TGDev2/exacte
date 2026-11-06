@@ -55,7 +55,7 @@ Chaque version publiée est une [release GitHub](https://github.com/TGDev2/Calcu
 application autonome par système, sans Java à installer : `Calc-<version>-windows-x64.zip`,
 `Calc-<version>-macos-arm64.tar.gz` (Mac à puce Apple) et `Calc-<version>-linux-x64.tar.gz`. Elle contient aussi
 `SHA256SUMS.txt`, la nomenclature logicielle `Calc-<version>-sbom.cdx.json` (CycloneDX) et le
-[rapport de conformité](#qualité) `RAPPORT-CONFORMITE.md`.
+[rapport de conformité](#qualité) `Calc-<version>-rapport-conformite.md`.
 
 - **Les applications ne sont pas signées** : Windows SmartScreen et macOS Gatekeeper affichent un avertissement au premier
   lancement. La marche à suivre et la vérification des sommes SHA-256 sont dans [docs/RELEASE.md](docs/RELEASE.md).
@@ -86,11 +86,11 @@ La fiabilité est **mesurée, vérifiée et publiée**, pas seulement affirmée 
 - **Tests** : JUnit 5 et propriétés jqwik (des milliers d'entrées générées, comparées à un oracle indépendant), fuzzing de la
   saisie, du langage et des fichiers, séquences aléatoires d'actions. Rangement et commandes : [docs/TESTS.md](docs/TESTS.md).
 - **Couverture** (JaCoCo) et **tests de mutation** (PIT, sur le noyau numérique, le formatage, le langage d'expressions, le
-  modèle de carnet et la persistance) avec des seuils par package qui font échouer la construction en cas de régression.
+  modèle de carnet et la persistance) avec des seuils par package : une baisse de couverture fait échouer `check`, une baisse du score de mutation fait échouer le rapport.
   Les mesures et les seuils sont dans [docs/TESTS.md](docs/TESTS.md).
 - **Rapport de conformité** : `RAPPORT-CONFORMITE.md`, généré par `gradlew conformityReport` à partir des résultats réels
   (nombre de tests par étiquette, tests ignorés signalés, couverture, mutation, garanties et leurs tests, limites). Il est
-  publié comme artefact `conformity-report` de chaque exécution de la [CI](docs/CI.md) et joint à chaque release. Il échoue
+  publié comme artefact `conformity-report` par la [CI](docs/CI.md) sur `main` et à la demande (pas sur les pull requests), et joint à chaque release. Il échoue
   plutôt que de mentir si une donnée manque.
 - **Intégration continue** : `gradlew check` sur Windows, macOS et Linux à chaque pull request, tests d'interface obligatoires ;
   un second job vérifie que le JAR est reproductible ([docs/CI.md](docs/CI.md)).

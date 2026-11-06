@@ -87,7 +87,7 @@ des vérifications sélectionnables qu'après une première exécution du workfl
 ## Le rapport de conformité en CI
 
 Un troisième job, `conformity report`, tourne sous Linux (avec `xvfb`) **sur `main` et à la demande, pas sur les pull requests** : il
-lance `./gradlew conformity -PrequireUiTests=true`, c'est-à-dire `check` (tests et seuils de couverture), les tests de mutation (PIT) puis
+lance `./gradlew conformity -PrequireUiTests=true -Pjqwik.reporting.onlyfailures=false` (la seconde option fait entrer le nombre d'essais des propriétés dans le rapport), c'est-à-dire `check` (tests et seuils de couverture), les tests de mutation (PIT) puis
 `conformityReport`. Les tests de mutation durent plusieurs minutes (mesure et justification dans [TESTS.md](TESTS.md)) ; une pull
 request ne lance que `check`, dont les seuils de couverture par package font partie.
 
