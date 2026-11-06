@@ -62,7 +62,7 @@ Tests par tag, sur la branche de recette à `55a2a4f` (`-PincludeTags=...`, avec
 | Migration : chaque fichier de `legacy/v1/` vers le carnet v3, sauvegardes, relance sans effet ; lignes légitimes reprises, lignes rejetées annoncées | MigrationAcceptanceTest ; LegacyDoubleResultTest ; MigrationRejectionNoticeTest | Corrigé |
 | Robustesse : 9 fichiers hostiles au menu et au démarrage, moins de 1 s | RobustnessAcceptanceTest (24 ms au pire) | OK |
 | Robustesse : aucun dépassement de mémoire avec `-Xmx128m` | RobustnessAcceptanceTest | OK, voir R2 |
-| Robustesse : version future jamais réécrite | RobustnessAcceptanceTest pour le carnet courant et l'enregistrement ; Enregistrer sous peut remplacer un autre fichier futur après confirmation (D5) | Réserve |
+| Robustesse : version future jamais réécrite | RobustnessAcceptanceTest pour le carnet courant et l'enregistrement ; FutureVersionTargetAcceptanceTest pour la cible d'un Enregistrer sous (D5) | Corrigé |
 | Robustesse : la seconde instance n'écrit rien | RobustnessAcceptanceTest ; StoreLockTest | OK |
 | Robustesse : échec d'écriture simulé, aucun fichier corrompu | RobustnessAcceptanceTest | OK |
 | Robustesse : un document ne remplace pas le carnet courant | ReservedFileAliasTest | Corrigé |
@@ -101,7 +101,7 @@ Chaque test échouait avant sa correction. Le contrôle final les exécute tous.
 | D10 | Majeure | Annuler avec une ligne en cours de saisie efface la ligne, et rétablir répond « Il n'y a rien à rétablir », contrairement à la javadoc (`NotebookPresenter.java:242`, ligne 45) | Taper du texte sans valider, Ctrl+Z, puis Ctrl+Y |
 | D11 | Majeure | Sous un petit tas, `OutOfMemoryError` dans le constructeur de la fenêtre : le processus reste vivant, sans fenêtre (`NotebookFrame.java:148-151`, `Main.java:22-38`). Exige un tas non standard : 110 Mo suffisent | Carnet courant de 15,1 Mo avec `-Xmx64m` ; encore vivant, sans fenêtre, après 20 s |
 | D13 | Moyenne | Après une conversion échouée, Fichier > Nouveau sans rien taper fait abandonner la conversion au démarrage suivant, contrairement à `NotebookStore.java:239` | Historique non convertible, Nouveau, relance : état `NORMAL`, carnet vide |
-| D5 | Faible | Enregistrer sous remplace un fichier de version future après une confirmation générique (`DocumentService.java:232`) | Enregistrer sous vers un fichier `version: 99` : champ inconnu perdu |
+| D5 | Faible | Corrigé après la recette, preuve dans `FutureVersionTargetAcceptanceTest` : Enregistrer sous remplaçait un fichier de version future après une confirmation générique ; il est maintenant refusé avant toute question et toute écriture | Enregistrer sous vers un fichier `version: 99` : avant, champ inconnu perdu ; après, refus et fichier identique |
 | D6 | Faible | Le texte d'un intervalle très large reste son centre arrondi, qui peut sortir de l'intervalle (`ValueFormatter.java:225`). La borne, elle, est désormais vraie | `1,5+(sqrt(2)-sqrt(2))*2e23` donne `≈ 2…` |
 | D7 | Faible | Corrigé après la recette, preuve dans `NeverShownAsZeroAcceptanceTest` : pour un intervalle contenant 0, Fraction et Auto différaient ; tous les modes donnent maintenant le même texte | `5+(sqrt(2)-sqrt(2))*1e26` : avant, Fraction `≈ 5` et Auto `≈ 0` ; après, `\|x\| ≤ 4,7 × 10¹` partout |
 | D9 | Faible | `hs_err_*.log` et `replay_*.log` ne sont pas ignorés par git : le rapport de conformité d'un clone propre indique « + modifications non commitées » | `gradlew conformity` sous manque de mémoire, voir `git status` ; sans plantage, le même rapport indique bien `0bdd5343ecac` seul |

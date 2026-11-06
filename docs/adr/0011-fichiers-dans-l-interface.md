@@ -70,7 +70,9 @@ the file becomes the mode of the window (the remembered preference is for the un
 ### 6. Saving and exporting
 
 `Enregistrer sous` adds `.calc.json` (case-insensitively), refuses the files Calc keeps for itself, and asks before replacing an
-existing file unless it is the document's own file. The exports use the **display mode in force**, name the table after the document
+existing file unless it is the document's own file.
+A target that is a file of a newer version than the one Calc writes is refused by `Enregistrer sous`, whether or not it is the open document: same message as for the open file, checked before the question and before any write (defect D5 of the acceptance report, E19). A target that cannot be read or is not a notebook keeps the question.
+The exports use the **display mode in force**, name the table after the document
 (`Carnet` for the untitled one), add `.md` or `.csv`, ask before replacing a file, write atomically and say `Exporté vers <chemin>`.
 The extension is forced, so an export can never hit a file Calc keeps (none ends in `.md` or `.csv`), and never the document's file.
 
