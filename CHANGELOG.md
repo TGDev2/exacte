@@ -27,6 +27,9 @@ tout ce qui suit est dans la prochaine version. Le numéro sera choisi au moment
 
 ### Modifié
 
+- **Calcul en arrière-plan** : la fenêtre répond pendant le calcul d'un carnet, même de 5000 lignes coûteuses. Une ligne pas
+  encore calculée affiche « Calcul en cours… », la barre d'état compte les lignes, et `Échap` interrompt le calcul quand aucune
+  saisie n'est en cours.
 - **Moteur exact** : les calculs utilisent des fractions exactes (`1 / 3` puis `× 3` redonne exactement `1`) ; une racine
   non exacte est un intervalle qui contient certainement la vraie valeur, avec sa borne d'erreur. Remplace l'arrondi à
   12 décimales de la version 1 (écarts justifiés dans [docs/changements-comportement-E06.md](docs/changements-comportement-E06.md)).

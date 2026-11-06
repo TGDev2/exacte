@@ -370,8 +370,9 @@ est borné par ligne (1000 caractères, 100 niveaux, 500 nœuds, nombres de 4096
 | 245 sommes de `1/3` (plus de 500 nœuds) | 5,1 Mo | 23 ms | 884 ms | 5000 erreurs |
 | des fractions `1/997` fois un nombre de 500 chiffres | 6,3 Mo | 28 ms | 138 ms | 5000 erreurs |
 
-Le plus lent est inférieur à une seconde sur la machine de développement (budget d'assertion de 60 s). Le recalcul reste **synchrone** : la borne est celle du langage, pas une
-annulation. Un fichier conçu pour être plus lent que ces neuf cas n'a pas été trouvé ; il resterait borné par ligne.
+Le plus lent est inférieur à une seconde sur la machine de développement (budget d'assertion de 60 s). La borne est celle du langage. Un fichier plus lent que ces neuf cas existe : les
+5000 lignes de la recette (défaut B1, environ 3 minutes). Le calcul se fait donc hors du thread de l'interface et s'interrompt
+(`BackgroundRecalculationAcceptanceTest`, [ADR 0014](adr/0014-calcul-hors-interface.md)).
 
 ### Preuves d'efficacité
 

@@ -87,12 +87,11 @@ Chaque test échouait avant sa correction. Le contrôle final les exécute tous.
 | Perte de données : à la migration, les résultats écrits en `double` par le premier format v1 étaient rejetés sans message (`DIVISION 1000000 3 333333.3333333333`). Ces lignes sont acceptées si le texte est exactement celui de cet ancien calcul. | LegacyDoubleResultTest | bce6665 |
 | Perte silencieuse : les lignes d'historique encore rejetées à la migration (`POWER 2 0,5`, résultat incohérent) disparaissaient du carnet sans message. Le statut annonce maintenant leur nombre et le fichier qui les conserve (`history.tsv.v1.bak`). Elles ne sont toujours pas dans le carnet. | MigrationRejectionNoticeTest | 130973e |
 | Perte de données : le temporaire au nom fixe `<nom>.tmp` détruisait un fichier de l'utilisateur portant ce nom, sans confirmation. | TemporaryNameCollisionTest | 714a506 |
+| Gel de la fenêtre : un carnet valide de 5000 lignes coûteuses bloquait le thread Swing environ 3 minutes (B1, paragraphe ci-dessous). Corrigé après la recette. | BackgroundRecalculationAcceptanceTest | ba3ec1f |
+
+**B1. Gel de la fenêtre par un carnet hostile : corrigé après la recette, par le calcul hors du thread Swing (E17, [ADR 0014](adr/0014-calcul-hors-interface.md)), preuve dans `BackgroundRecalculationAcceptanceTest`.** Constat de la recette : le recalcul était synchrone sur le thread Swing, sans budget global. Mesuré par le recetteur avec des lignes `sqrt(2^4000+1)+…` de 974 caractères : 3,9 s pour 100 lignes, 11,2 s pour 300. Mesuré par la relecture : 182 s pour 5000 lignes (5,07 Mo), et environ 11,5 s à chaque Entrée à 300 lignes dans une vraie fenêtre. Après correction, l'ouverture des 5000 lignes rend la main en moins de 300 ms, les lignes se comptent dans la barre d'état et `Échap` interrompt le calcul. Les 3 minutes de calcul restent, en arrière-plan : le moteur n'a pas été optimisé.
 
 ### Défauts bloquants non corrigés : décision de conception requise
-
-**B1. Gel de la fenêtre par un carnet hostile.** Le recalcul est synchrone sur le thread Swing et n'a pas de budget global (`NotebookPresenter.java:412,604`). Mesuré par le recetteur avec des lignes `sqrt(2^4000+1)+…` de 974 caractères : 3,9 s pour 100 lignes, 11,2 s pour 300. Mesuré par la relecture : 182 s pour 5000 lignes (5,07 Mo), et environ 11,5 s à chaque Entrée à 300 lignes dans une vraie fenêtre. Aucune donnée n'est perdue, mais la fenêtre ne répond plus. Les 9 fichiers hostiles de la mission restent sous 1 s : ce cas n'en fait pas partie, chaque ligne y étant valide et bornée.
-
-Il n'est pas corrigé parce que le remède change l'architecture : calcul hors du thread Swing avec annulation, ou budget global qui met les lignes suivantes en erreur. Le second rend le résultat dépendant de la machine s'il est mesuré en temps. Ce choix revient au propriétaire.
 
 **D1. Une valeur non nulle s'affiche `≈ 0`.** C'est une garantie violée : `(sqrt(2) / 16) ^ 4096` donne `≈ 0`, APPROXIMATE, car l'arrondi extérieur ramène la borne basse à 0 (`OutwardRounding.java:50`), alors que l'exact `(1/16)^4096` est refusé. Aussi `√2 - √2 + 1e-40`. Le marqueur `≈` et la borne restent vrais, mais la promesse écrite ne l'est pas. Il faut choisir entre refuser ces valeurs, ce qui retire des résultats aujourd'hui acceptés, et reformuler la promesse : ce choix revient aussi au propriétaire.
 
@@ -168,7 +167,7 @@ Exactitude, borne certifiée, modes d'affichage et réutilisation sans perte tie
 
 ### Idée 2 : carnet de calcul — livrée avec réserves
 
-Expressions, références stables, annuler et rétablir, documents, sauvegarde automatique, exports et migration de tous les fichiers de référence passent de bout en bout, et 120 000 pas contre un oracle n'ont trouvé aucune redirection de référence. Les pertes de données trouvées ont été corrigées : alias du carnet courant, fichier temporaire, lignes d'historique légitimes reprises. Les autres lignes rejetées ne sont pas dans le carnet, mais elles sont maintenant annoncées et restent dans la sauvegarde. La réserve principale est B1, un défaut bloquant non corrigé : un carnet hostile fige la fenêtre environ 3 minutes, et cette décision revient au propriétaire. S'y ajoutent D10 et D13, ainsi que le risque R1, à éprouver dans Excel avant de présenter la neutralisation CSV comme une garantie de sécurité complète.
+Expressions, références stables, annuler et rétablir, documents, sauvegarde automatique, exports et migration de tous les fichiers de référence passent de bout en bout, et 120 000 pas contre un oracle n'ont trouvé aucune redirection de référence. Les pertes de données trouvées ont été corrigées : alias du carnet courant, fichier temporaire, lignes d'historique légitimes reprises. Les autres lignes rejetées ne sont pas dans le carnet, mais elles sont maintenant annoncées et restent dans la sauvegarde. Le défaut bloquant B1, un carnet hostile qui figeait la fenêtre environ 3 minutes, a été corrigé après la recette par le calcul hors du thread Swing, sous réserve du contrôle manuel de la section 8. Restent D10 et D13, ainsi que le risque R1, à éprouver dans Excel avant de présenter la neutralisation CSV comme une garantie de sécurité complète.
 
 ### Idée 3 : fiabilité prouvée — livrée avec réserves
 
@@ -184,7 +183,8 @@ Build Gradle, JUnit 5, tests par propriétés et de robustesse, tests d'interfac
 - [ ] Lisibilité des badges exact et approché, en clair et selon le thème du système.
 - [ ] Téléchargement d'une release et vérification des SHA-256 avec SHA256SUMS, lecture du SBOM.
 - [ ] Avertissements SmartScreen (Windows) et Gatekeeper (macOS) au premier lancement.
-- [ ] Trancher B1 : calcul hors du thread Swing avec annulation, ou budget global de calcul.
+- [ ] Ouvrir un carnet de 5000 lignes hostiles : la fenêtre se déplace et les menus s'ouvrent pendant le calcul, la barre d'état compte les lignes.
+- [ ] Pendant ce calcul, appuyer sur Échap : le calcul s'arrête et les lignes restantes disent « Non calculée : calcul interrompu ».
 - [ ] Trancher D1 : refuser la valeur, ou reformuler la promesse « jamais 0 ».
 
 ## 9. Recommandations hiérarchisées
@@ -193,9 +193,9 @@ Classées par criticité, puis impact, puis coût.
 
 | Rang | Recommandation | Criticité | Impact | Coût |
 |---|---|---|---|---|
-| 1 | Décider et traiter B1 (gel par un carnet hostile) | Haute | Lève l'un des deux défauts bloquants restants | Moyen à élevé |
-| 2 | Rétablir la CI et exécuter une première release | Haute | Prouve la partie non démontrée de l'idée 3 | Faible |
-| 3 | Décider et traiter D1 | Haute | Lève le second défaut bloquant restant | Faible à moyen |
+| 1 | Rétablir la CI et exécuter une première release | Haute | Prouve la partie non démontrée de l'idée 3 | Faible |
+| 2 | Décider et traiter D1 | Haute | Lève le dernier défaut bloquant restant | Faible à moyen |
+| 3 | Contrôler à la main le calcul hors du thread Swing (section 8) | Haute | Confirme la correction de B1 dans une vraie fenêtre | Faible |
 | 4 | Éprouver R1 dans Excel, puis élargir la neutralisation si besoin | Haute | Sécurité des exports | Faible |
 | 5 | Corriger D13 | Moyenne | Confiance dans la migration | Faible |
 | 6 | Conserver une ligne en cours de saisie à l'annulation (D10) | Moyenne | Évite la perte d'une saisie | Faible |

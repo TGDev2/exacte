@@ -114,8 +114,9 @@ de [docs/TESTS.md](docs/TESTS.md)) :
   un Mac réel ni avec l'apparence Aqua.
 - **Interface** : les tests couvrent les parcours critiques, pas un rendu graphique pixel par pixel. Les lignes ne sont pas
   virtualisées (ouverture d'environ 0,85 s pour 500 lignes, 1,5 s pour 5000, mesuré sur la machine de développement).
-- **Calcul synchrone** : le recalcul d'un carnet se fait sur le fil de l'interface ; il est borné par ligne (1000 caractères,
-  100 niveaux, 500 éléments, nombres de 4096 bits) et non annulable.
+- **Calcul en arrière-plan** : la fenêtre répond pendant le recalcul d'un carnet, que `Échap` peut interrompre
+  ([ADR 0014](docs/adr/0014-calcul-hors-interface.md)). Il n'est pas accéléré pour autant : borné par ligne (1000 caractères,
+  100 niveaux, 500 éléments, nombres de 4096 bits), un carnet de 5000 lignes conçu pour coûter cher prend environ 3 minutes.
 - **Éditeur** : une ligne de plus de 16 384 caractères est refusée ; coller du texte sur plusieurs lignes dans un champ les
   joint en une seule ; un carnet compte au plus 5000 lignes ; pas d'aperçu du résultat pendant la frappe.
 - **Langage** : pas de multiplication implicite (`2x`), de pourcentage, de constantes `π` ou `e`, ni de fonctions à plusieurs

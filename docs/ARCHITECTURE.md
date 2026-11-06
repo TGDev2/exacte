@@ -43,7 +43,9 @@ Ce qui se passe quand l'utilisateur valide `prix * 3` :
 
 1. **Saisie** : `LineField` (Swing) transmet le texte au `NotebookPresenter`, qui est le seul à décider (valider, naviguer,
    annuler). La vue ne contient aucune règle.
-2. **Analyse** : `NotebookEditor` applique la commande au `Notebook` ; `Lexer` puis `ExpressionParser` produisent un
+2. **Analyse** : `NotebookEditor` applique la commande au `Notebook`, sur le fil de l'interface. Le calcul part alors sur un
+   fil de fond (`NotebookRecalculation`, [ADR 0014](adr/0014-calcul-hors-interface.md)), dont les résultats reviennent ligne à
+   ligne sous un numéro de génération. `Lexer` puis `ExpressionParser` produisent un
    arbre `Node` ou une `ExpressionException` positionnée. Les limites (1000 caractères, 100 niveaux, 500 éléments) sont
    contrôlées avant tout calcul.
 3. **Évaluation exacte** : `NotebookEvaluator` évalue les lignes dans l'ordre ; `Evaluator` calcule avec `Rational` (exact)

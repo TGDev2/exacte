@@ -14,6 +14,12 @@ répétée ici) ; elle est aussi résumée dans le menu **Aide > Syntaxe des exp
 - `ans` est le dernier résultat au-dessus de la ligne ; `$3` est le résultat de la ligne 3.
 - Un carnet vide montre trois exemples en filigrane (`prix = 12,5`, `prix * 3`, `ans / 2`) ; ils ne sont pas enregistrés.
 - Annuler et rétablir portent sur les lignes **validées**. `Échap` abandonne la saisie en cours dans la ligne.
+- Le calcul se fait en arrière-plan : la fenêtre répond toujours, même sur un très gros carnet. Une ligne pas encore calculée
+  affiche « Calcul en cours… » et la barre d'état compte « Calcul en cours : n / N lignes ». Toute nouvelle commande remplace le
+  calcul en cours.
+- Sans saisie en cours, `Échap` interrompt le calcul : les lignes restantes disent « Non calculée : calcul interrompu », et la
+  commande suivante (valider, ajouter, supprimer, annuler, rétablir, changer de mode, ouvrir, Nouveau, exporter) relance le
+  calcul. Se déplacer d'une ligne à l'autre ne le relance pas.
 
 ## Lire un résultat
 
@@ -71,6 +77,9 @@ menu **Fichier** (le modificateur de menu est `Ctrl` sous Windows et Linux, `Cmd
 
 - **Markdown** : le titre du document, puis un tableau `n° | Expression | Résultat` (le résultat est le texte affiché dans le
   mode courant ; une erreur s'écrit « Erreur : … »).
+- Pendant un calcul, l'export attend sa fin sans bloquer la fenêtre, puis écrit le carnet tel qu'il est alors. `Échap`, Ouvrir ou
+  Nouveau l'abandonnent (la barre d'état le dit), et la fenêtre refuse de se fermer tant qu'un export attend. Enregistrer n'attend
+  rien : le fichier ne contient pas les résultats.
 - **CSV** : séparateur `;`, UTF-8 avec marque d'ordre des octets (s'ouvre dans Excel), une ligne par ligne non vide, cinq
   colonnes `n°;Expression;Résultat affiché;Valeur exacte;Statut`. Une cellule qui commencerait par `=`, `+`, `-` ou `@` est
   préfixée d'une apostrophe pour qu'un tableur ne la prenne pas pour une formule.
@@ -83,7 +92,7 @@ Le modificateur de menu est `Ctrl` sous Windows et Linux, `Cmd` sous macOS. La l
 |---|---|
 | `Entrée` | valider la ligne et passer à la suivante |
 | `↑` / `↓` | ligne précédente / suivante (la ligne quittée est validée) |
-| `Échap` | abandonner la saisie en cours dans la ligne |
+| `Échap` | abandonner la saisie en cours dans la ligne ; sans saisie, interrompre le calcul |
 | `Ctrl+Z` | annuler la dernière modification validée |
 | `Ctrl+Y`, `Ctrl+Maj+Z` | rétablir |
 | `Ctrl+Entrée` / `Ctrl+Maj+Entrée` | insérer une ligne au-dessous / au-dessus |
