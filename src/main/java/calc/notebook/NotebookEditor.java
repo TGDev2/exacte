@@ -75,22 +75,20 @@ public final class NotebookEditor {
     }
 
     /** Restores the notebook before the last command. */
-    public Notebook undo() {
+    public void undo() {
         if (undo.isEmpty()) {
             throw new IllegalStateException("nothing to undo");
         }
         redo.push(notebook);
         notebook = undo.pop().continuingAfter(notebook);
-        return notebook;
     }
 
     /** Applies again the last command undone. */
-    public Notebook redo() {
+    public void redo() {
         if (redo.isEmpty()) {
             throw new IllegalStateException("nothing to redo");
         }
         undo.push(notebook);
         notebook = redo.pop().continuingAfter(notebook);
-        return notebook;
     }
 }
