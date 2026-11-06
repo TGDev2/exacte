@@ -27,3 +27,4 @@ Later work reads the ADRs instead of guessing why things are the way they are.
 | 0010 | The notebook editor: a stack of rows, one validated command at a time | Accepted |
 | 0011 | Files in the window: the File menu, confirmations, and the removal of the two-field form | Accepted |
 | 0012 | Packaging and releases: one Gradle task per system, archived application images, automatic GitHub Releases | Accepted |
+| 0013 | Measured quality: coverage and mutation thresholds, and a generated conformity report | Accepted |

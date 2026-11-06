@@ -125,9 +125,49 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
+  # Mutation tests and the conformity report: slow, so run once, on Linux (the content of the report does not depend on the
+  # system, only its "environment" lines do). It runs the same `check` again with the window tests mandatory.
+  conformity:
+    name: conformity report
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Java 21
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          validate-wrappers: true
+
+      # check (tests, coverage thresholds), then PIT, then the report; the report fails if a threshold or a source is missing.
+      - name: Check, mutation tests and conformity report
+        run: xvfb-run -a ./gradlew conformity "-PappVersion=$VERSION" -PrequireUiTests=true -Pjqwik.reporting.onlyfailures=false --console=plain
+
+      - name: Upload the conformity report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: conformity-report
+          path: |
+            build/reports/conformite
+            build/reports/pitest
+            build/reports/jacoco
+          if-no-files-found: error
+          retention-days: 30
+
   publish:
     name: publish the release
-    needs: [prepare, build]
+    needs: [prepare, build, conformity]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     # The only place that can write to the repository.
@@ -172,6 +212,18 @@ jobs:
           test -f "release/Calc-${VERSION}-macos-arm64.tar.gz"
           test -f "release/Calc-${VERSION}-linux-x64.tar.gz"
           test "$(ls release | wc -l)" -eq 3
+
+      # The report built by the conformity job: it is attached to the release next to the packages and listed in SHA256SUMS.txt.
+      - name: Download the conformity report
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: conformity-report
+          path: conformity
+
+      - name: Add the conformity report to the release files
+        run: |
+          test -s conformity/conformite/RAPPORT-CONFORMITE.md
+          cp conformity/conformite/RAPPORT-CONFORMITE.md "release/Calc-${VERSION}-rapport-conformite.md"
 
       # The SBOM describes the runtime classpath (see ADR 0012 for what it does not cover).
       - name: Generate the SBOM

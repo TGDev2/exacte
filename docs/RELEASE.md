@@ -5,7 +5,7 @@ Les décisions sont dans [`docs/adr/0012-packaging-et-releases.md`](adr/0012-pac
 
 ## Ce qu'une release contient
 
-Chaque release publie cinq fichiers :
+Chaque release publie six fichiers :
 
 | Fichier | Contenu |
 |---|---|
@@ -13,14 +13,15 @@ Chaque release publie cinq fichiers :
 | `Calc-<version>-macos-arm64.tar.gz` | application autonome pour macOS sur puce Apple (`Calc.app`) |
 | `Calc-<version>-linux-x64.tar.gz` | application autonome pour Linux x64 (`Calc/bin/Calc`) |
 | `Calc-<version>-sbom.cdx.json` | nomenclature logicielle CycloneDX 1.6 |
-| `SHA256SUMS.txt` | somme SHA-256 de chacun des quatre fichiers ci-dessus |
+| `Calc-<version>-rapport-conformite.md` | rapport de conformité : tests par étiquette, couverture, mutation, garanties et limites (généré par `gradlew conformityReport`, voir [TESTS.md](TESTS.md)) |
+| `SHA256SUMS.txt` | somme SHA-256 de chacun des cinq fichiers ci-dessus |
 
 Aucun Java n'est à installer pour lancer l'application : le runtime est dans l'archive. Les modules embarqués sont calculés par
 `jdeps` à chaque construction (plus `jdk.localedata` pour le français, voir l'ADR 0012). Pas de Mac Intel ni de Linux arm64.
 
 ## Publier une version
 
-Le dépôt n'a pas de `CHANGELOG` : les notes de la release reprennent les messages de commit depuis le tag `vX.Y.Z` précédent.
+Avant de taguer, mettre à jour [`CHANGELOG.md`](../CHANGELOG.md) (déplacer l'entrée « Non publié » sous le numéro de version). Les notes de la release reprennent les messages de commit depuis le tag `vX.Y.Z` précédent.
 
 1. Fusionner dans `main` tout ce qui doit être publié et attendre que la CI (`ci.yml`) y soit verte.
 2. Choisir la version `X.Y.Z` avec `X` ≥ 1 (pas de suffixe : `v1.0.0` convient, `v0.9.0` et `v1.0.0-rc1` sont refusés).
@@ -34,8 +35,8 @@ Le dépôt n'a pas de `CHANGELOG` : les notes de la release reprennent les messa
    ```
 
 4. Le workflow « Release » se lance tout seul (onglet **Actions**) : il valide la version, construit et teste sur les trois systèmes,
-   vérifie les modules embarqués et lance chaque application empaquetée (le test contrôle que le processus reste vivant 8 secondes sans erreur Java dans sa sortie ; il ne vérifie pas la fenêtre), puis crée la release avec les cinq fichiers.
-5. Ouvrir la release, vérifier la présence des cinq fichiers, puis suivre la section « Vérifier un téléchargement ».
+   vérifie les modules embarqués et lance chaque application empaquetée (le test contrôle que le processus reste vivant 8 secondes sans erreur Java dans sa sortie ; il ne vérifie pas la fenêtre), puis crée la release avec les six fichiers (rapport de conformité compris).
+5. Ouvrir la release, vérifier la présence des six fichiers, puis suivre la section « Vérifier un téléchargement ».
 
 Le workflow ne vérifie pas que le tag pointe vers un commit de `main` : c'est à la personne qui tague de le faire.
 

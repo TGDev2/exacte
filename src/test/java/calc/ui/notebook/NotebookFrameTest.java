@@ -48,7 +48,10 @@ import org.junit.jupiter.api.io.TempDir;
 @Tag("ui")
 @DisplayName("Fenêtre du carnet (nécessite un affichage)")
 class NotebookFrameTest {
-    private static final int MENU_MASK = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
+    // Read in a method, not a constant: without a display the toolkit throws, and that must skip the tests, not fail the class.
+    private static int menuMask() {
+        return Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
+    }
 
     @TempDir
     Path data;
@@ -64,7 +67,7 @@ class NotebookFrameTest {
         }
         assumeFalse(headless, "UI tests require a graphical environment.");
         store = NotebookStore.open(data);
-        frame = open(store, new NotebookShortcuts(MENU_MASK));
+        frame = open(store, new NotebookShortcuts(menuMask()));
     }
 
     @AfterEach
@@ -113,12 +116,12 @@ class NotebookFrameTest {
         assertEquals("a * 3", field(1).getText(), "Escape drops what was typed since the line was validated");
         assertEquals("30", frame.row(1).resultLabel.getText());
 
-        press(KeyEvent.VK_Z, MENU_MASK);
+        press(KeyEvent.VK_Z, menuMask());
         assertEquals(List.of("2", "6", "7", ""), results(), "undo reverts the last validated command");
-        press(KeyEvent.VK_Y, MENU_MASK);
+        press(KeyEvent.VK_Y, menuMask());
         assertEquals(List.of("10", "30", "31", ""), results(), "redo applies it again");
-        press(KeyEvent.VK_Z, MENU_MASK);
-        press(KeyEvent.VK_Z, MENU_MASK | InputEvent.SHIFT_DOWN_MASK);
+        press(KeyEvent.VK_Z, menuMask());
+        press(KeyEvent.VK_Z, menuMask() | InputEvent.SHIFT_DOWN_MASK);
         assertEquals(List.of("10", "30", "31", ""), results(), "Ctrl+Shift+Z redoes as well");
 
         press(KeyEvent.VK_DOWN, InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK);
@@ -127,12 +130,12 @@ class NotebookFrameTest {
         press(KeyEvent.VK_UP, InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK);
         assertEquals(List.of("a = 10", "a * 3", "ans + 1", ""), texts());
 
-        press(KeyEvent.VK_ENTER, MENU_MASK);
+        press(KeyEvent.VK_ENTER, menuMask());
         assertEquals(List.of("a = 10", "a * 3", "", "ans + 1", ""), texts(), "Ctrl+Enter inserts a line below");
-        press(KeyEvent.VK_ENTER, MENU_MASK | InputEvent.SHIFT_DOWN_MASK);
+        press(KeyEvent.VK_ENTER, menuMask() | InputEvent.SHIFT_DOWN_MASK);
         assertEquals(List.of("a = 10", "a * 3", "", "", "ans + 1", ""), texts(), "Ctrl+Shift+Enter inserts a line above");
-        press(KeyEvent.VK_K, MENU_MASK | InputEvent.SHIFT_DOWN_MASK);
-        press(KeyEvent.VK_K, MENU_MASK | InputEvent.SHIFT_DOWN_MASK);
+        press(KeyEvent.VK_K, menuMask() | InputEvent.SHIFT_DOWN_MASK);
+        press(KeyEvent.VK_K, menuMask() | InputEvent.SHIFT_DOWN_MASK);
         assertEquals(List.of("a = 10", "a * 3", "ans + 1", ""), texts(), "Ctrl+Shift+K deletes the line");
         assertEquals(List.of("10", "30", "31", ""), results(), "ans still reads the closest line with a value");
     }
@@ -182,7 +185,7 @@ class NotebookFrameTest {
     @Test
     @DisplayName("les touches d'une ligne l'emportent sur celles du champ texte du système d'apparence")
     void everyKeyOfTheNotebookIsBoundInTheFieldItself() {
-        NotebookShortcuts shortcuts = new NotebookShortcuts(MENU_MASK);
+        NotebookShortcuts shortcuts = new NotebookShortcuts(menuMask());
         JTextField field = frame.row(0).field;
         for (Command command : Command.values()) {
             if (command == Command.NEXT_MODE) {
@@ -377,7 +380,7 @@ class NotebookFrameTest {
                 (source, target, options) -> {
                     throw new java.io.IOException("simulated full disk");
                 });
-        frame = open(store, new NotebookShortcuts(MENU_MASK));
+        frame = open(store, new NotebookShortcuts(menuMask()));
 
         typeLine("2 + 2");
 
@@ -408,7 +411,7 @@ class NotebookFrameTest {
         assertTrue(frame.row(0).field.hasErrorMark(), "the mark of a line in error comes back when its text is the validated text");
 
         runOnEdt(() -> field(0).setCaretPosition(2));
-        press(KeyEvent.VK_Y, MENU_MASK);
+        press(KeyEvent.VK_Y, menuMask());
         assertEquals(2, field(0).getCaretPosition(), "a refused redo does not move the caret");
     }
 
