@@ -56,7 +56,9 @@ public final class NotebookFrame extends JFrame {
     private static final String CANCEL_EDIT_ACTION = "cancel-edit-or-calculation";
     // A notebook with more rows than this is shown over several events, so that the event thread keeps answering: building or
     // refilling 5000 rows at once takes more than a second (docs/adr/0014-calcul-hors-interface.md).
-    private static final int ROWS_AT_ONCE = 200;
+    private static final int ROWS_AT_ONCE = 50;
+    // More lines than this with another text are another document: below the first rows, it builds its rows again.
+    private static final int TEXTS_FILLED_AT_ONCE = 200;
     private static final long SLICE_NANOS = TimeUnit.MILLISECONDS.toNanos(15);
 
     // The frame is never serialized: the presenter is deliberately not Serializable.
@@ -447,7 +449,7 @@ public final class NotebookFrame extends JFrame {
     private void showRows(NotebookViewModel viewModel) {
         int size = viewModel.rows().size();
         int atOnce = built ? Math.min(size, Math.max(ROWS_AT_ONCE, viewModel.activeIndex() + 1)) : size;
-        // Another document: the rows below are dropped and built again rather than filled again, which costs as much.
+        // Another document: the rows below are dropped and built again by slices, rather than filled again all at once.
         removeRowsFrom(built && isAnotherDocument(viewModel) ? atOnce : size);
         while (rows.size() < atOnce) {
             addRow();
@@ -466,19 +468,19 @@ public final class NotebookFrame extends JFrame {
         }
     }
 
-    // Whether more lines hold another text than can be filled at once.
+    // Whether so many lines hold another text that this is no longer the same document.
     private boolean isAnotherDocument(NotebookViewModel viewModel) {
         if (shown == null) {
             return false;
         }
         int common = Math.min(shown.rows().size(), viewModel.rows().size());
         int different = Math.abs(shown.rows().size() - viewModel.rows().size());
-        for (int i = 0; i < common && different <= ROWS_AT_ONCE; i++) {
+        for (int i = 0; i < common && different <= TEXTS_FILLED_AT_ONCE; i++) {
             if (!shown.rows().get(i).text().equals(viewModel.rows().get(i).text())) {
                 different++;
             }
         }
-        return different > ROWS_AT_ONCE;
+        return different > TEXTS_FILLED_AT_ONCE;
     }
 
     // The next rows, for a few milliseconds, then the events waiting: the window answers while a large notebook appears.

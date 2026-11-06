@@ -57,6 +57,7 @@ import org.junit.jupiter.api.io.TempDir;
 class NotebookRecalculationTest {
     private static final String BLOCKED_LINE = "a + 2";
     private static final int EDT_LINES = 5000;
+    private static final String HOSTILE = String.join("+", Collections.nCopies(65, "sqrt(2^4000+1)"));
     private static final long EDT_BUDGET_MILLIS = 300;
 
     @TempDir
@@ -472,7 +473,7 @@ class NotebookRecalculationTest {
         }
         assumeFalse(headless, "UI tests require a graphical environment.");
 
-        String hostile = String.join("+", Collections.nCopies(65, "sqrt(2^4000+1)"));
+        String hostile = HOSTILE;
         Path first = root.resolve("b1.calc.json");
         Path second = root.resolve("b1-bis.calc.json");
         Files.write(first, NotebookCodec.encode(Notebook.of(Collections.nCopies(EDT_LINES, hostile)), DisplayMode.AUTO).bytes());
@@ -512,6 +513,7 @@ class NotebookRecalculationTest {
             assertTrue(bestEmpty < EDT_BUDGET_MILLIS, "from an empty window: " + bestEmpty + " ms");
             assertTrue(bestFull < EDT_BUDGET_MILLIS, "from a full window: " + bestFull + " ms");
             assertTrue(percentile < EDT_BUDGET_MILLIS, "the event thread answers: 99th percentile " + percentile + " ms");
+            assertTrue(sorted.size() > 10, "the wait was sampled: " + sorted.size());
 
             EventQueue.invokeAndWait(() -> {
                 assertEquals(EDT_LINES + 1, frame[0].rowCount());
@@ -523,6 +525,124 @@ class NotebookRecalculationTest {
             dialogs.willAnswer(NotebookDialogs.Unsaved.DISCARD);
             EventQueue.invokeAndWait(() -> frame[0].dispatchEvent(new WindowEvent(frame[0], WindowEvent.WINDOW_CLOSING)));
             EventQueue.invokeAndWait(frame[0]::dispose);
+        }
+    }
+
+    /**
+     * The same budget at its hardest: the first File > Open of a process, before anything is compiled. In a fresh JVM, the event
+     * thread comes back from the command, and answers at every moment until the last row is there, within the budget. As in the
+     * frozen tests, the best of three runs, so that a pause of the machine does not count as a defect of the window.
+     */
+    @Test
+    @Tag("ui")
+    void theFirstOpenOfAProcessStaysWithinTheBudget() throws Exception {
+        boolean headless = GraphicsEnvironment.isHeadless();
+        if (headless && Boolean.getBoolean("calc.ui.required")) {
+            fail("UI tests require a graphical environment (-PrequireUiTests=true): no display is available, so the ui tests cannot run.");
+        }
+        assumeFalse(headless, "UI tests require a graphical environment.");
+
+        Path file = root.resolve("b1.calc.json");
+        Files.write(file, NotebookCodec.encode(Notebook.of(Collections.nCopies(EDT_LINES, HOSTILE)), DisplayMode.AUTO).bytes());
+        String java = Path.of(System.getProperty("java.home"), "bin", "java").toString();
+        long best = Long.MAX_VALUE;
+        List<String> runs = new ArrayList<>();
+        for (int run = 0; run < 3 && best >= EDT_BUDGET_MILLIS; run++) {
+            Path data = Files.createDirectories(root.resolve("cold-" + run));
+            Path output = root.resolve("cold-" + run + ".txt");
+            Process process = new ProcessBuilder(java, "-cp", System.getProperty("java.class.path"), ColdOpen.class.getName(), file.toString(), data.toString())
+                    .redirectErrorStream(true).redirectOutput(output.toFile()).start();
+            try {
+                assertTrue(process.waitFor(90, TimeUnit.SECONDS), "the process of the measure did not end");
+            } finally {
+                process.destroyForcibly();
+            }
+            String result = Files.readAllLines(output, StandardCharsets.UTF_8).stream().filter(line -> line.startsWith("COLD ")).findFirst()
+                    .orElseThrow(() -> new AssertionError("no measure: " + readQuietly(output)));
+            runs.add(result);
+            String[] parts = result.split(" ");
+            best = Math.min(best, Math.max(Long.parseLong(parts[1]), Long.parseLong(parts[2])));
+        }
+        System.out.printf("[acceptance] first File > Open of a process on %d hostile lines (command, worst wait of the event thread, in ms): %s%n", EDT_LINES, runs);
+        assertTrue(best < EDT_BUDGET_MILLIS, "best of three: " + runs);
+    }
+
+    private static String readQuietly(Path file) {
+        try {
+            return Files.readString(file, StandardCharsets.UTF_8);
+        } catch (java.io.IOException unreadable) {
+            return unreadable.toString();
+        }
+    }
+
+    /** What runs in the process of the test above: one window, one File > Open, and a look at the event thread from outside. */
+    static final class ColdOpen {
+        private ColdOpen() {
+        }
+
+        public static void main(String[] args) throws Exception {
+            Path file = Path.of(args[0]);
+            NotebookStore store = NotebookStore.open(Path.of(args[1]));
+            NotebookDialogs dialogs = NotebookDialogs.cancelling();
+            NotebookDialogs choosing = new NotebookDialogs() {
+                @Override
+                public Optional<Path> chooseFileToOpen(Optional<Path> current) {
+                    return Optional.of(file);
+                }
+
+                @Override
+                public Optional<Path> chooseFileToSave(Optional<Path> current) {
+                    return dialogs.chooseFileToSave(current);
+                }
+
+                @Override
+                public Optional<Path> chooseExportFile(ExportFormat format, String suggested) {
+                    return dialogs.chooseExportFile(format, suggested);
+                }
+
+                @Override
+                public Unsaved askToSave(String name, Action action) {
+                    return dialogs.askToSave(name, action);
+                }
+
+                @Override
+                public boolean confirmReplaceDraft() {
+                    return dialogs.confirmReplaceDraft();
+                }
+
+                @Override
+                public boolean confirmOverwrite(Path target) {
+                    return dialogs.confirmOverwrite(target);
+                }
+
+                @Override
+                public boolean confirmAbandonExport() {
+                    return dialogs.confirmAbandonExport();
+                }
+            };
+            NotebookFrame[] frame = new NotebookFrame[1];
+            EventQueue.invokeAndWait(() -> {
+                frame[0] = new NotebookFrame(NotebookPresenter.open(store, store.load(), DisplayModeStore.noop(), choosing, NotebookPresenter.newRecalculationExecutor()));
+                frame[0].setVisible(true);
+            });
+            // The command is posted first, so that the wait below sees all of it, like any event of the window waiting behind it.
+            long[] command = new long[1];
+            long posted = System.nanoTime();
+            EventQueue.invokeLater(() -> {
+                long start = System.nanoTime();
+                frame[0].row(0).field.getActionMap().get("notebook-OPEN_DOCUMENT").actionPerformed(new ActionEvent(frame[0], 0, ""));
+                command[0] = (System.nanoTime() - start) / 1_000_000;
+            });
+            long worst = (System.nanoTime() - posted) / 1_000_000;
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(60);
+            int[] rows = new int[1];
+            while (rows[0] <= EDT_LINES && System.nanoTime() < deadline) {
+                long start = System.nanoTime();
+                EventQueue.invokeAndWait(() -> rows[0] = frame[0].rowCount());
+                worst = Math.max(worst, (System.nanoTime() - start) / 1_000_000);
+            }
+            System.out.println("COLD " + command[0] + " " + worst + " rows=" + rows[0]);
+            System.exit(rows[0] > EDT_LINES ? 0 : 1);
         }
     }
 
