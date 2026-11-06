@@ -33,9 +33,9 @@ We will keep the model on the event thread and move only the evaluation.
    progress is never interrupted.
 5. **What the user sees.** A line not calculated yet says « Calcul en cours… », never an old value and never an empty result that
    could pass for 0. The status bar says « Calcul en cours : n / N lignes », then the usual message. The sentence of a file just
-   opened waits for the end, because it counts the lines in error. Two errors stay visible over the count: a refusal of the last
-   intention, because a key that did nothing must say why, and the failure of the automatic save, because the user must act on it.
-   The other lasting warnings (a read-only data directory) wait for the end of the calculation.
+   opened waits for the end, because it counts the lines in error. Two errors are said next to the count, in the tone of an error: a
+   refusal of the last intention, because a key that did nothing must say why, and the failure of the automatic save, because the
+   user must act on it. The other lasting warnings (a read-only data directory) wait for the end of the calculation.
 6. **Escape.** With a line being typed it drops the input, as before. With nothing typed it interrupts: the lines left say « Non
    calculée : calcul interrompu » with the tone of an error, and the next command calculates again. Moving between lines is not a
    command, so that an interrupted notebook can be read; Enter on a line is one, even without a change.
@@ -71,10 +71,10 @@ We will keep the model on the event thread and move only the evaluation.
   the event thread and waits for the end. Every other new reader of the results must go through the presenter's state as well.
 - A file can be saved while its results are not known, since it holds only texts. The status bar shows the confirmation at the end of
   the calculation; the title loses its modified marker at once.
-- Escape only acts from a line, where the focus goes after each command: Ctrl+M must stay the only key of the whole window
-  (ADR 0006), so it is not bound at the level of the window. With the focus on the selector of the modes, it does nothing.
-- Still on the event thread at the first start: the migration of an old history checks each entry with one evaluation of a single
-  operation, while the store loads (`HistoryBridge`). It runs before the window exists and only once, and no command reaches it.
+- Ctrl+M stays the only key bound on the whole window (ADR 0006): Escape is bound by each line, and on the content of the window for
+  the selector of the modes, whose open list keeps the key. In a menu, the menu takes it.
+- The store loads on the main thread, before the event thread takes over: the migration of an old history checks each entry with
+  one evaluation (`HistoryBridge`), and that is no longer on the event thread either.
 - Still on the event thread: reading and writing files, parsing a large file at Open, and formatting. Formatting costs at most
   0.44 ms per hostile value, measured once: a change of display mode on 5000 calculated hostile lines holds the window for about
   2 s. It is now done once per mode instead of at every command.

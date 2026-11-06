@@ -17,12 +17,15 @@ import calc.persistence.NotebookStore;
 import calc.ui.DisplayModeStore;
 import calc.ui.StatusTone;
 import calc.ui.notebook.NotebookDialogs.ExportFormat;
+import java.awt.Container;
 import java.awt.EventQueue;
 import java.awt.GraphicsEnvironment;
 import java.awt.SecondaryLoop;
 import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
+import java.awt.event.KeyEvent;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
@@ -34,6 +37,9 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
+import javax.swing.Action;
+import javax.swing.JComponent;
+import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -172,11 +178,34 @@ class NotebookRecalculationTest {
         try {
             NotebookViewModel view = onEdt(() -> presenter.onEnter("a = 2"));
 
-            assertTrue(view.statusMessage().startsWith("Enregistrement automatique impossible"), view.statusMessage());
+            assertTrue(view.statusMessage().startsWith("Calcul en cours : 0 / 4 lignes. Enregistrement automatique impossible"), view.statusMessage());
             assertEquals(StatusTone.ERROR, view.statusTone());
         } finally {
             awaitTheEnd(presenter);
         }
+    }
+
+    @Test
+    void aRefusedLineIsSaidNextToTheCount() throws Exception {
+        NotebookPresenter presenter = openBlocked();
+
+        NotebookViewModel view = onEdt(() -> presenter.onEnter("1".repeat(NotebookPresenter.MAX_LINE_LENGTH + 1)));
+
+        assertTrue(view.statusMessage().startsWith("Calcul en cours : 2 / 4 lignes. La ligne dépasse"), view.statusMessage());
+        assertEquals(StatusTone.ERROR, view.statusTone());
+        awaitTheEnd(presenter);
+    }
+
+    // ------------------------------------------------------------------------------------------------ what is off the event thread
+
+    /** Read from the source: the migration of an old history evaluates, and nothing else can tell which thread runs Main. */
+    @Test
+    void theApplicationLoadsTheStoreBeforeItGoesToTheEventThread() throws Exception {
+        String main = Files.readString(Path.of("src", "main", "java", "calc", "Main.java"), StandardCharsets.UTF_8);
+        int load = main.indexOf("store.load()");
+        int eventThread = main.indexOf("SwingUtilities.invokeLater");
+
+        assertTrue(load > 0 && eventThread > load, "the store is loaded on the main thread, before the event thread takes over");
     }
 
     // ------------------------------------------------------------------------------------------------ an export that waits
@@ -209,7 +238,7 @@ class NotebookRecalculationTest {
 
         NotebookViewModel refused = onEdt(() -> presenter.onQuit("a = 1"));
         assertFalse(refused.closeWindow(), "a file the user asked for is not lost by closing");
-        assertTrue(refused.statusMessage().startsWith("Un export attend la fin du calcul"), refused.statusMessage());
+        assertTrue(refused.statusMessage().startsWith("Calcul en cours : 2 / 4 lignes. Un export attend la fin du calcul"), refused.statusMessage());
         assertEquals(StatusTone.ERROR, refused.statusTone());
 
         NotebookViewModel interrupted = onEdt(() -> presenter.onCancelEdit("a = 1"));
@@ -303,7 +332,7 @@ class NotebookRecalculationTest {
                 return false;
             }
         };
-        EventQueue.invokeAndWait(() -> frame[0] = new NotebookFrame(NotebookPresenter.open(store, DisplayModeStore.noop(), modal,
+        EventQueue.invokeAndWait(() -> frame[0] = new NotebookFrame(NotebookPresenter.open(store, store.load(), DisplayModeStore.noop(), modal,
                 NotebookPresenter.newRecalculationExecutor())));
         try {
             NotebookDriver.awaitWindows();
@@ -318,6 +347,45 @@ class NotebookRecalculationTest {
             assertEquals(List.of("a + 9", "10", ""), duringTheDialog[0], "the line just validated, its result and the new line");
             assertEquals(6, frame[0].rowCount());
         } finally {
+            EventQueue.invokeAndWait(frame[0]::dispose);
+        }
+    }
+
+    /** With the focus on the selector of the modes: what Swing does with the key, from the focused component up. */
+    @Test
+    @Tag("ui")
+    void escapeInterruptsTheCalculationFromTheSelectorOfTheModes() throws Exception {
+        boolean headless = GraphicsEnvironment.isHeadless();
+        if (headless && Boolean.getBoolean("calc.ui.required")) {
+            fail("UI tests require a graphical environment (-PrequireUiTests=true): no display is available, so the ui tests cannot run.");
+        }
+        assumeFalse(headless, "UI tests require a graphical environment.");
+
+        NotebookPresenter presenter = openBlocked();
+        NotebookFrame[] frame = new NotebookFrame[1];
+        EventQueue.invokeAndWait(() -> frame[0] = new NotebookFrame(presenter));
+        try {
+            EventQueue.invokeAndWait(() -> {
+                KeyStroke escape = KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0);
+                JComponent selector = frame[0].modeSelector();
+                boolean done = false;
+                for (Container each = selector; each instanceof JComponent component && !done; each = each.getParent()) {
+                    Object key = component.getInputMap(each == selector ? JComponent.WHEN_FOCUSED : JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).get(escape);
+                    if (key == null && each == selector) {
+                        key = component.getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).get(escape);
+                    }
+                    Action action = key == null ? null : component.getActionMap().get(key);
+                    if (action != null && action.isEnabled()) {
+                        action.actionPerformed(new ActionEvent(component, ActionEvent.ACTION_PERFORMED, "escape"));
+                        done = true;
+                    }
+                }
+                assertTrue(done, "nothing takes Escape from the selector");
+                assertEquals(NotebookPresenter.INTERRUPTED_LINE, frame[0].row(3).errorLabel.getText(), "the sentence, by itself");
+                assertTrue(frame[0].statusLabel().getText().contains("interrompu"), frame[0].statusLabel().getText());
+            });
+        } finally {
+            awaitTheEnd(presenter);
             EventQueue.invokeAndWait(frame[0]::dispose);
         }
     }

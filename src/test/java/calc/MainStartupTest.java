@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 import calc.persistence.NotebookCodec;
+import calc.persistence.LoadedNotebook;
 import calc.persistence.NotebookStore;
 import calc.ui.DisplayModeStore;
 import calc.ui.notebook.NotebookFrame;
@@ -114,8 +115,10 @@ class MainStartupTest {
 
     private void start() throws Exception {
         store = NotebookStore.open(data);
+        // As in Main: the store loads off the event thread, which only builds the window.
+        LoadedNotebook loaded = store.load();
         NotebookFrame[] holder = new NotebookFrame[1];
-        SwingUtilities.invokeAndWait(() -> holder[0] = Main.createWindow(store, DisplayModeStore.noop()));
+        SwingUtilities.invokeAndWait(() -> holder[0] = Main.createWindow(store, loaded, DisplayModeStore.noop()));
         frame = holder[0];
         awaitTheCalculation();
     }

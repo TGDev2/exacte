@@ -92,7 +92,7 @@ Le modificateur de menu est `Ctrl` sous Windows et Linux, `Cmd` sous macOS. La l
 |---|---|
 | `Entrée` | valider la ligne et passer à la suivante |
 | `↑` / `↓` | ligne précédente / suivante (la ligne quittée est validée) |
-| `Échap` | abandonner la saisie en cours dans la ligne ; sans saisie, interrompre le calcul |
+| `Échap` | abandonner la saisie en cours dans la ligne ; sans saisie, interrompre le calcul, aussi depuis le sélecteur de modes |
 | `Ctrl+Z` | annuler la dernière modification validée |
 | `Ctrl+Y`, `Ctrl+Maj+Z` | rétablir |
 | `Ctrl+Entrée` / `Ctrl+Maj+Entrée` | insérer une ligne au-dessous / au-dessus |

@@ -1,5 +1,6 @@
 package calc;
 
+import calc.persistence.LoadedNotebook;
 import calc.persistence.NotebookStore;
 import calc.ui.DisplayModeStore;
 import calc.ui.PreferencesDisplayModeStore;
@@ -19,15 +20,17 @@ public class Main {
     private static final Logger LOGGER = Logger.getLogger(Main.class.getName());
 
     public static void main(String[] args) {
+        // Opens the data directory (taking the lock that makes a second instance read only), migrates the old history
+        // into a notebook on the first start and loads the current notebook. The system releases the lock with the
+        // process; releasing it on a normal exit is only tidier. The migration evaluates each old entry: this is not the
+        // event thread, where no expression is ever evaluated (docs/adr/0014-calcul-hors-interface.md).
+        NotebookStore store = NotebookStore.openForCurrentUser();
+        Runtime.getRuntime().addShutdownHook(new Thread(store::close, "notebook-lock-release"));
+        LoadedNotebook loaded = store.load();
         SwingUtilities.invokeLater(() -> {
             useSystemLookAndFeel();
             closeWindowsOnQuit();
-            // Opens the data directory (taking the lock that makes a second instance read only), migrates the old history
-            // into a notebook on the first start and loads the current notebook. The system releases the lock with the
-            // process; releasing it on a normal exit is only tidier.
-            NotebookStore store = NotebookStore.openForCurrentUser();
-            Runtime.getRuntime().addShutdownHook(new Thread(store::close, "notebook-lock-release"));
-            NotebookFrame frame = createWindow(store, PreferencesDisplayModeStore.forCurrentUser());
+            NotebookFrame frame = createWindow(store, loaded, PreferencesDisplayModeStore.forCurrentUser());
             frame.addWindowListener(new WindowAdapter() {
                 @Override
                 public void windowClosed(WindowEvent event) {
@@ -38,12 +41,12 @@ public class Main {
         });
     }
 
-    /** The main window: the notebook that {@code store} keeps, with the old history migrated into it on the first start. */
-    static NotebookFrame createWindow(NotebookStore store, DisplayModeStore modeStore) {
+    /** The main window on the notebook {@code store} has loaded, with the old history migrated into it on the first start. */
+    static NotebookFrame createWindow(NotebookStore store, LoadedNotebook loaded, DisplayModeStore modeStore) {
         // The dialogs belong to the window, which needs the presenter, which needs the dialogs: the window is given last.
         SwingNotebookDialogs dialogs = new SwingNotebookDialogs();
         // One background thread calculates the notebook; the event thread only ever receives its results.
-        NotebookFrame frame = new NotebookFrame(NotebookPresenter.open(store, modeStore, dialogs, NotebookPresenter.newRecalculationExecutor()));
+        NotebookFrame frame = new NotebookFrame(NotebookPresenter.open(store, loaded, modeStore, dialogs, NotebookPresenter.newRecalculationExecutor()));
         dialogs.setParent(frame);
         return frame;
     }

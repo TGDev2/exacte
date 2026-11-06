@@ -52,6 +52,7 @@ import javax.swing.SwingUtilities;
 public final class NotebookFrame extends JFrame {
     private static final long serialVersionUID = 1L;
     private static final String NEXT_MODE_ACTION = "next-display-mode";
+    private static final String CANCEL_EDIT_ACTION = "cancel-edit-or-calculation";
 
     // The frame is never serialized: the presenter is deliberately not Serializable.
     @SuppressWarnings("serial")
@@ -316,6 +317,18 @@ public final class NotebookFrame extends JFrame {
             @Override
             public void actionPerformed(ActionEvent event) {
                 perform(Command.NEXT_MODE);
+            }
+        });
+        // A line binds Escape itself. With the focus elsewhere (the selector of the modes), Escape still interrupts a calculation.
+        // An open list of the selector keeps the key: its own action is enabled then, and Swing looks no further.
+        JComponent content = (JComponent) getContentPane();
+        content.getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(shortcuts.stroke(Command.CANCEL_EDIT), CANCEL_EDIT_ACTION);
+        content.getActionMap().put(CANCEL_EDIT_ACTION, new AbstractAction() {
+            private static final long serialVersionUID = 1L;
+
+            @Override
+            public void actionPerformed(ActionEvent event) {
+                perform(Command.CANCEL_EDIT);
             }
         });
     }

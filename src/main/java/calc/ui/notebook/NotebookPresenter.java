@@ -183,9 +183,9 @@ public final class NotebookPresenter {
         return new NotebookPresenter(new DocumentService(store, loaded), loaded, modeStore, dialogs);
     }
 
-    /** Same, calculating on {@code executor}. */
-    public static NotebookPresenter open(NotebookStore store, DisplayModeStore modeStore, NotebookDialogs dialogs, Executor executor) {
-        return open(store, modeStore, dialogs, executor, JUST_EVALUATE);
+    /** The presenter of what {@code store} has already loaded (off the event thread: a migration evaluates), calculating on {@code executor}. */
+    public static NotebookPresenter open(NotebookStore store, LoadedNotebook loaded, DisplayModeStore modeStore, NotebookDialogs dialogs, Executor executor) {
+        return new NotebookPresenter(new DocumentService(store, loaded), loaded, modeStore, dialogs, executor, JUST_EVALUATE);
     }
 
     static NotebookPresenter open(NotebookStore store, DisplayModeStore modeStore, NotebookDialogs dialogs, Executor executor,
@@ -885,20 +885,17 @@ public final class NotebookPresenter {
                 status.text(), status.tone(), showHelp ? WATERMARK : "", title(), !document.isReadOnlyFile(), close);
     }
 
-    // A refusal of the last intention (an error) is always shown, so that a key that did nothing says why. Then the failure of
-    // the automatic save, which the user must act on. Then the calculation under way, or the interruption of the last one, and
-    // everything below waits for its end. Then, when the notebook is not being saved, that warning (an
+    // The count of a calculation under way comes first, followed by what cannot wait for its end: see urgentError. Then that
+    // error alone, then the interruption of the last calculation. Then, when the notebook is not being saved, that warning (an
     // information never replaces it), otherwise the last intention, then the usual hint.
     private Message status() {
-        if (transientMessage != null && transientMessage.tone() == StatusTone.ERROR) {
-            return transientMessage;
-        }
-        if (document.isUntitled() && document.autosaveProblem().isPresent()) {
-            return new Message("Enregistrement automatique impossible : " + document.autosaveProblem().get()
-                    + " Le carnet reste disponible dans cette fenêtre.", StatusTone.ERROR);
-        }
+        Message urgent = urgentError();
         if (recalculation.isRunning()) {
-            return new Message("Calcul en cours : " + recalculation.knownCount() + " / " + document.notebook().size() + " lignes", StatusTone.INFO);
+            String count = "Calcul en cours : " + recalculation.knownCount() + " / " + document.notebook().size() + " lignes";
+            return urgent == null ? new Message(count, StatusTone.INFO) : new Message(count + ". " + urgent.text(), StatusTone.ERROR);
+        }
+        if (urgent != null) {
+            return urgent;
         }
         if (interruption != null) {
             return interruption;
@@ -914,6 +911,19 @@ public final class NotebookPresenter {
             return lastingMessage;
         }
         return transientMessage != null ? transientMessage : new Message(DEFAULT_STATUS, StatusTone.INFO);
+    }
+
+    // A refusal of the last intention, so that a key that did nothing says why; then the failure of the automatic save, which the
+    // user must act on. Null when there is neither.
+    private Message urgentError() {
+        if (transientMessage != null && transientMessage.tone() == StatusTone.ERROR) {
+            return transientMessage;
+        }
+        if (document.isUntitled() && document.autosaveProblem().isPresent()) {
+            return new Message("Enregistrement automatique impossible : " + document.autosaveProblem().get()
+                    + " Le carnet reste disponible dans cette fenêtre.", StatusTone.ERROR);
+        }
+        return null;
     }
 
     private NotebookRow shownResult(int index) {
@@ -935,7 +945,7 @@ public final class NotebookPresenter {
     }
 
     private static NotebookRow interruptedRow(int number, String text) {
-        return new NotebookRow(number, text, NotebookRow.Status.ERROR, "", "", INTERRUPTED_LINE, -1, -1, "", "Erreur : " + INTERRUPTED_LINE);
+        return new NotebookRow(number, text, NotebookRow.Status.ERROR, "", "", INTERRUPTED_LINE, -1, -1, "", INTERRUPTED_LINE);
     }
 
     private NotebookRow row(LineResult result) {
