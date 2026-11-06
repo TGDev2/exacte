@@ -70,6 +70,10 @@ For an approximate value, `± r` with `r` the radius of the interval around its 
 `[centre - r, centre + r]`), rounded **up** to two significant digits so that it stays a bound, in scientific notation
 (`± 2,1 × 10⁻²⁵` for `√2`).
 
+Corrected by the final acceptance (docs/RECETTE.md): a text that does not round the whole interval, `≈ 0` or the rough centre
+of a very wide interval, may lie far from the centre, and the pair « text ± r » then excluded the true value (`≈ 2… ± 8,3 × 10⁻²`
+for `[1,41728 ; 1,58272]`). For these two texts only, `r` runs from the text to the farther bound (`≈ 2… ± 5,9 × 10⁻¹`).
+
 ### 5. Canonical text (the reusable text)
 
 The canonical text is read back by the input grammar and gives back **exactly** the value when it is exact:
