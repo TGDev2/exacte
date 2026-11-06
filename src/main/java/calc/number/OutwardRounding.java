@@ -7,12 +7,14 @@ import java.util.Optional;
  * Directed rounding of the bounds of approximate values. Every function returns a value on the requested side of the
  * exact one, so an interval built from a rounded-down lower bound and a rounded-up upper bound still contains the true
  * value. The results are within {@link NumericLimits#MAX_COMPONENT_BITS}, or the function throws
- * {@link NumericError#SIZE_LIMIT_EXCEEDED}.
+ * {@link NumericError#SIZE_LIMIT_EXCEEDED}. A bound that is not zero stays not zero, with the same sign: when the finest
+ * grid cannot bound it without touching 0, the function throws the same error.
  */
 final class OutwardRounding {
     private static final int BUDGET = NumericLimits.BOUND_SIGNIFICANT_BITS;
     // The finest grid step, 2^-(MAX_COMPONENT_BITS - 1): a rounded denominator always fits the component limit. Below
-    // 2^(BUDGET - MAX_COMPONENT_BITS) a bound keeps fewer significant bits, but stays on the right side.
+    // 2^(BUDGET - MAX_COMPONENT_BITS) a bound keeps fewer significant bits, but stays on the right side and never
+    // reaches 0.
     private static final int FINEST_EXPONENT = 1 - NumericLimits.MAX_COMPONENT_BITS;
 
     private OutwardRounding() {
@@ -57,6 +59,10 @@ final class OutwardRounding {
         // or down from a negative one.
         if (quotient[1].signum() != 0 && up == (numerator.signum() > 0)) {
             mantissa = mantissa.add(BigInteger.valueOf(numerator.signum()));
+        }
+        if (mantissa.signum() == 0) {
+            // 0 < |value| < 2^FINEST_EXPONENT, rounded toward 0: a value that is not zero would read as 0.
+            throw new NumericException(NumericError.SIZE_LIMIT_EXCEEDED);
         }
         return Rational.withinLimits(Rational.dyadic(mantissa, exponent));
     }

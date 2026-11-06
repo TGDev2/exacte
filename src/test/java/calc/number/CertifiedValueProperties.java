@@ -178,6 +178,8 @@ class CertifiedValueProperties {
             Rational up = OutwardRounding.up(x);
 
             assertTrue(down.compareTo(x) <= 0 && x.compareTo(up) <= 0, () -> down + " <= " + x + " <= " + up);
+            assertEquals(x.signum(), down.signum(), () -> "the sign of the lower bound of " + x);
+            assertEquals(x.signum(), up.signum(), () -> "the sign of the upper bound of " + x);
             for (Rational bound : List.of(down, up)) {
                 assertTrue(OutwardRounding.fitsBudget(bound), () -> "beyond the budget: " + bound);
                 assertTrue(bound.bitLength() <= MAX_BITS, () -> "beyond the limit: " + bound.bitLength());
@@ -195,7 +197,8 @@ class CertifiedValueProperties {
             }
         } catch (NumericException refused) {
             assertEquals(NumericError.SIZE_LIMIT_EXCEEDED, refused.error());
-            assertTrue(magnitude >= MAX_BITS - 1, () -> "refused a value of magnitude 2^" + magnitude);
+            // Beyond any bound that fits the limit, or too small for the finest grid to bound it without touching 0.
+            assertTrue(magnitude >= MAX_BITS - 1 || magnitude < 1 - MAX_BITS, () -> "refused a value of magnitude 2^" + magnitude);
         }
     }
 

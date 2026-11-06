@@ -149,8 +149,10 @@ class CertifiedValueTest {
 
     @Test
     void aTinyApproximateProductStaysACorrectEnclosure() throws NumericException {
-        Rational low = Rational.of(BigInteger.ONE, BigInteger.ONE.shiftLeft(4000));
-        Rational high = Rational.of(BigInteger.ONE, BigInteger.ONE.shiftLeft(3999));
+        // Around 2^-4000: the finest grid still bounds the product, with fewer significant bits than the operands need.
+        BigInteger manyBits = BigInteger.ONE.shiftLeft(200).add(BigInteger.ONE);
+        Rational low = Rational.of(manyBits, BigInteger.ONE.shiftLeft(2200));
+        Rational high = Rational.of(manyBits, BigInteger.ONE.shiftLeft(2199));
         CertifiedValue tiny = CertifiedValue.between(low, high);
 
         CertifiedValue square = tiny.multiply(tiny);
@@ -158,7 +160,16 @@ class CertifiedValueTest {
         assertTrue(square.contains(low.multiply(low)) && square.contains(high.multiply(high)));
         assertTrue(square.lower().bitLength() <= NumericLimits.MAX_COMPONENT_BITS);
         assertTrue(square.upper().bitLength() <= NumericLimits.MAX_COMPONENT_BITS);
-        assertTrue(square.lower().signum() >= 0);
+        assertEquals(1, square.lower().signum());
+    }
+
+    @Test
+    void aProductBelowTheFinestGridIsRefusedInsteadOfReachingZero() throws NumericException {
+        Rational low = Rational.of(BigInteger.ONE, BigInteger.ONE.shiftLeft(4000));
+        Rational high = Rational.of(BigInteger.ONE, BigInteger.ONE.shiftLeft(3999));
+        CertifiedValue tiny = CertifiedValue.between(low, high);
+
+        assertEquals(NumericError.SIZE_LIMIT_EXCEEDED, assertThrows(NumericException.class, () -> tiny.multiply(tiny)).error());
     }
 
     @Test
