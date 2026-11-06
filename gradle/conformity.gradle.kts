@@ -112,7 +112,8 @@ abstract class ConformityReportTask : DefaultTask() {
         return files.map {
             val suite = Conformity.parse(it)
             ClassResult(
-                suite.getAttribute("name"),
+                // The file name, not the suite's `name`: a class with @DisplayName reports its display name there.
+                it.name.removePrefix("TEST-").removeSuffix(".xml"),
                 suite.getAttribute("tests").toInt(),
                 suite.getAttribute("failures").toInt() + suite.getAttribute("errors").toInt(),
                 suite.getAttribute("skipped").toInt(),
@@ -364,8 +365,9 @@ val conformityReport = tasks.register<ConformityReportTask>("conformityReport") 
     testsDoc = layout.projectDirectory.file("docs/TESTS.md")
     testSources = layout.projectDirectory.dir("src/test/java")
     appVersion = project.version.toString()
-    val toolchains = extensions.getByType<JavaToolchainService>()
-    val launcher = toolchains.launcherFor(extensions.getByType<JavaPluginExtension>().toolchain).map { it.metadata }
+    // `project.`: inside this block a bare `extensions` is the task's own, which holds neither of these.
+    val toolchains = project.extensions.getByType<JavaToolchainService>()
+    val launcher = toolchains.launcherFor(project.extensions.getByType<JavaPluginExtension>().toolchain).map { it.metadata }
     jdkDescription = launcher.map { "${it.vendor} ${it.jvmVersion}" }
     commit = gitOutput("rev-parse", "--short=12", "HEAD").zip(gitOutput("status", "--porcelain")) { head, status ->
         val id = head.ifEmpty { "inconnu (hors dépôt git)" }
