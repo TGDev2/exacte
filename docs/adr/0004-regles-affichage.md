@@ -92,7 +92,8 @@ The canonical text is read back by the input grammar and gives back **exactly** 
   finite) and the fraction (`1/3`); on a tie the decimal, then the scientific notation;
 - approximate value: the decimal with the fewest significant digits that lies inside the interval (`√2` gives
   `1,414213562373095048801689`), positional up to 40 characters, scientific beyond; `0` when the interval contains 0
-  (a point of the interval to read back, not a text shown as the result).
+  (a point of the interval to read back, never the text of a result; it can only be seen as an operand, in the comment of a
+  migrated history entry).
 
 Every canonical text of a value within the core limits fits the input bound (4100 characters): the longest is a
 fraction of two 4096-bit components, about 2470 characters.
@@ -186,9 +187,10 @@ version 1: it is written as is and rejected, with a backup, at the next load.
   reference.
 - The display text and the reusable text are no longer the same string: the golden test checks both columns.
 - E18 refuses results that were accepted before, those whose bound was brought to 0 by the rounding. A notebook keeps such a
-  line and shows it in error. An entry of the version 2 history whose recorded bounds came from that rounding no longer matches
-  its recalculation: it is set aside and counted at the next load, like any entry that differs from its recalculation. The file
-  formats do not change: no display text goes to a file. The exports take the new text, alone since it is already the bound.
+  line and shows it in error. An entry of the version 2 history whose recalculation is now refused is set aside and counted at
+  the next load, like any entry that cannot be recalculated. The file formats do not change: a notebook keeps its sources and a
+  history its bounds. The new text reaches a file only as text the user asked for or already had: the exports, alone since it
+  is already the bound, and the comment of a migrated history entry.
 - A version 1 file written by E06 cannot carry an interval: a line built from a remembered approximate value comes back
   as the exact result of its canonical operand (a point of the original interval), and a power of such a value above
   about 48 cannot be stored at all (rejected with a backup at the next load). E07 stores the intervals.
