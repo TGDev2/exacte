@@ -8,7 +8,10 @@ import calc.number.Rational;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
-/** A text and its « ± r » are read together: whatever the digits shown, the whole interval must be within r of them. */
+/**
+ * A text that does not round the whole interval, « ≈ 0 » or a rough centre, is read with its « ± r »: the whole interval must be
+ * within r of it. Digits common to the whole interval are its correct rounding and keep the radius (ADR 0004, section 4).
+ */
 class ShownValueBoundTest {
     private static Optional<String> bound(Rational lower, Rational upper) throws NumericException {
         return ValueFormatter.format(CertifiedValue.between(lower, upper), DisplayMode.AUTO).errorBound();
