@@ -45,9 +45,10 @@ import java.util.logging.Logger;
  *
  * <p>The view passes, with each intention, the text now in the field of the active line ({@code pending}): the presenter
  * keeps it as the <em>draft</em> of that line. A draft becomes a command of the model only when it is validated (Enter,
- * moving to another line, inserting or moving a line, closing); Escape drops it. Undo and redo act on validated commands:
- * undo first drops a pending draft, so that nothing the user typed is lost by surprise; redo refuses to run while a draft
- * is pending.
+ * moving to another line, inserting or moving a line, closing); Escape drops it for good. Undo and redo act on validated
+ * commands, with one exception so that nothing the user typed is lost by surprise: undo first takes a pending draft out of
+ * the line, and redo puts it back, still a draft, as long as nothing else has happened. Redo refuses to run while a draft is
+ * pending.
  *
  * <p>The model (the texts) changes here, on the event thread; the results come from a {@link NotebookRecalculation}, which
  * calculates elsewhere (docs/adr/0014-calcul-hors-interface.md). A line without its result yet says {@value #PENDING_RESULT}, a
@@ -93,6 +94,8 @@ public final class NotebookPresenter {
     private LineId activeId;
     // The text of the active field, validated or not.
     private String draft = "";
+    // The draft undo took out, which redo can put back; null when there is none, or once anything else has happened.
+    private RemovedDraft removedDraft;
     // The sentence of the last intention, and the one that lasts for the whole session when nothing is saved.
     private Message transientMessage;
     private final Message lastingMessage;
@@ -325,13 +328,16 @@ public final class NotebookPresenter {
     }
 
     /**
-     * Undo. A pending draft is dropped first (like Escape); with nothing pending the last validated command is undone and
-     * every result is recalculated.
+     * Undo. A pending draft is taken out first and kept for {@link #onRedo}; with nothing pending the last validated command
+     * is undone, the draft taken out is forgotten and every result is recalculated.
      */
     public NotebookViewModel onUndo(String pending) {
         syncDraft(pending);
         if (isDraftPending()) {
-            return onCancelEdit(draft);
+            removedDraft = new RemovedDraft(draft, activeIndex(), modelText());
+            dropDraft();
+            say("Saisie annulée : Rétablir la remet dans la ligne.", StatusTone.INFO);
+            return view(NotebookFocus.ACTIVE_LINE);
         }
         if (!document.canUndo()) {
             say("Il n'y a rien à annuler.", StatusTone.INFO);
@@ -341,17 +347,28 @@ public final class NotebookPresenter {
         int index = activeIndex();
         syncMode();
         document.undo();
+        removedDraft = null;
         recalculate();
         reselect(index);
         say("Dernière modification annulée.", StatusTone.INFO);
         return view(NotebookFocus.ACTIVE_LINE);
     }
 
-    /** Redo. Refused while a draft is pending, so that typing is never overwritten. */
+    /**
+     * Redo. Refused while a draft is pending, so that typing is never overwritten. The draft undo took out comes back first,
+     * still a draft and with no command of the model: it is what was removed last, even when a command can also be redone.
+     */
     public NotebookViewModel onRedo(String pending) {
         syncDraft(pending);
         if (isDraftPending()) {
             say("Validez la saisie en cours (Entrée) ou annulez-la (Échap) avant de rétablir.", StatusTone.INFO);
+            return view(NotebookFocus.ACTIVE_LINE);
+        }
+        if (isDraftRestorable()) {
+            draft = removedDraft.text();
+            removedDraft = null;
+            say("Saisie rétablie : elle n'est pas encore validée.", StatusTone.INFO);
+            calculateAgainIfInterrupted();
             return view(NotebookFocus.ACTIVE_LINE);
         }
         if (!document.canRedo()) {
@@ -362,6 +379,7 @@ public final class NotebookPresenter {
         int index = activeIndex();
         syncMode();
         document.redo();
+        removedDraft = null;
         recalculate();
         reselect(index);
         say("Modification rétablie.", StatusTone.INFO);
@@ -724,9 +742,13 @@ public final class NotebookPresenter {
     }
 
     // Records what the field holds. A line break cannot be part of a line: the field never produces one, a caller might.
+    // A new draft replaces the one undo took out.
     private void syncDraft(String pending) {
         if (pending != null) {
             draft = pending.replace("\r\n", " ").replace('\n', ' ').replace('\r', ' ');
+        }
+        if (isDraftPending()) {
+            removedDraft = null;
         }
     }
 
@@ -740,6 +762,12 @@ public final class NotebookPresenter {
 
     private void dropDraft() {
         draft = modelText();
+    }
+
+    // Whether redo can put back the draft undo took out: nothing is typed, and the line is the one it left, with the same text.
+    private boolean isDraftRestorable() {
+        return removedDraft != null && !isDraftPending() && removedDraft.index() == activeIndex()
+                && removedDraft.validatedText().equals(modelText());
     }
 
     // Turns the draft into a command of the model. False, and nothing changed, when the line is refused.
@@ -767,6 +795,7 @@ public final class NotebookPresenter {
         try {
             Notebook before = document.notebook();
             document.apply(command);
+            removedDraft = null;
             transientMessage = null;
             openedFile = null;
             if (document.notebook() != before) {
@@ -794,6 +823,7 @@ public final class NotebookPresenter {
     // Makes the row at index (from 0) active; its draft is its text. The row after the last line is the new line, which
     // the model only knows once it holds something. An index out of range means that row.
     private void select(int index) {
+        removedDraft = null;
         Notebook notebook = document.notebook();
         if (index < 0 || index >= notebook.size()) {
             activeId = null;
@@ -853,6 +883,9 @@ public final class NotebookPresenter {
     private record WaitingExport(NotebookDialogs.ExportFormat format, Path target) {
     }
 
+    private record RemovedDraft(String text, int index, String validatedText) {
+    }
+
     private record ShownResult(LineResult result, NotebookRow row) {
     }
 
@@ -899,7 +932,7 @@ public final class NotebookPresenter {
         boolean showHelp = notebook.isEmpty() && draft.isEmpty();
         boolean close = closeRequested;
         closeRequested = false;
-        return new NotebookViewModel(rows, activeIndex(), draft, focus, document.canUndo(), document.canRedo(), mode,
+        return new NotebookViewModel(rows, activeIndex(), draft, focus, document.canUndo(), document.canRedo() || isDraftRestorable(), mode,
                 status.text(), status.tone(), showHelp ? WATERMARK : "", title(), !document.isReadOnlyFile(), close);
     }
 
