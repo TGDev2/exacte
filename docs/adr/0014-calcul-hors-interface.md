@@ -43,9 +43,14 @@ We will keep the model on the event thread and move only the evaluation.
    thread, and then holds the notebook as it is at that moment: one whole state, never a mix. A later edit of the same notebook
    only moves that state forward. Escape, Open and New abandon the waiting export, and the status bar says so.
 8. **Closing.** A close that goes on stops the calculation; the thread is a daemon and never holds the process back. While an
-   export waits, closing is refused with a sentence that says what to do: a file the user asked for is not lost in silence. This
-   is the one exception to "closing cancels", chosen as the cautious reading.
-9. **A failure of the calculation** (an unexpected exception, a stack overflow, memory) ends like an interruption, with its own
+   export waits, the window asks first, as it does for unsaved changes: a file the user asked for is not lost in silence. Answering
+   yes closes at once and the file is not written; answering no leaves the window and the calculation as they were.
+9. **The rows of the window.** Building or refilling 5000 rows takes more than a second on the event thread (1672 ms measured for
+   File > Open from an empty window), whatever the calculation does. A large notebook therefore appears by slices: the first 200
+   rows at once, the following ones for 15 ms per event, so that the events in between are served. A document that replaces another
+   drops its rows below the first 200 instead of filling them, so a row that exists always shows the state of now, and an old line
+   cannot be seen while the new ones arrive. Only the window built at start takes all its rows at once: it is not shown yet.
+10. **A failure of the calculation** (an unexpected exception, a stack overflow, memory) ends like an interruption, with its own
    sentence and a line in the log. On the event thread such a failure left the window as it was; here, without this, the lines
    would say « Calcul en cours… » for ever.
 
@@ -75,6 +80,11 @@ We will keep the model on the event thread and move only the evaluation.
   the selector of the modes, whose open list keeps the key. In a menu, the menu takes it.
 - The store loads on the main thread, before the event thread takes over: the migration of an old history checks each entry with
   one evaluation (`HistoryBridge`), and that is no longer on the event thread either.
+- The rows are still not virtualised. A large notebook takes about a second more to appear in full, and the scroll bar grows
+  meanwhile. The window of a test that reads a far row after an Open must wait for it (`NotebookDriver.awaitWindows`).
+- A command that changes the results of every line of a large notebook still updates its rows in one event: validating line 1 of
+  5000 ordinary lines holds the event thread for about 170 to 400 ms (`NotebookFrameResponsivenessTest`). This is the existing
+  budget of the model (ADR 0010), not the opening of B1, and no old value may stay visible, so these rows are not delayed.
 - Still on the event thread: reading and writing files, parsing a large file at Open, and formatting. Formatting costs at most
   0.44 ms per hostile value, measured once: a change of display mode on 5000 calculated hostile lines holds the window for about
   2 s. It is now done once per mode instead of at every command.

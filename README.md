@@ -113,7 +113,8 @@ de [docs/TESTS.md](docs/TESTS.md)) :
 - **Clavier macOS non essayé** : les raccourcis sont vérifiés par leur liaison dans la fenêtre (avec `Cmd` simulé), pas sur
   un Mac réel ni avec l'apparence Aqua.
 - **Interface** : les tests couvrent les parcours critiques, pas un rendu graphique pixel par pixel. Les lignes ne sont pas
-  virtualisées (ouverture d'environ 0,85 s pour 500 lignes, 1,5 s pour 5000, mesuré sur la machine de développement).
+  virtualisées : au démarrage, environ 0,85 s pour 500 lignes et 1,5 s pour 5000, mesuré sur la machine de développement ; Ouvrir
+  les crée par tranches, sans bloquer la fenêtre.
 - **Calcul en arrière-plan** : la fenêtre répond pendant le recalcul d'un carnet, que `Échap` peut interrompre
   ([ADR 0014](docs/adr/0014-calcul-hors-interface.md)). Il n'est pas accéléré pour autant : borné par ligne (1000 caractères,
   100 niveaux, 500 éléments, nombres de 4096 bits), un carnet de 5000 lignes conçu pour coûter cher prend environ 3 minutes.
