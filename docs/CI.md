@@ -92,7 +92,7 @@ lance `./gradlew conformity -PrequireUiTests=true -Pjqwik.reporting.onlyfailures
 request ne lance que `check`, dont les seuils de couverture par package font partie.
 
 Le job publie l'artefact **`conformity-report`** (conservé 30 jours) : `conformite/RAPPORT-CONFORMITE.md` (le rapport), `pitest/` (rapport
-HTML des mutants) et `jacoco/` (couverture). Il échoue, et le rapport dit pourquoi, si un seuil n'est pas tenu ou si une donnée source manque.
+HTML des mutants) et `jacoco/` (couverture). Si un seuil de couverture n'est pas tenu, `check` échoue et il n'y a pas de rapport. Si un score de mutation ou une garantie n'est pas tenu, le rapport « NON CONFORME » dit pourquoi et le job échoue. Si une donnée source manque, le job échoue sans rapport.
 
 `release.yml` exécute le même job (`conformity report`, avant la publication) et joint le rapport à la release sous le nom
 `Calc-<version>-rapport-conformite.md`, avec sa somme dans `SHA256SUMS.txt`.

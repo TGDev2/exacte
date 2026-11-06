@@ -35,7 +35,7 @@ Avant de taguer, mettre à jour [`CHANGELOG.md`](../CHANGELOG.md) (déplacer l'e
    ```
 
 4. Le workflow « Release » se lance tout seul (onglet **Actions**) : il valide la version, construit et teste sur les trois systèmes,
-   vérifie les modules embarqués et lance chaque application empaquetée (le test contrôle que le processus reste vivant 8 secondes sans erreur Java dans sa sortie ; il ne vérifie pas la fenêtre), puis crée la release avec les cinq fichiers.
+   vérifie les modules embarqués et lance chaque application empaquetée (le test contrôle que le processus reste vivant 8 secondes sans erreur Java dans sa sortie ; il ne vérifie pas la fenêtre), puis crée la release avec les six fichiers (rapport de conformité compris).
 5. Ouvrir la release, vérifier la présence des six fichiers, puis suivre la section « Vérifier un téléchargement ».
 
 Le workflow ne vérifie pas que le tag pointe vers un commit de `main` : c'est à la personne qui tague de le faire.

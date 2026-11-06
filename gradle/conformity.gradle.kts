@@ -186,6 +186,9 @@ abstract class ConformityReportTask : DefaultTask() {
         val guarantees = readGuarantees()
         val limits = readLimits()
         val problems = mutableListOf<String>()
+        // Run alone, the task reads older results: the report must show their age next to the commit it names.
+        val testsDate = Instant.ofEpochMilli(junitResults.files.maxOf { it.lastModified() })
+        val mutationDate = Instant.ofEpochMilli(pitestXml.get().asFile.lastModified())
 
         // --- Tests per tag -------------------------------------------------------------------------------------
         val tags = linkedSetOf("(sans étiquette)", "property", "robustness", "ui")
@@ -296,6 +299,7 @@ abstract class ConformityReportTask : DefaultTask() {
             appendLine("- Version : `${appVersion.get()}`")
             appendLine("- Commit : `${commit.get()}`")
             appendLine("- Date (UTC) : ${Instant.now()}")
+            appendLine("- Résultats lus : tests du $testsDate, mutation du $mutationDate (la tâche lit ce qui est sur le disque)")
             appendLine("- Système : $os")
             appendLine("- JDK des tests : ${jdkDescription.get()}")
             appendLine()
