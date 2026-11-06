@@ -130,7 +130,9 @@ public final class LegacyTsvReader {
             String reason = exception.getMessage() == null ? "the operands cannot be recalculated" : exception.getMessage();
             throw new LineRejection(RejectedLine.Cause.INVALID_OPERAND, reason);
         }
-        checkStoredResult(columns[3], recomputed.getResult());
+        if (!LegacyRounding.writtenAsDouble(operation, columns[1], columns[2], columns[3])) {
+            checkStoredResult(columns[3], recomputed.getResult());
+        }
         return recomputed;
     }
 
