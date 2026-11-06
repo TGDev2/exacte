@@ -49,6 +49,9 @@ tout ce qui suit est dans la prochaine version. Le numéro sera choisi au moment
 - **Une valeur non nulle n'est plus jamais affichée 0.** Une valeur dont le signe n'a pas pu être établi s'affiche `|x| ≤ b`
   dans tous les modes, à la place de l'ancien texte ; une valeur trop petite pour être encadrée sans toucher 0 est refusée,
   avec le même message que sa version exacte (`(sqrt(2) / 16) ^ 4096` comme `(1/16) ^ 4096`).
+- **Le texte d'un intervalle très large reste dans l'intervalle.** Quand ses bornes n'ont aucun chiffre commun, une valeur
+  approchée affiche son centre avec le plus petit nombre de chiffres qui le place entre les bornes : `[1,41728 ; 1,58272]` se
+  lit `≈ 1,5… ± 8,3 × 10⁻²`, et non plus `≈ 2…`.
 
 - **Fichier > Nouveau n'abandonne plus une conversion d'historique en échec.** Quand la conversion de l'historique a échoué,
   elle reprend bien au démarrage suivant tant que rien n'a été saisi : Nouveau, un changement de mode ou Enregistrer sous d'un

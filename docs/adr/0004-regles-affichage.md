@@ -43,7 +43,8 @@ the only code that turns a value into text; the engine, the history and the pres
   that the lower and the upper bound round to the same number at that decimal position. Since rounding at a fixed
   position is monotone, every point of the interval, the true value included, has that same rounding: the digits shown
   are the correct rounding of the true value. If no digit is common to both bounds (very wide interval), the centre is
-  shown with one significant digit. An approximate text always ends with « … » (`≈ 1,41421356237…`).
+  shown with the fewest significant digits that place it inside the interval (section 4). An approximate text always ends
+  with « … » (`≈ 1,41421356237…`).
 - An approximate value whose interval contains 0 has no established sign: it may really be 0 (`√2 - √2` computed on
   intervals), and it may not (`√2 - √2 + 1e-40`). It reads `|x| ≤ b`, the same text in every mode, where `b` is the
   largest absolute value of its two bounds, rounded up and written like a `±` bound (section 4): `|x| ≤ 4,2 × 10⁻²⁵`.
@@ -78,9 +79,15 @@ For an approximate value, `± r` with `r` the radius of the interval around its 
 (`± 2,1 × 10⁻²⁵` for `√2`).
 
 Corrected by the final acceptance (docs/RECETTE.md): a text that does not round the whole interval, the rough centre of a very
-wide interval, may lie far from the centre, and the pair « text ± r » then excluded the true value (`≈ 2… ± 8,3 × 10⁻²` for
-`[1,41728 ; 1,58272]`). For this text, `r` runs from the text to the farther bound (`≈ 2… ± 5,9 × 10⁻¹`). For an interval that
+wide interval, is not exactly the centre, and the pair « text ± r » could then exclude the true value. For this text, `r` runs
+from the text to the farther bound (`≈ 1,5… ± 6,0 × 10⁻²` for `[1,45 ; 1,56]`, whose radius is only `0,055`). For an interval that
 contains 0, `r` runs from 0 to the farther bound: it is the `b` of `|x| ≤ b`.
+
+Corrected after the acceptance (defect D6): the rough centre used to have one significant digit whatever the interval, so it could
+lie outside it (`≈ 2…` for `[1,41728 ; 1,58272]`, with only the bound `± 5,9 × 10⁻¹` still true). It now has the fewest significant
+digits that place it between the bounds, an equal bound being inside: `≈ 1,5… ± 8,3 × 10⁻²` here, and still `≈ 2…` for
+`[1,5 ; 2,5]`. The loop has no limit of 12 digits: the centre is inside an interval of non-zero width, so a fine enough rounding
+lands there, in practice by two digits. Digits common to the whole interval do not change.
 
 ### 5. Canonical text (the reusable text)
 
