@@ -46,7 +46,10 @@ import org.junit.jupiter.api.io.TempDir;
 @Tag("ui")
 @DisplayName("Menu Fichier de la fenêtre du carnet (nécessite un affichage)")
 class NotebookFrameFilesTest {
-    private static final int MENU_MASK = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
+    // Read in a method, not a constant: without a display the toolkit throws, and that must skip the tests, not fail the class.
+    private static int menuMask() {
+        return Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
+    }
 
     @TempDir
     Path root;
@@ -66,7 +69,7 @@ class NotebookFrameFilesTest {
         documents = Files.createDirectories(root.resolve("documents"));
         store = NotebookStore.open(Files.createDirectories(root.resolve("data")));
         dialogs = new FakeDialogs();
-        frame = open(MENU_MASK);
+        frame = open(menuMask());
     }
 
     @AfterEach
@@ -160,14 +163,14 @@ class NotebookFrameFilesTest {
         assertEquals("Carnet sans titre — Calc", frame.getTitle(), "the untitled notebook is autosaved: never marked");
 
         dialogs.willSaveTo(documents.resolve("devis"));
-        press(KeyEvent.VK_S, MENU_MASK | InputEvent.SHIFT_DOWN_MASK);
+        press(KeyEvent.VK_S, menuMask() | InputEvent.SHIFT_DOWN_MASK);
         assertEquals("devis.calc.json — Calc", frame.getTitle());
         assertTrue(Files.exists(documents.resolve("devis.calc.json")));
 
         typeLine("ans * 2");
         assertEquals("• devis.calc.json — Calc", frame.getTitle());
 
-        press(KeyEvent.VK_S, MENU_MASK);
+        press(KeyEvent.VK_S, menuMask());
         assertEquals("devis.calc.json — Calc", frame.getTitle());
         assertEquals(List.of("1 + 1", "ans * 2"), NotebookCodec.read(documents.resolve("devis.calc.json")).notebook().texts());
         dialogs.assertAllUsed();
@@ -200,7 +203,7 @@ class NotebookFrameFilesTest {
                 "closing is decided by the presenter, not by EXIT_ON_CLOSE or DISPOSE_ON_CLOSE");
         typeLine("1 + 1");
         dialogs.willSaveTo(documents.resolve("work"));
-        press(KeyEvent.VK_S, MENU_MASK);
+        press(KeyEvent.VK_S, menuMask());
         typeLine("ans + 1");
         assertEquals("• work.calc.json — Calc", frame.getTitle());
 
@@ -222,7 +225,7 @@ class NotebookFrameFilesTest {
     void theQuitItemSavesThenCloses() throws Exception {
         typeLine("1 + 1");
         dialogs.willSaveTo(documents.resolve("work"));
-        press(KeyEvent.VK_S, MENU_MASK);
+        press(KeyEvent.VK_S, menuMask());
         typeLine("ans + 1");
 
         dialogs.willAnswer(Unsaved.SAVE);
@@ -252,7 +255,7 @@ class NotebookFrameFilesTest {
         Files.writeString(future, "{\"format\":\"calc-notebook\",\"version\":7,\"lines\":[{\"id\":\"1\",\"source\":\"1 + 1\"}]}");
 
         dialogs.willOpen(future);
-        press(KeyEvent.VK_O, MENU_MASK);
+        press(KeyEvent.VK_O, menuMask());
 
         assertEquals("future.calc.json (lecture seule) — Calc", frame.getTitle());
         assertFalse(item("saveItem", frame).isEnabled());
