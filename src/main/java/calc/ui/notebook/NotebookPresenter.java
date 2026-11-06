@@ -582,6 +582,12 @@ public final class NotebookPresenter {
                 say(RESERVED_FILE_STATUS, StatusTone.ERROR);
                 return false;
             }
+            try {
+                document.checkSaveAsTarget(file);
+            } catch (DocumentException exception) {
+                say(exception.getMessage(), StatusTone.ERROR);
+                return false;
+            }
             boolean sameAsTheDocument = document.path().filter(target::equals).isPresent();
             if (Files.exists(target) && !sameAsTheDocument && !dialogs.confirmOverwrite(target)) {
                 return false;

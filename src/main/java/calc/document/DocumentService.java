@@ -234,6 +234,7 @@ public final class DocumentService {
         if (newerVersion && sameFile(target, path)) {
             throw readOnlyVersion();
         }
+        refuseNewerVersionFile(target);
         write(target);
         boolean wasUntitled = path == null;
         path = target;
@@ -250,6 +251,17 @@ public final class DocumentService {
             }
         }
         return target;
+    }
+
+    /**
+     * Refuses a file that {@link #saveAs} would replace when it comes from a newer version of the format: writing over it
+     * would lose the fields this version does not know. Meant for the caller to run before it asks « Remplacer ? ». A
+     * target that is missing, unreadable, not a notebook or of a version this one writes is not refused here.
+     */
+    public void checkSaveAsTarget(Path file) throws DocumentException {
+        if (file.getFileName() != null) {
+            refuseNewerVersionFile(withExtension(absolute(file)));
+        }
     }
 
     /** {@code file} with {@value #EXTENSION} appended unless its name already ends with it, whatever the case. */
@@ -306,6 +318,21 @@ public final class DocumentService {
         if (store.isReserved(target)) {
             throw new DocumentException(DocumentException.Kind.RESERVED_PATH,
                     "Ce fichier est réservé à Calc : choisissez un autre nom.");
+        }
+    }
+
+    // Reads the target with the reader of the format, under its size limits: whatever cannot be read is left to the usual
+    // confirmation of the replacement.
+    private static void refuseNewerVersionFile(Path target) throws DocumentException {
+        if (!Files.isRegularFile(target)) {
+            return;
+        }
+        try {
+            if (NotebookCodec.read(target).isNewerVersion()) {
+                throw readOnlyVersion();
+            }
+        } catch (NotebookFormatException | IOException | RuntimeException unreadable) {
+            LOGGER.log(Level.FINE, "Not checking the version of " + target, unreadable);
         }
     }
 
