@@ -50,6 +50,11 @@ tout ce qui suit est dans la prochaine version. Le numéro sera choisi au moment
   dans tous les modes, à la place de l'ancien texte ; une valeur trop petite pour être encadrée sans toucher 0 est refusée,
   avec le même message que sa version exacte (`(sqrt(2) / 16) ^ 4096` comme `(1/16) ^ 4096`).
 
+- **Fichier > Nouveau n'abandonne plus une conversion d'historique en échec.** Quand la conversion de l'historique a échoué,
+  elle reprend bien au démarrage suivant tant que rien n'a été saisi : Nouveau, un changement de mode ou Enregistrer sous d'un
+  carnet vide n'écrivent plus de carnet courant vide. La première ligne validée et écrite met fin à la conversion, même si
+  elle est effacée ensuite.
+
 ### Sécurité
 
 - Entrées bornées avant tout calcul (taille des nombres, profondeur, longueur des lignes, taille des fichiers) ; fichiers
