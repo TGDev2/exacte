@@ -6,6 +6,7 @@ import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.CopyOption;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -52,7 +53,7 @@ public final class AtomicFileWriter {
         Objects.requireNonNull(target);
         Objects.requireNonNull(content);
         Objects.requireNonNull(mover);
-        Path tmpFile = temporaryFileFor(target);
+        Path tmpFile = createTemporaryFile(target);
         try {
             try (FileChannel channel = FileChannel.open(
                     tmpFile, StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
@@ -71,6 +72,23 @@ public final class AtomicFileWriter {
     static Path temporaryFileFor(Path target) {
         return target.resolveSibling(target.getFileName() + TMP_SUFFIX);
     }
+
+    // Creates it: a file already there, of the user or left by a crash, is never overwritten or deleted. A directory under
+    // that name is not worked around: the write fails, and the target stays as it is.
+    private static Path createTemporaryFile(Path target) throws IOException {
+        Path candidate = temporaryFileFor(target);
+        for (int attempt = 1; ; attempt++) {
+            try {
+                return Files.createFile(candidate);
+            } catch (FileAlreadyExistsException taken) {
+                if (!Files.isRegularFile(candidate)) {
+                    throw taken;
+                }
+                candidate = target.resolveSibling(target.getFileName() + "." + attempt + TMP_SUFFIX);
+            }
+        }
+    }
+
 
     private static void moveIntoPlace(Path tmpFile, Path target, Mover mover) throws IOException {
         try {
