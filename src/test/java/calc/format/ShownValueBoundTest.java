@@ -22,12 +22,21 @@ class ShownValueBoundTest {
     }
 
     @Test
-    void aRoughCentreRoundedAwayFromTheIntervalHasABoundThatStillHoldsTheInterval() throws NumericException {
+    void aRoughCentreStaysInsideTheIntervalAndItsBoundHoldsTheInterval() throws NumericException {
         Rational lower = Rational.of(141728, 100000);
         Rational upper = Rational.of(158272, 100000);
 
-        assertEquals("≈ 2…", text(lower, upper));
-        assertEquals(Optional.of("± 5,9 × 10⁻¹"), bound(lower, upper), "2 - 1,41728 = 0,58272, not the radius 0,083");
+        assertEquals("≈ 1,5…", text(lower, upper));
+        assertEquals(Optional.of("± 8,3 × 10⁻²"), bound(lower, upper), "1,5 - 1,41728 = 0,08272");
+    }
+
+    @Test
+    void aRoughCentreOffTheMiddleHasABoundToItsFartherSide() throws NumericException {
+        Rational lower = Rational.of(145, 100);
+        Rational upper = Rational.of(156, 100);
+
+        assertEquals("≈ 1,5…", text(lower, upper));
+        assertEquals(Optional.of("± 6,0 × 10⁻²"), bound(lower, upper), "1,56 - 1,5 = 0,06, not the radius 0,055");
     }
 
     @Test

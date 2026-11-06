@@ -255,7 +255,7 @@ class NeverShownAsZeroAcceptanceTest {
     @CsvSource(delimiter = '|', value = {
         "141421/100000   | 141423/100000   | ≈ 1,4142…                 | ≈ 1,4142…                   | ≈ 70711/50000                                | ≈ 1,4142… × 10⁰",
         "-141423/100000  | -141421/100000  | ≈ -1,4142…                | ≈ -1,4142…                  | ≈ -70711/50000                               | ≈ -1,4142… × 10⁰",
-        "141728/100000   | 158272/100000   | ≈ 2…                      | ≈ 2…                        | ≈ 3/2                                        | ≈ 2… × 10⁰",
+        "141728/100000   | 158272/100000   | ≈ 1,5…                    | ≈ 1,5…                      | ≈ 3/2                                        | ≈ 1,5… × 10⁰",
         "1/3000000000000 | 1/2999999999999 | ≈ 3,33333333333… × 10⁻¹³  | ≈ 0,000000000000333333333333… | ≈ 5999999999999/17999999999994000000000000 | ≈ 3,33333333333… × 10⁻¹³"})
     void anIntervalWithoutZeroKeepsItsTextInEachMode(String lower, String upper, String auto, String decimal, String fraction, String scientific)
             throws NumericException {
