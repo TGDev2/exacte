@@ -23,7 +23,7 @@ Aucun Java n'est à installer pour lancer l'application : le runtime est dans l'
 
 Avant de taguer, mettre à jour [`CHANGELOG.md`](../CHANGELOG.md) (déplacer l'entrée « Non publié » sous le numéro de version). Les notes de la release reprennent les messages de commit depuis le tag `vX.Y.Z` précédent.
 
-1. Fusionner dans `main` tout ce qui doit être publié et attendre que la CI (`ci.yml`) y soit verte.
+1. Fusionner dans `main` tout ce qui doit être publié et lancer la CI (`ci.yml`) à la demande sur `main` et attendre qu'elle soit verte (voir [CI.md](CI.md)).
 2. Choisir la version `X.Y.Z` avec `X` ≥ 1 (pas de suffixe : `v1.0.0` convient, `v0.9.0` et `v1.0.0-rc1` sont refusés).
 3. Créer et pousser le tag :
 
@@ -122,7 +122,7 @@ périmètre de cette livraison. Conséquence au premier lancement d'un fichier t
 - **Pas d'installeur natif** (`.msi`, `.exe`, `.dmg`, `.deb`, `.rpm`). Un installeur demande des outils sur la machine de construction
   (WiX pour Windows, par exemple). L'image WiX 3.14 est listée sur l'image de runner Windows Server 2025, mais aucun installeur n'a
   été construit ni vérifié : c'est une suite possible, non une promesse.
-- **Reproductibilité : le JAR seulement.** Deux `gradlew clean jar` donnent le même SHA-256, et la CI le contrôle (job `reproducible jar`) sur chaque push vers `main` et sur chaque pull request, sous Linux. Le contrôle ne tourne pas lors d'un push de tag et ne compare pas les JAR des trois systèmes.
+- **Reproductibilité : le JAR seulement.** Deux `gradlew clean jar` donnent le même SHA-256, et la CI le contrôle (job `reproducible jar`) à la demande, sous Linux. Le contrôle ne tourne pas lors d'un push de tag et ne compare pas les JAR des trois systèmes.
   L'image `jpackage` n'est pas garantie identique d'une construction à l'autre : elle contient une copie du JDK installé sur la machine
   (deux releases construites à des semaines d'écart peuvent embarquer deux versions de Java 21), et les archives `.tar.gz` enregistrent
   les dates des fichiers. Deux constructions Windows faites sur le poste de développement sont sorties identiques, ce qui ne prouve rien

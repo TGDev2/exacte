@@ -90,9 +90,9 @@ La fiabilité est **mesurée, vérifiée et publiée**, pas seulement affirmée 
   Les mesures et les seuils sont dans [docs/TESTS.md](docs/TESTS.md).
 - **Rapport de conformité** : `RAPPORT-CONFORMITE.md`, généré par `gradlew conformityReport` à partir des résultats réels
   (nombre de tests par étiquette, tests ignorés signalés, couverture, mutation, garanties et leurs tests, limites). Il est
-  publié comme artefact `conformity-report` par la [CI](docs/CI.md) sur `main` et à la demande (pas sur les pull requests), et joint à chaque release. Il échoue
+  publié comme artefact `conformity-report` par la [CI](docs/CI.md) à la demande, et joint à chaque release. Il échoue
   plutôt que de mentir si une donnée manque.
-- **Intégration continue** : `gradlew check` sur Windows, macOS et Linux à chaque pull request, tests d'interface obligatoires ;
+- **Intégration continue** : `gradlew check -PrequireUiTests=true` lancé en local avant chaque fusion (statut « check ») ; la CI GitHub sur Windows, macOS et Linux se lance à la demande ;
   un second job vérifie que le JAR est reproductible ([docs/CI.md](docs/CI.md)).
 
 Résumé des garanties (la liste complète, avec les classes de test de chacune, est dans la section « Garanties du produit »

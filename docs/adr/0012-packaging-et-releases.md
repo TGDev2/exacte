@@ -85,7 +85,7 @@ Windows uses a Gradle `Zip`; macOS and Linux use the system `tar`, which keeps p
 
 `tasks.jar` already fixed the file order and the time stamps (`isReproducibleFileOrder`, `isPreserveFileTimestamps = false`), and
 the file name does not carry the version, so the version does not change the jar. Checked (E14): two `gradlew clean jar --rerun-tasks
---no-build-cache` give the same SHA-256 (`docs/RELEASE.md`). CI repeats the check on every push to `main` and every pull request, on Linux only (job
+--no-build-cache` give the same SHA-256 (`docs/RELEASE.md`). CI repeats the check on demand (the workflow is started by hand), on Linux only (job
 `reproducible-jar` of `ci.yml`).
 
 The application **image** is not promised to be reproducible, and the CI does not check it. Two local Windows builds of the image and of
