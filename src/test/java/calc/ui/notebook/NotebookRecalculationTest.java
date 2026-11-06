@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import calc.export.NotebookExporter;
 import calc.format.DisplayMode;
@@ -299,6 +300,34 @@ class NotebookRecalculationTest {
     }
 
     @Test
+    void aMoveThatMovesNothingCalculatesAgainAfterAnInterruption() throws Exception {
+        NotebookPresenter presenter = openBlocked();
+        onEdt(() -> presenter.onCancelEdit("a = 1"));
+        released.countDown();
+
+        onEdt(() -> presenter.onMoveLineUp("a = 1"));
+        awaitTheEnd(presenter);
+
+        NotebookViewModel end = onEdt(presenter::currentView);
+        assertEquals(List.of("1", "2", "3", "4", ""), end.rows().stream().map(NotebookRow::result).toList());
+        assertEquals("La ligne est déjà la première.", end.statusMessage());
+    }
+
+    @Test
+    void choosingTheModeInForceCalculatesAgainAfterAnInterruption() throws Exception {
+        NotebookPresenter presenter = openBlocked();
+        onEdt(() -> presenter.onCancelEdit("a = 1"));
+        released.countDown();
+
+        onEdt(() -> presenter.onDisplayModeChanged(DisplayMode.AUTO, "a = 1"));
+        awaitTheEnd(presenter);
+
+        NotebookViewModel end = onEdt(presenter::currentView);
+        assertEquals(List.of("1", "2", "3", "4", ""), end.rows().stream().map(NotebookRow::result).toList());
+        assertEquals(NotebookPresenter.DEFAULT_STATUS, end.statusMessage());
+    }
+
+    @Test
     void aSaveAfterAnInterruptionSaysItWasWrittenWhileTheLinesStayInterrupted() throws Exception {
         NotebookPresenter presenter = openBlocked();
         onEdt(() -> presenter.onCancelEdit("a = 1"));
@@ -526,6 +555,73 @@ class NotebookRecalculationTest {
             EventQueue.invokeAndWait(() -> frame[0].dispatchEvent(new WindowEvent(frame[0], WindowEvent.WINDOW_CLOSING)));
             EventQueue.invokeAndWait(frame[0]::dispose);
         }
+    }
+
+    /**
+     * Opening another document removes the rows below the first ones, here the very row that holds the focus. The focus event that
+     * follows must not be taken for the user going to another line: the document opens on its first line, and the caret goes there.
+     */
+    @Test
+    @Tag("ui")
+    void openingAnotherDocumentFromARowThatGoesAwayKeepsTheFirstLineActive() throws Exception {
+        boolean headless = GraphicsEnvironment.isHeadless();
+        if (headless && Boolean.getBoolean("calc.ui.required")) {
+            fail("UI tests require a graphical environment (-PrequireUiTests=true): no display is available, so the ui tests cannot run.");
+        }
+        assumeFalse(headless, "UI tests require a graphical environment.");
+
+        List<String> before = new ArrayList<>();
+        List<String> after = new ArrayList<>();
+        for (int line = 1; line <= 300; line++) {
+            before.add("1 + " + line);
+            after.add("2 + " + line);
+        }
+        store.saveCurrent(Notebook.of(before), DisplayMode.AUTO);
+        Path other = root.resolve("autre.calc.json");
+        Files.write(other, NotebookCodec.encode(Notebook.of(after), DisplayMode.AUTO).bytes());
+
+        NotebookFrame[] frame = new NotebookFrame[1];
+        EventQueue.invokeAndWait(() -> {
+            frame[0] = new NotebookFrame(NotebookPresenter.open(store, store.load(), DisplayModeStore.noop(), dialogs, NotebookPresenter.newRecalculationExecutor()));
+            frame[0].setVisible(true);
+            frame[0].toFront();
+        });
+        try {
+            NotebookDriver.awaitWindows();
+            int row = 120;
+            EventQueue.invokeAndWait(() -> frame[0].row(row).field.requestFocusInWindow());
+            assumeTrue(awaitOnEdt(() -> frame[0].row(row).field.isFocusOwner() && frame[0].shown().activeIndex() == row),
+                    "a system without a window manager gives no focus: nothing here can be observed");
+
+            dialogs.willOpen(other);
+            EventQueue.invokeAndWait(() -> frame[0].row(row).field.getActionMap().get("notebook-OPEN_DOCUMENT").actionPerformed(new ActionEvent(frame[0], 0, "")));
+            NotebookDriver.awaitWindows();
+
+            assertTrue(awaitOnEdt(() -> frame[0].row(0).field.isFocusOwner()), "the caret goes to the first line");
+            NotebookDriver.awaitWindows();
+            EventQueue.invokeAndWait(() -> {
+                assertEquals(0, frame[0].shown().activeIndex(), "the focus event of the row that went away moved nothing");
+                assertEquals(301, frame[0].rowCount());
+                assertEquals("2 + 1", frame[0].row(0).field.getText());
+                assertEquals("2 + 300", frame[0].row(299).field.getText());
+                assertEquals("302", frame[0].row(299).resultLabel.getText());
+                assertEquals("« autre.calc.json » ouvert (300 lignes).", frame[0].statusLabel().getText());
+            });
+        } finally {
+            EventQueue.invokeAndWait(frame[0]::dispose);
+        }
+    }
+
+    // Until the condition holds on the event thread, or the deadline: a focus change arrives by its own events.
+    private static boolean awaitOnEdt(Supplier<Boolean> condition) {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (System.nanoTime() < deadline) {
+            if (onEdt(condition)) {
+                return true;
+            }
+            Thread.onSpinWait();
+        }
+        return false;
     }
 
     /**

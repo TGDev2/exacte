@@ -384,6 +384,8 @@ public final class NotebookPresenter {
             modeStore.save(mode);
             say("Affichage : " + DisplayModeText.label(mode) + ".", StatusTone.INFO);
             recalculate();
+        } else {
+            calculateAgainIfInterrupted();
         }
         return view(NotebookFocus.NONE);
     }
@@ -705,8 +707,10 @@ public final class NotebookPresenter {
         int target = index + delta;
         if (activeId == null) {
             say("Cette ligne n'est pas encore validée : elle ne peut pas être déplacée.", StatusTone.INFO);
+            calculateAgainIfInterrupted();
         } else if (target < 0 || target >= document.notebook().size()) {
             say(delta < 0 ? "La ligne est déjà la première." : "La ligne est déjà la dernière.", StatusTone.INFO);
+            calculateAgainIfInterrupted();
         } else if (apply(new NotebookCommand.Move(activeId, target))) {
             select(target);
         }
