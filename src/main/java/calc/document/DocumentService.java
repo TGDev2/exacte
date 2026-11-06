@@ -9,6 +9,7 @@ import calc.notebook.NotebookEditor;
 import calc.notebook.NotebookException;
 import calc.persistence.DecodedNotebook;
 import calc.persistence.LoadedNotebook;
+import calc.persistence.LoadedNotebook.Condition;
 import calc.persistence.NotebookCodec;
 import calc.persistence.NotebookFormatException;
 import calc.persistence.NotebookStore;
@@ -32,6 +33,10 @@ import java.util.logging.Logger;
  * {@link #isModified()} tells whether it differs from the file. A document from a newer version of the format is never
  * written back. Not thread safe: one thread (the Swing event thread) drives it.
  *
+ * <p>While a history that could not be converted waits for the next start ({@link Condition#HISTORY_NOT_CONVERTED}), an empty
+ * notebook is never written as the current notebook: its file would end the conversion. The first notebook with lines that
+ * reaches the disk does end it, for good.
+ *
  * <p>Nothing here evaluates a line except {@link #current()}: the window calculates off its event thread
  * (docs/adr/0014-calcul-hors-interface.md).
  */
@@ -53,6 +58,8 @@ public final class DocumentService {
     private String autosaveProblem;
     // True while the autosaved draft holds work that an opened file has taken off the screen: a new document would replace it.
     private boolean draftOffScreen;
+    // True until a notebook with lines is written, when the store could not convert the history at this start.
+    private boolean conversionWaiting;
 
     /** A service on the notebook that {@code store} has just loaded, as the untitled document. */
     public DocumentService(NotebookStore store, LoadedNotebook loaded) {
@@ -65,6 +72,7 @@ public final class DocumentService {
         this.mover = Objects.requireNonNull(mover, "mover");
         this.editor = new NotebookEditor(loaded.notebook());
         this.displayMode = loaded.displayMode();
+        this.conversionWaiting = loaded.condition() == Condition.HISTORY_NOT_CONVERTED;
     }
 
     // ------------------------------------------------------------------------------------------------ state
@@ -173,7 +181,7 @@ public final class DocumentService {
 
     // ------------------------------------------------------------------------------------------------ documents
 
-    /** An empty untitled document, saved as the current notebook. The undo history is forgotten. */
+    /** An empty untitled document, saved as the current notebook unless a conversion is waiting. The undo history is forgotten. */
     public void newDocument() {
         install(Notebook.empty(), null, false);
         autosave();
@@ -220,8 +228,8 @@ public final class DocumentService {
 
     /**
      * Writes the document to {@code file} (with {@value #EXTENSION} added when the name does not end with it) and
-     * associates the document with it. The first save of the untitled document also empties the autosaved draft: the
-     * content now lives in the file.
+     * associates the document with it. The first save of the untitled document also empties the autosaved draft, the content
+     * now lives in the file, unless a conversion is waiting: no draft was written, and an empty one would end it.
      *
      * @return the path actually written
      */
@@ -242,7 +250,7 @@ public final class DocumentService {
         markSaved();
         // The document is in a file of its own now: a failed automatic save is no longer its story.
         autosaveProblem = null;
-        if (wasUntitled) {
+        if (wasUntitled && !conversionWaiting) {
             try {
                 store.saveCurrent(Notebook.empty(), displayMode);
                 draftOffScreen = false;
@@ -289,8 +297,14 @@ public final class DocumentService {
         if (path != null) {
             return;
         }
+        if (conversionWaiting && editor.notebook().isEmpty()) {
+            autosaveProblem = null;
+            return;
+        }
         try {
-            store.saveCurrent(editor.notebook(), displayMode);
+            if (store.saveCurrent(editor.notebook(), displayMode)) {
+                conversionWaiting = false;
+            }
             autosaveProblem = null;
         } catch (NotebookStoreException exception) {
             autosaveProblem = exception.getMessage();
