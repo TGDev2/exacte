@@ -8,7 +8,7 @@ Date : 2026-11-06. Commit recetté : `main` à `0bdd534`, plus la branche de rec
 - Build : clone neuf dans un répertoire temporaire, `gradlew clean check`, puis mutation, JAR et paquet dans ce clone.
 - Données : uniquement des répertoires temporaires (`APPDATA` redirigé pour `Calc.exe`, répertoire injecté dans `NotebookStore.open` pour les tests). Les préférences ont été éprouvées sur un nœud dédié, supprimé ensuite. `%APPDATA%\Calc\history.tsv` a le même SHA-256 avant et après (`AEE53300…C80E0`).
 - Revue de code et contrôle de la documentation : confiés à trois relectures séparées, qui ont reproduit leurs constats avec des programmes jetables. Le recetteur a rejoué lui-même D1 et le défaut bloquant ; les autres reproductions sont rapportées telles quelles.
-- Limite : les relectures ont été arrêtées plus tôt que prévu pour tenir le budget de la tâche. Leur revue est donc ciblée, pas exhaustive. L'interface a été relue par recherche dans le code seulement.
+- Limite : les relectures ont été arrêtées plus tôt que prévu pour tenir le budget de la tâche. Leur revue est donc ciblée, pas exhaustive. L'interface a été relue sur les imports, les accès disque, les appels au présentateur et le thread Swing, sans lecture ligne à ligne. Les relectures du noyau et de la persistance ont couvert chaque sujet demandé, mais n'ont pas été menées à leur terme : d'autres défauts peuvent exister.
 - Non vérifiable ici : macOS, Linux, Excel, rendu visuel. Ces points vont à la section 8.
 
 ## 2. Résultats du build et de la livraison
@@ -29,7 +29,7 @@ Tests par tag, sur la branche de recette à `55a2a4f` (`-PincludeTags=...`, avec
 | robustness | 57 (24 sur `main`) | 0 | 0 |
 | ui | 27 | 0 | 0 |
 
-**Rapport de conformité.** Ses chiffres concordent avec les XML bruts : 1114 tests, 0 échec, 0 ignoré ; property 91, robustness 24, ui 27. Mutation : 1575 mutants viables, 1442 détectés, score 91,6 %, tous les seuils tenus (`calc.expression` 98,7 %, `calc.format` 96,1 %, `calc.notebook` 91,0 %, `calc.persistence` 88,0 %, `calc.number` 87,3 %). Deux réserves : voir D9 et le risque R5.
+**Rapport de conformité.** Ses chiffres concordent avec les XML bruts : 1114 tests, 0 échec, 0 ignoré ; property 91, robustness 24, ui 27. Mutation, mesurée deux fois : sur la machine chargée, 1442 mutants détectés sur 1575, score 91,6 %, avec 4 JVM de PIT mortes faute de mémoire ; sur la machine calme, 1445 sur 1575, score 91,7 %, aucun plantage. La seconde mesure fait foi, tous les seuils tenus (`calc.expression` 98,7 %, `calc.format` 96,9 %, `calc.notebook` 91,5 %, `calc.persistence` 88,0 %, `calc.number` 87,6 %). Réserve : voir D9.
 
 **Application packagée.** `Calc.exe`, données redirigées : processus vivant après 7 s et `history.lock` créé. Le titre de fenêtre lu sur le processus est vide, la fenêtre n'a donc pas été observée de cette façon. Le JRE embarqué contient `java.base java.datatransfer java.xml java.prefs java.desktop java.logging jdk.localedata`. Une sonde exécutée par ce même JRE (`Calc.cfg` modifié dans une copie) a prouvé : préférence relue `FRACTION` ; document `.calc.json` enregistré ; CSV avec BOM (premier octet 239) et Markdown exportés ; `ans * 3` donne `1` ; fenêtre réelle visible, titre `• devis.calc.json — Calc`. Les vrais `JFileChooser` n'ont pas été pilotés. Le paquet vient de `0bdd534`, avant la correction 6ab5610.
 
@@ -66,7 +66,7 @@ Tests par tag, sur la branche de recette à `55a2a4f` (`-PincludeTags=...`, avec
 | Robustesse : échec d'écriture simulé, aucun fichier corrompu | RobustnessAcceptanceTest | OK |
 | Robustesse : un document ne remplace pas le carnet courant | ReservedFileAliasTest | Corrigé |
 | Idée 3 : Gradle, JUnit 5, propriétés, tests d'interface | `gradlew clean check`, section 2 | OK |
-| Idée 3 : mutation avec seuils et rapport généré | `gradlew conformity`, section 2 | OK, voir R5 |
+| Idée 3 : mutation avec seuils et rapport généré | `gradlew conformity`, section 2 | OK |
 | Idée 3 : JAR reproductible | deux builds, même SHA-256 | OK |
 | Idée 3 : CI sur 3 OS | run 40499634648 vert sur `137d4cb` ; run de `0bdd534` non démarré | Réserve |
 | Idée 3 : releases avec SHA-256 et SBOM | workflow lu mais jamais exécuté, aucune release | Non prouvé |
@@ -93,7 +93,7 @@ D1 relève d'une décision de conception et reste ouvert. Le classer comme non b
 | D6 | Faible | Le chiffre affiché peut sortir de l'intervalle (`ValueFormatter.java:221`) | `1,5+(sqrt(2)-sqrt(2))*2e23` donne `≈ 2…`, ± 8,3e-2 |
 | D7 | Faible | Pour un intervalle contenant 0, Fraction et Auto diffèrent (`ValueFormatter.java:147`) | `between(-1,11)` : Fraction `≈ 5`, Auto `≈ 0` |
 | D8 | Cosmétique | Décimal sous le seuil annoncé de 10⁻¹⁵ (`ValueFormatter.java:132`) | `between(1e-300,1e-15)` donne `≈ 0,0000000000000005…` |
-| D9 | Faible | `hs_err_*.log` et `replay_*.log` ne sont pas ignorés par git : le rapport de conformité d'un clone propre indique « + modifications non commitées » | `gradlew conformity` sous manque de mémoire, voir `git status` |
+| D9 | Faible | `hs_err_*.log` et `replay_*.log` ne sont pas ignorés par git : le rapport de conformité d'un clone propre indique « + modifications non commitées » | `gradlew conformity` sous manque de mémoire, voir `git status` ; sans plantage, le même rapport indique bien `0bdd5343ecac` seul |
 
 ## 5. Risques et préférences
 
@@ -103,8 +103,8 @@ D1 relève d'une décision de conception et reste ouvert. Le classer comme non b
 - R2. `HistoryCodec.java:184` ne borne pas le nombre de valeurs : un `history.json` de 3 millions de valeurs provoque `OutOfMemoryError` à `-Xmx128m`, mais se charge avec le tas par défaut.
 - R3. Pas de `fsync` du répertoire ni des sauvegardes (lecture du code seulement).
 - R4. Deux instances sur le même document : le dernier qui enregistre gagne, sans avertissement.
-- R5. Pendant la mutation, 4 JVM de PIT sont mortes faute de mémoire native (machine chargée, `hs_err_pid*`). Elles ne viennent pas de l'application, mais un mutant ainsi interrompu a pu fausser le score : à remesurer sur une machine calme.
-- R6. Aucun `SwingWorker` dans `src/main` : tout le calcul tourne sur le thread Swing. Le travail est borné par ligne et NotebookFrameResponsivenessTest passe, mais rien ne prouve l'absence d'une forme plus lente.
+- R5. Levé : les 4 JVM de PIT mortes faute de mémoire native venaient de la charge de la machine. Remesuré sans autre charge : aucun `hs_err_pid*`, score 91,7 % contre 91,6 %.
+- R6. Aucun `SwingWorker` dans `src/main` : calculs, lectures et écritures de fichiers (jusqu'à 16 Mio) tournent de façon synchrone sur le thread Swing. Le travail est borné par ligne et NotebookFrameResponsivenessTest passe (budget de 100 ms sur 500 lignes), mais rien ne prouve l'absence d'une forme plus lente, ni le temps sur un disque lent ou réseau. La logique, elle, n'est pas restée dans la vue : `NotebookFrame`, `NotebookRowView` et `LineField` n'importent que des types d'affichage, sans accès disque ni calcul, et délèguent au présentateur.
 - R7. La forme canonique de `2^4095+1` (1233 caractères) dépasse la limite d'une ligne ; l'effet sur le pont d'historique n'a pas été suivi.
 
 **Préférences**
@@ -173,4 +173,4 @@ Classées par criticité, puis impact, puis coût.
 | 5 | Corriger D2 : nom temporaire unique | Moyenne | Évite une perte rare | Faible |
 | 6 | Traiter D4 : une définition en erreur invalide les lignes qui en dépendent | Moyenne | Évite un résultat trompeur | Moyen |
 | 7 | Mettre à jour README, guides, `CLAUDE.md` (section 6) ; ignorer `hs_err_*` (D9) | Moyenne | Documentation fiable | Faible |
-| 8 | Borner `HistoryCodec` (R2), remesurer la mutation (R5) | Faible | Marge de sûreté | Faible |
+| 8 | Borner `HistoryCodec` (R2) | Faible | Marge de sûreté | Faible |
