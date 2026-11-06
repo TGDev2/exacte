@@ -1,0 +1,329 @@
+package calc.ui.notebook;
+
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
+
+import calc.export.NotebookExporter;
+import calc.format.DisplayMode;
+import calc.notebook.LineResult;
+import calc.notebook.Notebook;
+import calc.notebook.NotebookEvaluator;
+import calc.persistence.NotebookCodec;
+import calc.persistence.NotebookStore;
+import calc.ui.DisplayModeStore;
+import calc.ui.StatusTone;
+import calc.ui.notebook.NotebookDialogs.ExportFormat;
+import java.awt.EventQueue;
+import java.awt.GraphicsEnvironment;
+import java.awt.SecondaryLoop;
+import java.awt.Toolkit;
+import java.awt.event.ActionEvent;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Clock;
+import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.function.BiFunction;
+import java.util.function.Supplier;
+import javax.swing.SwingUtilities;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+/**
+ * What docs/adr/0014-calcul-hors-interface.md decides beyond the acceptance tests of the task: a calculation that fails says so,
+ * and an export waiting for its results is never lost in silence.
+ */
+class NotebookRecalculationTest {
+    private static final String BLOCKED_LINE = "a + 2";
+
+    @TempDir
+    Path root;
+
+    private NotebookStore store;
+    private final FakeDialogs dialogs = new FakeDialogs();
+    private final CountDownLatch released = new CountDownLatch(1);
+    private final CountDownLatch reached = new CountDownLatch(1);
+
+    @BeforeEach
+    void openTheStore() throws Exception {
+        store = NotebookStore.open(Files.createDirectories(root.resolve("data")));
+        store.saveCurrent(Notebook.of(List.of("a = 1", "a + 1", BLOCKED_LINE, "a + 3")), DisplayMode.AUTO);
+    }
+
+    @AfterEach
+    void closeTheStore() {
+        released.countDown();
+        store.close();
+    }
+
+    // Stops the calculating thread on the blocked line, until the test lets it go.
+    private LineResult blockingOnOneLine(String text, Supplier<LineResult> evaluation) {
+        if (text.equals(BLOCKED_LINE)) {
+            reached.countDown();
+            try {
+                assertTrue(released.await(30, TimeUnit.SECONDS), "nobody released the line");
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                throw new AssertionError(interrupted);
+            }
+        }
+        return evaluation.get();
+    }
+
+    private NotebookPresenter openBlocked() throws Exception {
+        NotebookPresenter presenter = onEdt(() -> NotebookPresenter.open(store, DisplayModeStore.noop(), dialogs,
+                NotebookPresenter.newRecalculationExecutor(), this::blockingOnOneLine));
+        assertTrue(reached.await(30, TimeUnit.SECONDS), "the calculation never reached the blocked line");
+        onEdt(() -> null); // what it posted before that line has arrived
+        return presenter;
+    }
+
+    private void awaitTheEnd(NotebookPresenter presenter) {
+        released.countDown();
+        while (onEdt(presenter::isCalculating)) {
+            Thread.onSpinWait();
+        }
+    }
+
+    private static <T> T onEdt(Supplier<T> work) {
+        CompletableFuture<T> result = new CompletableFuture<>();
+        SwingUtilities.invokeLater(() -> {
+            try {
+                result.complete(work.get());
+            } catch (Throwable thrown) {
+                result.completeExceptionally(thrown);
+            }
+        });
+        try {
+            return result.get(30, TimeUnit.SECONDS);
+        } catch (ExecutionException failed) {
+            throw new AssertionError(failed.getCause());
+        } catch (Exception other) {
+            throw new AssertionError(other);
+        }
+    }
+
+    // ------------------------------------------------------------------------------------------------ a failure
+
+    @Test
+    void aCalculationThatFailsSaysSoAndTheNextCommandCalculatesAgain() {
+        boolean[] failOnce = {true};
+        BiFunction<String, Supplier<LineResult>, LineResult> failing = (text, evaluation) -> {
+            if (text.equals(BLOCKED_LINE) && failOnce[0]) {
+                failOnce[0] = false;
+                throw new IllegalStateException("simulated failure of the calculation");
+            }
+            return evaluation.get();
+        };
+        NotebookDriver d = new NotebookDriver(onEdt(() -> NotebookPresenter.open(store, DisplayModeStore.noop(), dialogs,
+                NotebookPresenter.newRecalculationExecutor(), failing)));
+
+        assertEquals(List.of("1", "2", "", "", ""), d.results(), "what was known stays, nothing waits for ever");
+        assertEquals(NotebookRow.Status.ERROR, d.row(3).status());
+        assertEquals(NotebookPresenter.INTERRUPTED_LINE, d.row(3).errorMessage());
+        assertTrue(d.view.statusMessage().contains("erreur inattendue"), d.view.statusMessage());
+        assertEquals(StatusTone.ERROR, d.view.statusTone());
+
+        d.down();
+        assertEquals(NotebookRow.Status.ERROR, d.row(3).status(), "moving to another line is not a command");
+        d.enter();
+        assertEquals(List.of("1", "2", "3", "4", ""), d.results(), "Enter is one: it calculates again");
+        assertEquals(NotebookPresenter.DEFAULT_STATUS, d.view.statusMessage());
+    }
+
+    /** Whatever ends the task, the event thread hears of it: the lines never say « Calcul en cours… » for ever. */
+    @Test
+    void anErrorOfAnyKindAlsoEndsTheCalculation() {
+        BiFunction<String, Supplier<LineResult>, LineResult> dying = (text, evaluation) -> {
+            if (text.equals(BLOCKED_LINE)) {
+                throw new NoClassDefFoundError("simulated failure of the calculation, its stack trace is expected");
+            }
+            return evaluation.get();
+        };
+
+        NotebookDriver d = new NotebookDriver(onEdt(() -> NotebookPresenter.open(store, DisplayModeStore.noop(), dialogs,
+                NotebookPresenter.newRecalculationExecutor(), dying)));
+
+        assertEquals(NotebookPresenter.INTERRUPTED_LINE, d.row(3).errorMessage());
+        assertTrue(d.view.statusMessage().contains("erreur inattendue"), d.view.statusMessage());
+    }
+
+    // ------------------------------------------------------------------------------------------------ the status bar
+
+    @Test
+    void aFailedAutomaticSaveIsSaidDuringTheCalculationAsWell() throws Exception {
+        store.close();
+        store = NotebookStore.open(root.resolve("data"), null, Clock.systemDefaultZone(), Files::copy, (source, target, options) -> {
+            throw new IOException("simulated full disk");
+        });
+        NotebookPresenter presenter = openBlocked();
+        try {
+            NotebookViewModel view = onEdt(() -> presenter.onEnter("a = 2"));
+
+            assertTrue(view.statusMessage().startsWith("Enregistrement automatique impossible"), view.statusMessage());
+            assertEquals(StatusTone.ERROR, view.statusTone());
+        } finally {
+            awaitTheEnd(presenter);
+        }
+    }
+
+    // ------------------------------------------------------------------------------------------------ an export that waits
+
+    @Test
+    void anExportThatACommandCompletesIsConfirmedOverTheSentenceOfTheCommand() throws Exception {
+        NotebookPresenter presenter = openBlocked();
+        Path export = root.resolve("carnet.csv");
+        dialogs.willExportTo(export);
+        onEdt(() -> presenter.onExport(ExportFormat.CSV, "a = 1"));
+
+        // The two lines from the blocked one down go: what is left is known already, and the export can be written at once.
+        onEdt(() -> presenter.onActivate(3, "a = 1"));
+        onEdt(() -> presenter.onDelete("a + 3"));
+        NotebookViewModel view = onEdt(() -> presenter.onDelete(BLOCKED_LINE));
+        awaitTheEnd(presenter);
+
+        assertEquals("Exporté vers " + export.toAbsolutePath().normalize(), view.statusMessage(), "the user learns the file was written");
+        assertArrayEquals(NotebookExporter.csv(NotebookEvaluator.evaluate(Notebook.of(List.of("a = 1", "a + 1"))), DisplayMode.AUTO), Files.readAllBytes(export));
+    }
+
+
+    @Test
+    void closingIsRefusedWhileAnExportWaitsAndEscapeAbandonsIt() throws Exception {
+        NotebookPresenter presenter = openBlocked();
+        Path export = root.resolve("carnet.csv");
+        dialogs.willExportTo(export);
+        NotebookViewModel asked = onEdt(() -> presenter.onExport(ExportFormat.CSV, "a = 1"));
+        assertTrue(asked.statusMessage().startsWith("Calcul en cours"), asked.statusMessage());
+
+        NotebookViewModel refused = onEdt(() -> presenter.onQuit("a = 1"));
+        assertFalse(refused.closeWindow(), "a file the user asked for is not lost by closing");
+        assertTrue(refused.statusMessage().startsWith("Un export attend la fin du calcul"), refused.statusMessage());
+        assertEquals(StatusTone.ERROR, refused.statusTone());
+
+        NotebookViewModel interrupted = onEdt(() -> presenter.onCancelEdit("a = 1"));
+        assertTrue(interrupted.statusMessage().contains("n'a pas été écrit"), interrupted.statusMessage());
+        assertTrue(onEdt(() -> presenter.onQuit("a = 1")).closeWindow(), "nothing waits any more");
+        awaitTheEnd(presenter);
+        assertFalse(Files.exists(export));
+    }
+
+    @Test
+    void openingAnotherFileAbandonsAWaitingExportAndSaysSo() throws Exception {
+        Path other = root.resolve("autre.calc.json");
+        Files.write(other, NotebookCodec.encode(Notebook.of(List.of("9")), DisplayMode.AUTO).bytes());
+        NotebookPresenter presenter = openBlocked();
+        Path export = root.resolve("carnet.csv");
+        dialogs.willExportTo(export).willOpen(other);
+        onEdt(() -> presenter.onExport(ExportFormat.CSV, "a = 1"));
+
+        onEdt(() -> presenter.onOpen("a = 1"));
+        awaitTheEnd(presenter);
+
+        assertEquals("« autre.calc.json » ouvert (1 ligne). L'export demandé n'a pas été écrit.", onEdt(presenter::currentView).statusMessage());
+        assertFalse(Files.exists(export), "the lines of another document never go to that file");
+    }
+
+    @Test
+    void aNewNotebookAbandonsAWaitingExportAndSaysSo() throws Exception {
+        NotebookPresenter presenter = openBlocked();
+        Path export = root.resolve("carnet.csv");
+        dialogs.willExportTo(export).willAnswer(NotebookDialogs.Unsaved.DISCARD);
+        onEdt(() -> presenter.onExport(ExportFormat.CSV, "a = 1"));
+
+        onEdt(() -> presenter.onNew("a = 1"));
+        awaitTheEnd(presenter);
+
+        assertEquals("Nouveau carnet. L'export demandé n'a pas été écrit.", onEdt(presenter::currentView).statusMessage());
+        assertFalse(Files.exists(export));
+    }
+
+    // ------------------------------------------------------------------------------------------------ during a dialog
+
+    /** A real dialog runs the events of the window while the intention waits: what arrives then is about the notebook as it is. */
+    @Test
+    @Tag("ui")
+    void aCalculationThatEndsDuringADialogShowsTheNotebookOfThatMoment() throws Exception {
+        boolean headless = GraphicsEnvironment.isHeadless();
+        if (headless && Boolean.getBoolean("calc.ui.required")) {
+            fail("UI tests require a graphical environment (-PrequireUiTests=true): no display is available, so the ui tests cannot run.");
+        }
+        assumeFalse(headless, "UI tests require a graphical environment.");
+
+        NotebookFrame[] frame = new NotebookFrame[1];
+        List<String>[] duringTheDialog = newListHolder();
+        NotebookDialogs modal = new NotebookDialogs() {
+            @Override
+            public Optional<Path> chooseFileToOpen(Optional<Path> current) {
+                SecondaryLoop loop = Toolkit.getDefaultToolkit().getSystemEventQueue().createSecondaryLoop();
+                Thread waiter = new Thread(() -> {
+                    NotebookDriver.awaitWindows();
+                    loop.exit();
+                }, "dialog-of-the-test");
+                waiter.setDaemon(true);
+                waiter.start();
+                assertTrue(loop.enter(), "the events of the window run during the dialog");
+                duringTheDialog[0] = List.of(frame[0].row(4).field.getText(), frame[0].row(4).resultLabel.getText(), frame[0].row(5).field.getText());
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<Path> chooseFileToSave(Optional<Path> current) {
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<Path> chooseExportFile(ExportFormat format, String suggested) {
+                return Optional.empty();
+            }
+
+            @Override
+            public Unsaved askToSave(String name, Action action) {
+                return Unsaved.CANCEL;
+            }
+
+            @Override
+            public boolean confirmReplaceDraft() {
+                return false;
+            }
+
+            @Override
+            public boolean confirmOverwrite(Path file) {
+                return false;
+            }
+        };
+        EventQueue.invokeAndWait(() -> frame[0] = new NotebookFrame(NotebookPresenter.open(store, DisplayModeStore.noop(), modal,
+                NotebookPresenter.newRecalculationExecutor())));
+        try {
+            NotebookDriver.awaitWindows();
+            EventQueue.invokeAndWait(() -> {
+                // Down to the new line at the end. Ctrl+O validates what it holds first, and only then shows the dialog.
+                for (int line = 0; line < 4; line++) {
+                    frame[0].row(line).field.getActionMap().get("notebook-NEXT").actionPerformed(new ActionEvent(frame[0], 0, ""));
+                }
+                frame[0].row(4).field.setText("a + 9");
+                frame[0].row(4).field.getActionMap().get("notebook-OPEN_DOCUMENT").actionPerformed(new ActionEvent(frame[0], 0, ""));
+            });
+            assertEquals(List.of("a + 9", "10", ""), duringTheDialog[0], "the line just validated, its result and the new line");
+            assertEquals(6, frame[0].rowCount());
+        } finally {
+            EventQueue.invokeAndWait(frame[0]::dispose);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<String>[] newListHolder() {
+        return (List<String>[]) new List<?>[1];
+    }
+}

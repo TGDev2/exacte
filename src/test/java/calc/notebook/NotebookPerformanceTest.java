@@ -35,16 +35,19 @@ class NotebookPerformanceTest {
 
         for (int run = 0; run < WARM_UP; run++) {
             editor.apply(new NotebookCommand.Edit(first, run % 2 == 0 ? "taux = 0,25" : "taux = 0,2"));
+            editor.current();
         }
         double[] millis = new double[RUNS];
         for (int run = 0; run < RUNS; run++) {
             String text = run % 2 == 0 ? "taux = 0,25" : "taux = 0,2";
             long start = System.nanoTime();
             editor.apply(new NotebookCommand.Edit(first, text));
+            editor.current();
             millis[run] = (System.nanoTime() - start) / 1e6;
         }
         long undoStart = System.nanoTime();
         editor.undo();
+        editor.current();
         double undoMillis = (System.nanoTime() - undoStart) / 1e6;
 
         double[] sorted = millis.clone();
@@ -53,8 +56,8 @@ class NotebookPerformanceTest {
                         + " line 1 recalculated in best %.1f ms, median %.1f ms, worst %.1f ms (runs %s); undo %.1f ms%n",
                 LINES, values, intervals, references, sorted[0], sorted[RUNS / 2], sorted[RUNS - 1], Arrays.toString(millis),
                 undoMillis);
-        assertNotEquals(before.result(LINES).value(), editor.apply(new NotebookCommand.Edit(first, "taux = 0,3"))
-                .result(LINES).value(), "the edit of line 1 reaches the last line");
+        editor.apply(new NotebookCommand.Edit(first, "taux = 0,3"));
+        assertNotEquals(before.result(LINES).value(), editor.current().result(LINES).value(), "the edit of line 1 reaches the last line");
         assertTrue(sorted[0] < BUDGET_MILLIS, "best " + sorted[0] + " ms");
     }
 

@@ -38,7 +38,7 @@ public final class NotebookEvaluator {
 
     /** Every line of {@code notebook}, evaluated. */
     public static EvaluatedNotebook evaluate(Notebook notebook) {
-        return evaluateFrom(notebook, List.of());
+        return reevaluate(new EvaluatedNotebook(Notebook.empty(), List.of()), notebook);
     }
 
     /**
@@ -46,23 +46,63 @@ public final class NotebookEvaluator {
      * or text differs: the same as {@link #evaluate(Notebook)}, for the cost of the lines from that one down.
      */
     public static EvaluatedNotebook reevaluate(EvaluatedNotebook previous, Notebook next) {
-        List<Line> before = previous.notebook().lines();
-        List<Line> after = next.lines();
-        int common = 0;
-        int shortest = Math.min(before.size(), after.size());
-        while (common < shortest && before.get(common).equals(after.get(common))) {
-            common++;
+        LineByLine evaluation = lineByLine(next, reusableResults(previous.notebook(), previous.results(), next));
+        while (!evaluation.isFinished()) {
+            evaluation.evaluateNext();
         }
-        return evaluateFrom(next, previous.results().subList(0, common));
+        return new EvaluatedNotebook(next, evaluation.scope.results);
     }
 
-    private static EvaluatedNotebook evaluateFrom(Notebook notebook, List<LineResult> kept) {
-        Scope scope = new Scope(notebook.size());
-        kept.forEach(scope::add);
-        for (int index = kept.size(); index < notebook.size(); index++) {
-            scope.add(evaluateLine(notebook.lines().get(index), index + 1, scope));
+    /**
+     * The first {@code known} results of the lines of {@code before} that still hold for {@code next}: those above the first
+     * line whose identifier or text differs, since the result of a line only depends on the lines above it and on itself.
+     */
+    public static List<LineResult> reusableResults(Notebook before, List<LineResult> known, Notebook next) {
+        List<Line> old = before.lines();
+        List<Line> now = next.lines();
+        int common = 0;
+        int shortest = Math.min(known.size(), Math.min(old.size(), now.size()));
+        while (common < shortest && old.get(common).equals(now.get(common))) {
+            common++;
         }
-        return new EvaluatedNotebook(notebook, scope.results);
+        return known.subList(0, common);
+    }
+
+    /** The lines of {@code notebook} under the results {@code kept}, to evaluate one at a time. */
+    public static LineByLine lineByLine(Notebook notebook, List<LineResult> kept) {
+        return new LineByLine(notebook, kept);
+    }
+
+    /**
+     * An evaluation that stops between two lines when its caller wants: docs/adr/0014-calcul-hors-interface.md. Its results are
+     * those of {@link #evaluate(Notebook)}. It belongs to one thread at a time.
+     */
+    public static final class LineByLine {
+        private final List<Line> lines;
+        private final Scope scope;
+
+        private LineByLine(Notebook notebook, List<LineResult> kept) {
+            lines = notebook.lines();
+            scope = new Scope(lines.size());
+            kept.forEach(scope::add);
+        }
+
+        public boolean isFinished() {
+            return scope.results.size() == lines.size();
+        }
+
+        /** The text of the next line to evaluate. */
+        public String nextText() {
+            return lines.get(scope.results.size()).text();
+        }
+
+        /** Evaluates the next line and returns its result. */
+        public LineResult evaluateNext() {
+            int index = scope.results.size();
+            LineResult result = evaluateLine(lines.get(index), index + 1, scope);
+            scope.add(result);
+            return result;
+        }
     }
 
     private static LineResult evaluateLine(Line line, int number, Scope scope) {

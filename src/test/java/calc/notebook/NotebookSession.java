@@ -135,7 +135,8 @@ final class NotebookSession {
         if (editor.canUndo()) {
             EvaluatedNotebook before = editor.current();
             editor.undo();
-            assertEquals(before, editor.redo(), "undo then redo gives back an equal notebook");
+            editor.redo();
+            assertEquals(before, editor.current(), "undo then redo gives back an equal notebook");
         }
         check();
     }

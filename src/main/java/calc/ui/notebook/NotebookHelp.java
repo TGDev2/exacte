@@ -60,7 +60,8 @@ public final class NotebookHelp {
             text.append(String.format("%-16s", shortcuts.text(command))).append(command.description()).append('\n');
         }
         text.append("\nAnnuler et Rétablir portent sur les modifications validées. La saisie en cours dans une ligne\n"
-                + "s'annule avec Échap (ou avec Annuler, qui l'abandonne d'abord).");
+                + "s'annule avec Échap (ou avec Annuler, qui l'abandonne d'abord). Sans saisie en cours, Échap interrompt\n"
+                + "le calcul : les lignes restantes le disent, et la commande suivante relance le calcul.");
         return text.toString();
     }
 }

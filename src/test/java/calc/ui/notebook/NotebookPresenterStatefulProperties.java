@@ -119,6 +119,10 @@ class NotebookPresenterStatefulProperties {
                         case QUIT -> {
                             dialogs.willAnswer(Unsaved.DISCARD);
                             d.close();
+                            if (d.view.closeWindow()) {
+                                // The window goes: its calculation stopped. This presenter lives on, and calculates at the next intention.
+                                d.escape();
+                            }
                         }
                     }
                     if (untitledBefore && (step.kind() == Kind.QUIT || step.kind() == Kind.OPEN)) {

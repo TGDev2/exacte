@@ -25,7 +25,8 @@ class NotebookEditingTest {
     void editingAHighLineRecalculatesTheLinesThatDependOnIt() throws NotebookException {
         NotebookEditor editor = new NotebookEditor(notebook("2", "$1 * 10", "ans + 1", "x = $2", "# fin", "x / 4"));
         LineId first = editor.notebook().line(1).id();
-        EvaluatedNotebook after = editor.apply(new NotebookCommand.Edit(first, "3"));
+        editor.apply(new NotebookCommand.Edit(first, "3"));
+        EvaluatedNotebook after = editor.current();
         assertValue("3", after.result(1));
         assertValue("30", after.result(2));
         assertValue("31", after.result(3));
@@ -40,7 +41,9 @@ class NotebookEditingTest {
         assertValue("10", editor.current().result(4));
         LineId target = editor.notebook().line(3).id();
 
-        EvaluatedNotebook after = editor.apply(new NotebookCommand.InsertBefore(editor.notebook().line(1).id(), "100"));
+        editor.apply(new NotebookCommand.InsertBefore(editor.notebook().line(1).id(), "100"));
+
+        EvaluatedNotebook after = editor.current();
 
         assertEquals("$4 * 2  # double de $3", after.result(5).text());
         assertValue("10", after.result(5));
@@ -61,7 +64,8 @@ class NotebookEditingTest {
     @Test
     void deletingAReferencedLineGivesAnExplicitErrorAndNeverAnotherLine() throws NotebookException {
         NotebookEditor editor = new NotebookEditor(notebook("1", "2", "$2 + 1", "$3 * $1"));
-        EvaluatedNotebook after = editor.apply(new NotebookCommand.Delete(editor.notebook().line(2).id()));
+        editor.apply(new NotebookCommand.Delete(editor.notebook().line(2).id()));
+        EvaluatedNotebook after = editor.current();
 
         assertEquals(List.of("1", "$? + 1", "$2 * $1"), after.notebook().texts());
         assertError(ExpressionError.DELETED_REFERENCE, 0, 2, "Référence vers une ligne supprimée.", after.result(2));
@@ -73,12 +77,16 @@ class NotebookEditingTest {
         NotebookEditor editor = new NotebookEditor(notebook("1", "2", "$1 + $2"));
         LineId first = editor.notebook().line(1).id();
 
-        EvaluatedNotebook moved = editor.apply(new NotebookCommand.Move(first, 2));
+        editor.apply(new NotebookCommand.Move(first, 2));
+
+        EvaluatedNotebook moved = editor.current();
         assertEquals(List.of("2", "$3 + $1", "1"), moved.notebook().texts());
         assertError(ExpressionError.INVALID_USE, 0, 2, "Référence vers une ligne qui n'est pas au-dessus (ligne 3).",
                 moved.result(2));
 
-        EvaluatedNotebook back = editor.apply(new NotebookCommand.Move(first, 0));
+        editor.apply(new NotebookCommand.Move(first, 0));
+
+        EvaluatedNotebook back = editor.current();
         assertEquals(List.of("1", "2", "$1 + $2"), back.notebook().texts());
         assertValue("3", back.result(3));
     }
@@ -112,14 +120,19 @@ class NotebookEditingTest {
         NotebookEditor editor = new NotebookEditor(notebook("x = 2", "x * 3", "$2 + 1"));
         EvaluatedNotebook before = editor.current();
 
-        EvaluatedNotebook cleared = editor.apply(new NotebookCommand.Clear());
+        editor.apply(new NotebookCommand.Clear());
+
+        EvaluatedNotebook cleared = editor.current();
         assertTrue(cleared.notebook().isEmpty());
         assertTrue(editor.canUndo());
 
-        assertEquals(before, editor.undo());
+        editor.undo();
+
+        assertEquals(before, editor.current());
         assertFalse(editor.canUndo());
         assertTrue(editor.canRedo());
-        assertEquals(cleared, editor.redo());
+        editor.redo();
+        assertEquals(cleared, editor.current());
     }
 
     @Test
@@ -156,7 +169,8 @@ class NotebookEditingTest {
         LineId first = editor.notebook().line(1).id();
         editor.apply(new NotebookCommand.Edit(first, "3"));
         editor.undo();
-        EvaluatedNotebook same = editor.apply(new NotebookCommand.Edit(first, "1"));
+        editor.apply(new NotebookCommand.Edit(first, "1"));
+        EvaluatedNotebook same = editor.current();
         assertSame(editor.current(), same);
         assertFalse(editor.canUndo());
         assertTrue(editor.canRedo(), "a command that changes nothing keeps the redo stack");
@@ -222,13 +236,13 @@ class NotebookEditingTest {
     @Test
     void anUndoNeverLetsANewLineTakeTheIdentifierOfAnotherOne() throws NotebookException {
         NotebookEditor editor = new NotebookEditor();
-        LineId a = editor.apply(new NotebookCommand.Append("a")).notebook().line(1).id();
+        LineId a = editor.apply(new NotebookCommand.Append("a")).line(1).id();
         editor.undo();
-        LineId b = editor.apply(new NotebookCommand.Append("b")).notebook().line(1).id();
+        LineId b = editor.apply(new NotebookCommand.Append("b")).line(1).id();
         assertNotEquals(a, b);
         editor.undo();
         editor.redo();
-        LineId c = editor.apply(new NotebookCommand.Append("c")).notebook().line(2).id();
+        LineId c = editor.apply(new NotebookCommand.Append("c")).line(2).id();
         assertFalse(List.of(a, b).contains(c));
         assertEquals(Notebook.empty(), new NotebookEditor(Notebook.empty()).notebook(), "equality ignores the counter");
     }

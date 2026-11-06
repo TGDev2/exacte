@@ -148,6 +148,7 @@ public final class NotebookFrame extends JFrame {
         pack();
         setLocationRelativeTo(null);
 
+        presenter.setViewListener(this::applyCalculation);
         apply(presenter.initialView());
     }
 
@@ -367,31 +368,41 @@ public final class NotebookFrame extends JFrame {
         return rows.get(shown.activeIndex()).field.getText();
     }
 
+    // A state the calculation produced, not the answer to something the user did: the line being typed keeps its text (the
+    // presenter only learns it with an intention), and neither the caret nor the scroll bar moves. Only what changed is touched:
+    // this runs for each line calculated, with up to 5001 rows.
+    private void applyCalculation(NotebookViewModel viewModel) {
+        applying = true;
+        try {
+            if (shown == null || rows.size() != viewModel.rows().size() || shown.activeIndex() != viewModel.activeIndex()) {
+                // A dialog was open in the middle of an intention: nothing here is typed, the view catches up.
+                showRows(viewModel);
+                rowsPanel.revalidate();
+            } else {
+                for (int i = 0; i < rows.size(); i++) {
+                    NotebookRow row = viewModel.rows().get(i);
+                    if (i == viewModel.activeIndex()) {
+                        NotebookRowView active = rows.get(i);
+                        active.show(row, true, active.field.getText(), viewModel.watermark());
+                    } else if (!row.equals(shown.rows().get(i))) {
+                        rows.get(i).show(row, false, row.text(), "");
+                    }
+                }
+            }
+            showWindowState(viewModel);
+        } finally {
+            applying = false;
+        }
+    }
+
     private void apply(NotebookViewModel viewModel) {
         applying = true;
         try {
-            while (rows.size() < viewModel.rows().size()) {
-                addRow();
-            }
-            while (rows.size() > viewModel.rows().size()) {
-                rowsPanel.remove(rows.remove(rows.size() - 1));
-            }
-            String before = rows.get(viewModel.activeIndex()).field.getText();
+            // The field of a row that does not exist yet holds nothing, as a new field does.
+            String before = viewModel.activeIndex() < rows.size() ? rows.get(viewModel.activeIndex()).field.getText() : "";
             boolean moved = shown == null || shown.activeIndex() != viewModel.activeIndex();
-            for (int i = 0; i < rows.size(); i++) {
-                NotebookRow row = viewModel.rows().get(i);
-                boolean active = i == viewModel.activeIndex();
-                rows.get(i).show(row, active, active ? viewModel.activeDraft() : row.text(), i == viewModel.activeIndex()
-                        ? viewModel.watermark() : "");
-            }
-            setTitle(viewModel.title());
-            saveAction.setEnabled(viewModel.canSave());
-            undoAction.setEnabled(viewModel.canUndo());
-            redoAction.setEnabled(viewModel.canRedo());
-            modeSelector.showMode(viewModel.displayMode());
-            modeItems.get(viewModel.displayMode()).setSelected(true);
-            showStatus(viewModel.statusMessage(), viewModel.statusTone());
-            shown = viewModel;
+            showRows(viewModel);
+            showWindowState(viewModel);
             // The caret only moves when another line is active or the text of the active field was replaced.
             focusMoved = moved || !before.equals(rows.get(viewModel.activeIndex()).field.getText());
         } finally {
@@ -407,6 +418,31 @@ public final class NotebookFrame extends JFrame {
             }
         }
         scrollToActive();
+    }
+
+    private void showRows(NotebookViewModel viewModel) {
+        while (rows.size() < viewModel.rows().size()) {
+            addRow();
+        }
+        while (rows.size() > viewModel.rows().size()) {
+            rowsPanel.remove(rows.remove(rows.size() - 1));
+        }
+        for (int i = 0; i < rows.size(); i++) {
+            NotebookRow row = viewModel.rows().get(i);
+            boolean active = i == viewModel.activeIndex();
+            rows.get(i).show(row, active, active ? viewModel.activeDraft() : row.text(), active ? viewModel.watermark() : "");
+        }
+    }
+
+    private void showWindowState(NotebookViewModel viewModel) {
+        setTitle(viewModel.title());
+        saveAction.setEnabled(viewModel.canSave());
+        undoAction.setEnabled(viewModel.canUndo());
+        redoAction.setEnabled(viewModel.canRedo());
+        modeSelector.showMode(viewModel.displayMode());
+        modeItems.get(viewModel.displayMode()).setSelected(true);
+        showStatus(viewModel.statusMessage(), viewModel.statusTone());
+        shown = viewModel;
     }
 
     private void addRow() {
@@ -448,6 +484,11 @@ public final class NotebookFrame extends JFrame {
     }
 
     // ------------------------------------------------------------------------------------------------ for the tests
+
+    /** Whether a calculation is under way: a test waits for its end. */
+    boolean isCalculating() {
+        return presenter.isCalculating();
+    }
 
     /** The view model now shown. */
     NotebookViewModel shown() {

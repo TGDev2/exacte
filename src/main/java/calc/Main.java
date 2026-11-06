@@ -42,7 +42,8 @@ public class Main {
     static NotebookFrame createWindow(NotebookStore store, DisplayModeStore modeStore) {
         // The dialogs belong to the window, which needs the presenter, which needs the dialogs: the window is given last.
         SwingNotebookDialogs dialogs = new SwingNotebookDialogs();
-        NotebookFrame frame = new NotebookFrame(NotebookPresenter.open(store, modeStore, dialogs));
+        // One background thread calculates the notebook; the event thread only ever receives its results.
+        NotebookFrame frame = new NotebookFrame(NotebookPresenter.open(store, modeStore, dialogs, NotebookPresenter.newRecalculationExecutor()));
         dialogs.setParent(frame);
         return frame;
     }
