@@ -13,7 +13,9 @@ répétée ici) ; elle est aussi résumée dans le menu **Aide > Syntaxe des exp
   `$n` : `$3` suit sa ligne ; vers une ligne supprimée, elle devient une erreur explicite.
 - `ans` est le dernier résultat au-dessus de la ligne ; `$3` est le résultat de la ligne 3.
 - Un carnet vide montre trois exemples en filigrane (`prix = 12,5`, `prix * 3`, `ans / 2`) ; ils ne sont pas enregistrés.
-- Annuler et rétablir portent sur les lignes **validées**. `Échap` abandonne la saisie en cours dans la ligne.
+- Annuler et rétablir portent sur les lignes **validées**. `Échap` abandonne définitivement la saisie en cours dans la ligne.
+  Annuler la retire d'abord, et Rétablir la remet, sans la valider, tant que rien d'autre n'a changé : une nouvelle saisie, une
+  commande validée ou annulée, une autre ligne ou un autre document la font oublier.
 - Le calcul se fait en arrière-plan : la fenêtre répond toujours, même sur un très gros carnet. Une ligne pas encore calculée
   affiche « Calcul en cours… » et la barre d'état compte « Calcul en cours : n / N lignes ». Toute nouvelle commande remplace le
   calcul en cours. Les lignes d'un très gros carnet apparaissent par tranches, en 2 à 3 secondes pour 5000 lignes.
@@ -94,8 +96,8 @@ Le modificateur de menu est `Ctrl` sous Windows et Linux, `Cmd` sous macOS. La l
 | `Entrée` | valider la ligne et passer à la suivante |
 | `↑` / `↓` | ligne précédente / suivante (la ligne quittée est validée) |
 | `Échap` | abandonner la saisie en cours dans la ligne ; sans saisie, interrompre le calcul, aussi depuis le sélecteur de modes |
-| `Ctrl+Z` | annuler la dernière modification validée |
-| `Ctrl+Y`, `Ctrl+Maj+Z` | rétablir |
+| `Ctrl+Z` | retirer la saisie en cours ; sans saisie, annuler la dernière modification validée |
+| `Ctrl+Y`, `Ctrl+Maj+Z` | remettre la saisie retirée par Annuler ; sinon, rétablir la dernière modification annulée |
 | `Ctrl+Entrée` / `Ctrl+Maj+Entrée` | insérer une ligne au-dessous / au-dessus |
 | `Ctrl+Maj+K` | supprimer la ligne |
 | `Ctrl+Maj+↑` / `Ctrl+Maj+↓` | monter / descendre la ligne |

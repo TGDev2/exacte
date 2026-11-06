@@ -44,6 +44,8 @@ tout ce qui suit est dans la prochaine version. Le numéro sera choisi au moment
 
 ### Corrigé
 
+- **Annuler ne perd plus la saisie en cours.** Annuler retire de la ligne une saisie non validée, et Rétablir l'y remet, sans la
+  valider, tant que rien d'autre n'a changé. `Échap` reste un abandon définitif.
 - **Une valeur non nulle n'est plus jamais affichée 0.** Une valeur dont le signe n'a pas pu être établi s'affiche `|x| ≤ b`
   dans tous les modes, à la place de l'ancien texte ; une valeur trop petite pour être encadrée sans toucher 0 est refusée,
   avec le même message que sa version exacte (`(sqrt(2) / 16) ^ 4096` comme `(1/16) ^ 4096`).

@@ -98,7 +98,7 @@ Chaque test échouait avant sa correction. Le contrôle final les exécute tous.
 
 | N° | Gravité | Défaut | Reproduction |
 |---|---|---|---|
-| D10 | Majeure | Annuler avec une ligne en cours de saisie efface la ligne, et rétablir répond « Il n'y a rien à rétablir », contrairement à la javadoc (`NotebookPresenter.java:242`, ligne 45) | Taper du texte sans valider, Ctrl+Z, puis Ctrl+Y |
+| D10 | Majeure | Corrigé après la recette, preuve dans `UndoKeepsDraftAcceptanceTest` : Annuler avec une ligne en cours de saisie effaçait la saisie, et Rétablir répondait « Il n'y a rien à rétablir » ; Rétablir la remet maintenant dans la ligne, sans la valider, et `Échap` reste un abandon définitif | Taper du texte sans valider, Ctrl+Z, puis Ctrl+Y : avant, saisie perdue ; après, saisie de retour dans le champ, non validée |
 | D11 | Majeure | Sous un petit tas, `OutOfMemoryError` dans le constructeur de la fenêtre : le processus reste vivant, sans fenêtre (`NotebookFrame.java:148-151`, `Main.java:22-38`). Exige un tas non standard : 110 Mo suffisent | Carnet courant de 15,1 Mo avec `-Xmx64m` ; encore vivant, sans fenêtre, après 20 s |
 | D13 | Moyenne | Après une conversion échouée, Fichier > Nouveau sans rien taper fait abandonner la conversion au démarrage suivant, contrairement à `NotebookStore.java:239` | Historique non convertible, Nouveau, relance : état `NORMAL`, carnet vide |
 | D5 | Faible | Corrigé après la recette, preuve dans `FutureVersionTargetAcceptanceTest` : Enregistrer sous remplaçait un fichier de version future après une confirmation générique ; il est maintenant refusé avant toute question et toute écriture | Enregistrer sous vers un fichier `version: 99` : avant, champ inconnu perdu ; après, refus et fichier identique |
@@ -166,7 +166,7 @@ Exactitude, borne certifiée, modes d'affichage et réutilisation sans perte tie
 
 ### Idée 2 : carnet de calcul — livrée avec réserves
 
-Expressions, références stables, annuler et rétablir, documents, sauvegarde automatique, exports et migration de tous les fichiers de référence passent de bout en bout, et 120 000 pas contre un oracle n'ont trouvé aucune redirection de référence. Les pertes de données trouvées ont été corrigées : alias du carnet courant, fichier temporaire, lignes d'historique légitimes reprises. Les autres lignes rejetées ne sont pas dans le carnet, mais elles sont maintenant annoncées et restent dans la sauvegarde. Le défaut bloquant B1, un carnet hostile qui figeait la fenêtre environ 3 minutes, a été corrigé après la recette par le calcul hors du thread Swing, sous réserve du contrôle manuel de la section 8. Restent D10 et D13, ainsi que le risque R1, à éprouver dans Excel avant de présenter la neutralisation CSV comme une garantie de sécurité complète.
+Expressions, références stables, annuler et rétablir, documents, sauvegarde automatique, exports et migration de tous les fichiers de référence passent de bout en bout, et 120 000 pas contre un oracle n'ont trouvé aucune redirection de référence. Les pertes de données trouvées ont été corrigées : alias du carnet courant, fichier temporaire, lignes d'historique légitimes reprises. Les autres lignes rejetées ne sont pas dans le carnet, mais elles sont maintenant annoncées et restent dans la sauvegarde. Le défaut bloquant B1, un carnet hostile qui figeait la fenêtre environ 3 minutes, a été corrigé après la recette par le calcul hors du thread Swing, sous réserve du contrôle manuel de la section 8. Reste D13, ainsi que le risque R1, à éprouver dans Excel avant de présenter la neutralisation CSV comme une garantie de sécurité complète.
 
 ### Idée 3 : fiabilité prouvée — livrée avec réserves
 
@@ -197,6 +197,6 @@ Classées par criticité, puis impact, puis coût.
 | 2 | Contrôler à la main le calcul hors du thread Swing et le texte `\|x\| ≤ b` (section 8) | Haute | Confirme les corrections de B1 et D1 dans une vraie fenêtre | Faible |
 | 3 | Éprouver R1 dans Excel, puis élargir la neutralisation si besoin | Haute | Sécurité des exports | Faible |
 | 4 | Corriger D13 | Moyenne | Confiance dans la migration | Faible |
-| 5 | Conserver une ligne en cours de saisie à l'annulation (D10) | Moyenne | Évite la perte d'une saisie | Faible |
+| 5 | Fait après la recette, preuve dans `UndoKeepsDraftAcceptanceTest` : conserver une ligne en cours de saisie à l'annulation (D10) | Moyenne | Évite la perte d'une saisie | Faible |
 | 6 | Mettre à jour README, guides, `CLAUDE.md` (section 6) ; ignorer `hs_err_*` (D9) | Moyenne | Documentation fiable | Faible |
 | 7 | Gérer les erreurs au démarrage (D11, D15, R7), borner `HistoryCodec` (R2) | Faible | Marge de sûreté | Faible |

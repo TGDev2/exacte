@@ -60,8 +60,11 @@ without Swing (a test reads the sources and refuses `javax.swing` / `java.awt` t
 Undo and redo act on **validated commands**, one per validated edit, insertion, deletion, move or clear (ADR 0008,
 section 6). The line being typed is **not** part of the history; Escape drops it. To keep Ctrl+Z honest in a text field:
 
-- **Undo with a pending draft** drops the draft first (like Escape) and undoes nothing; the next undo reverts the last
-  command. Nothing the user typed is lost by surprise, and nothing is undone behind their back.
+- **Undo with a pending draft** takes the draft out of the line and undoes nothing; the next undo reverts the last command.
+  Nothing the user typed is lost by surprise, and nothing is undone behind their back.
+- **Redo after that undo** puts the draft back in its line, still a draft, with no command of the model. It comes before a
+  command that could also be redone, because it is what was removed last. One draft is kept, in memory, and only for this:
+  a new draft, a command validated or undone, another active line or another document forget it. Escape keeps nothing.
 - **Redo with a pending draft** is refused with a sentence (validate or cancel first): it would overwrite the typing.
 - After an undo or a redo the active line is the same line if it still exists, otherwise the line at the same place.
 
@@ -75,8 +78,8 @@ window takes it as a parameter, and tests build it with each value.
 | `Entrée` | validate the line, go to the next one (the new line after the last) |
 | `↑` / `↓` | previous / next line (the line left is validated) |
 | `Échap` | drop what was typed since the line was validated |
-| `Ctrl+Z` / `Cmd+Z` | undo (drops a pending draft first) |
-| `Ctrl+Y` / `Cmd+Y`, `Ctrl+Maj+Z` / `Cmd+Maj+Z` | redo |
+| `Ctrl+Z` / `Cmd+Z` | undo (takes a pending draft out first) |
+| `Ctrl+Y` / `Cmd+Y`, `Ctrl+Maj+Z` / `Cmd+Maj+Z` | redo (puts back a draft undo took out first) |
 | `Ctrl+Entrée` / `Cmd+Entrée` | insert a line below |
 | `Ctrl+Maj+Entrée` / `Cmd+Maj+Entrée` | insert a line above |
 | `Ctrl+Maj+K` / `Cmd+Maj+K` | delete the line |
@@ -99,7 +102,7 @@ Why these keys are free:
 - Not checked on a real macOS keyboard here; the Aqua look and feel is not part of the Java runtime of this machine.
 
 The menus (Édition, Affichage, Aide) show the same keys as accelerators. A menu action is disabled when it cannot run
-(nothing to undo); the key actions of the field are always enabled so that Ctrl+Z can still drop a pending draft.
+(nothing to undo); the key actions of the field are always enabled so that Ctrl+Z can still take out a pending draft.
 
 ### 5. Evaluation on validation
 
