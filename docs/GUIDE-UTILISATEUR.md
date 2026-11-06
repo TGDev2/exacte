@@ -85,7 +85,7 @@ menu **Fichier** (le modificateur de menu est `Ctrl` sous Windows et Linux, `Cmd
   fichier ne contient pas les résultats.
 - **CSV** : séparateur `;`, UTF-8 avec marque d'ordre des octets (s'ouvre dans Excel), une ligne par ligne non vide, cinq
   colonnes `n°;Expression;Résultat affiché;Valeur exacte;Statut`. Une cellule qui commencerait par `=`, `+`, `-` ou `@` est
-  préfixée d'une apostrophe pour qu'un tableur ne la prenne pas pour une formule.
+  préfixée d'une apostrophe pour qu'un tableur ne la prenne pas pour une formule. Cette protection est partielle : voir les limites connues du [README](../README.md#limites-connues).
 
 ## Raccourcis
 

@@ -1,5 +1,7 @@
 # Publier et télécharger une version
 
+Pour installer Calc, voir le [guide d'installation](INSTALLATION.md) ; cette page est la procédure du mainteneur.
+
 Les décisions sont dans [`docs/adr/0012-packaging-et-releases.md`](adr/0012-packaging-et-releases.md). Le workflow est
 [`.github/workflows/release.yml`](../.github/workflows/release.yml).
 

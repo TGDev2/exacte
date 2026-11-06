@@ -51,16 +51,11 @@ ans * 3                  # 1                 (exactement)
 
 ## Téléchargement
 
-Chaque version publiée est une [release GitHub](https://github.com/TGDev2/Calculatrice/releases) (tag `vX.Y.Z`) avec une
-application autonome par système, sans Java à installer : `Calc-<version>-windows-x64.zip`,
-`Calc-<version>-macos-arm64.tar.gz` (Mac à puce Apple) et `Calc-<version>-linux-x64.tar.gz`. Elle contient aussi
-`SHA256SUMS.txt`, la nomenclature logicielle `Calc-<version>-sbom.cdx.json` (CycloneDX) et le
-[rapport de conformité](#qualité) `Calc-<version>-rapport-conformite.md`.
+Chaque version est une [release GitHub](https://github.com/TGDev2/Calculatrice/releases) avec une application autonome par
+système, sans Java à installer. Le pas-à-pas (vérification des sommes, premier lancement, données, mise à jour) est dans le
+[guide d'installation](docs/INSTALLATION.md).
 
-- **Les applications ne sont pas signées** : Windows SmartScreen et macOS Gatekeeper affichent un avertissement au premier
-  lancement. La marche à suivre et la vérification des sommes SHA-256 sont dans [docs/RELEASE.md](docs/RELEASE.md).
-- Pas d'installeur : on décompresse l'archive et on lance l'application.
-- Aucune version n'a encore été publiée (voir le [journal des modifications](CHANGELOG.md)).
+**Les applications ne sont pas signées** : Windows et macOS affichent un avertissement au premier lancement.
 
 ## Démarrer depuis les sources
 
@@ -108,6 +103,7 @@ de [docs/TESTS.md](docs/TESTS.md)) :
 
 - **Applications non signées** et sans installeur ; seul le JAR est reproductible d'une construction à l'autre, pas l'image
   d'application ([docs/RELEASE.md](docs/RELEASE.md)).
+- **Exports CSV** : la neutralisation des formules (préfixe d'apostrophe) n'est que partielle, et elle n'a pas été vérifiée dans Excel (risque R1 de [docs/RECETTE.md](docs/RECETTE.md)).
 - **Release non essayée sur GitHub** : le workflow `release.yml` et le packaging macOS et Linux n'ont pas encore été
   exécutés sur GitHub ; seul Windows a été construit et démarré en local.
 - **Clavier macOS non essayé** : les raccourcis sont vérifiés par leur liaison dans la fenêtre (avec `Cmd` simulé), pas sur
@@ -131,6 +127,7 @@ de [docs/TESTS.md](docs/TESTS.md)) :
 
 | Document | Contenu |
 |---|---|
+| [docs/INSTALLATION.md](docs/INSTALLATION.md) | installer et lancer Calc sans connaître l'informatique : archives, sommes, avertissements, données |
 | [docs/GUIDE-UTILISATEUR.md](docs/GUIDE-UTILISATEUR.md) | utiliser le carnet : documents, exports, raccourcis, données, dépannage |
 | [docs/GUIDE-EXPRESSIONS.md](docs/GUIDE-EXPRESSIONS.md) | la syntaxe des expressions et les erreurs fréquentes |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | packages, responsabilités, flux d'une ligne, persistance |
