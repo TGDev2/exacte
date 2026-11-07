@@ -53,6 +53,13 @@ teavm {
     }
 }
 
+tasks.register<JavaExec>("generateCharacterCompat") {
+    description = "Writes CharacterCompat from the classification of the JDK of the toolchain."
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass = "calc.web.tools.CharacterCompatGenerator"
+    args(file("src/main/java/calc/web/compat/CharacterCompat.java").path)
+}
+
 tasks.register<Test>("webTest") {
     group = "verification"
     description = "Runs the tests that need Node or a browser against the code compiled by TeaVM."

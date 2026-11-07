@@ -1,5 +1,6 @@
 package calc.web.compat;
 
+import java.util.Set;
 import org.teavm.model.BasicBlock;
 import org.teavm.model.ClassHolder;
 import org.teavm.model.ClassHolderTransformer;
@@ -35,6 +36,9 @@ final class CompatCallRewriter implements ClassHolderTransformer {
     private static final MethodReference COMPILE_COMPLEMENT =
             new MethodReference(COMPLEMENTS_PACKAGE + "PatternCompat", "compile", STRING, PATTERN);
 
+    private static final Set<String> CODE_POINT_CLASSIFICATION =
+            Set.of("getType", "isLetter", "isLetterOrDigit", "isDefined", "isSpaceChar", "isWhitespace", "isISOControl");
+
     @Override
     public void transformClass(ClassHolder cls, ClassHolderTransformerContext context) {
         String name = cls.getName();
@@ -69,6 +73,14 @@ final class CompatCallRewriter implements ClassHolderTransformer {
             call.setMethod(SQRT_AND_REMAINDER_COMPLEMENT);
         } else if (COMPILE.equals(call.getMethod())) {
             call.setMethod(COMPILE_COMPLEMENT);
+        } else if (isCodePointClassification(call.getMethod())) {
+            call.setMethod(new MethodReference(COMPLEMENTS_PACKAGE + "CharacterCompat", call.getMethod().getDescriptor()));
         }
+    }
+
+    /** The overloads for an int only: the core classifies code points, and the same names exist for a char. */
+    private static boolean isCodePointClassification(MethodReference method) {
+        return method.getClassName().equals("java.lang.Character") && CODE_POINT_CLASSIFICATION.contains(method.getName())
+                && method.parameterCount() == 1 && method.parameterType(0).equals(ValueType.INTEGER);
     }
 }
