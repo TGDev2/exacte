@@ -104,8 +104,8 @@ de [docs/TESTS.md](docs/TESTS.md)) :
 - **Applications non signées** et sans installeur ; seul le JAR est reproductible d'une construction à l'autre, pas l'image
   d'application ([docs/RELEASE.md](docs/RELEASE.md)).
 - **Exports CSV** : la neutralisation des formules (préfixe d'apostrophe) n'est que partielle, et elle n'a pas été vérifiée dans Excel (risque R1 de [docs/RECETTE.md](docs/RECETTE.md)).
-- **Release non essayée sur GitHub** : le workflow `release.yml` et le packaging macOS et Linux n'ont pas encore été
-  exécutés sur GitHub ; seul Windows a été construit et démarré en local.
+- **Release essayée à blanc, pas publiée** : la chaîne (`release.yml`) a tourné en essai à blanc sur GitHub ; les applications
+  macOS et Linux n'ont été lancées qu'en CI, donc un usage réel y est non vérifié.
 - **Clavier macOS non essayé** : les raccourcis sont vérifiés par leur liaison dans la fenêtre (avec `Cmd` simulé), pas sur
   un Mac réel ni avec l'apparence Aqua.
 - **Interface** : les tests couvrent les parcours critiques, pas un rendu graphique pixel par pixel. Les lignes ne sont pas

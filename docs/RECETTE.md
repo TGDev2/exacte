@@ -41,6 +41,16 @@ Tests par tag, sur la branche de recette à `55a2a4f` (`-PincludeTags=...`, avec
 
 **Contrôle final de la branche, rapport inclus.** `.\gradlew.bat test --rerun --tests *AcceptanceTest` : BUILD SUCCESSFUL, 92 tests, 0 échec, 0 ignoré. `.\gradlew.bat clean check -PrequireUiTests=true` : BUILD SUCCESSFUL, 1219 tests, 95 classes, 0 échec, 0 ignoré.
 
+### Essai à blanc de la version 1.0.0 (2026-11-07)
+
+Le 2026-11-07, le workflow Release a tourné une première fois, hors de tout tag `v*`, sur `main`.
+
+- Run : `42377140242` (`workflow_dispatch`, succès).
+- Tag de la pré-version : `test-v1.0.0-1` (aucun tag `v1.0.0` n'existe).
+- Commit : `767e05b` (`767e05bf300a7b79f36e5717baf9ace28f85d145`), celui de la CI verte `42374379128`.
+- Preuve : [docs/essais/release-1.0.0-essai-final.json](essais/release-1.0.0-essai-final.json), écrite par `tools/release/verify-release.sh` : les six fichiers publiés avec leur SHA-256, les notes avec le lien vers `INSTALLATION.md`, pré-version.
+- Non vérifié : macOS et Linux n'ont connu qu'un test de fumée en CI (le processus empaqueté reste vivant, rien de plus). Le lancement Windows dure 5 secondes, sans contrôle de la fenêtre. Les avertissements SmartScreen et Gatekeeper, la commande `xattr`, l'ouverture d'un CSV dans Excel et le téléchargement de la release `v1.0.0` sont non vérifiés (section 8). La publication de `v1.0.0` reste à faire par le mainteneur, avec la marche à suivre de [RELEASE.md](RELEASE.md#publier-la-version-100).
+
 ## 3. Résultats par garantie
 
 | Garantie | Preuve | Statut |
@@ -173,13 +183,15 @@ Build Gradle, JUnit 5, tests par propriétés et de robustesse, tests d'interfac
 
 ## 8. Check-list manuelle
 
-- [ ] Rétablir la facturation GitHub Actions, puis vérifier une CI verte sur `main` avec les tests d'interface exécutés sur les 3 OS.
-- [ ] Lancer le workflow Release une première fois (pré-version), en décider le numéro.
+- [x] Rétablir la facturation GitHub Actions, puis vérifier une CI verte sur `main` avec les tests d'interface exécutés sur les 3 OS (run `42374379128`, commit `767e05b`).
+- [x] Lancer le workflow Release une première fois (pré-version), en décider le numéro : fait, run `42377140242`, pré-version `test-v1.0.0-1` (preuve : `docs/essais/release-1.0.0-essai-final.json`).
 - [ ] Parcours complet au clavier sur Windows (Tab, flèches, Entrée, Ctrl+Z/Y, menus, dialogues de fichiers réels).
 - [ ] Essai de l'application sur macOS et Linux (raccourcis, dialogues natifs).
 - [ ] Ouverture d'un CSV exporté dans Excel : séparateur, accents, et cellules ` =1+1`, `＝1+1`, `1,=1+1` (risque R1).
 - [ ] Lisibilité des badges exact et approché, en clair et selon le thème du système.
-- [ ] Téléchargement d'une release et vérification des SHA-256 avec SHA256SUMS, lecture du SBOM.
+- [ ] Téléchargement de la release v1.0.0 publiée et vérification des SHA-256 avec SHA256SUMS, lecture du SBOM.
+- [ ] Sur un vrai Mac, retirer la quarantaine avec `xattr -dr com.apple.quarantine Calc.app` puis ouvrir l'application.
+- [ ] Lire Aide > À propos de Calc dans l'application empaquetée : la version affichée est 1.0.0.
 - [ ] Avertissements SmartScreen (Windows) et Gatekeeper (macOS) au premier lancement.
 - [ ] Ouvrir un carnet de 5000 lignes hostiles : la fenêtre se déplace et les menus s'ouvrent pendant le calcul, la barre d'état compte les lignes.
 - [ ] Pendant ce calcul, appuyer sur Échap : le calcul s'arrête et les lignes restantes disent « Non calculée : calcul interrompu ».
