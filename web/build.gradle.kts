@@ -62,7 +62,6 @@ tasks.register<JavaExec>("generateCharacterCompat") {
 }
 
 tasks.register<Sync>("site") {
-    group = "build"
     description = "Assembles the static page and the compiled core under build/site."
     from("site")
     from(tasks.named("generateJavaScript"))
