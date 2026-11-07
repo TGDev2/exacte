@@ -145,15 +145,21 @@
     });
   }
 
+  // True while the rows are being redrawn: a browser may report the loss of the focus of a row that is removed, and its
+  // text is then the text of a line that is gone, not one to validate.
+  let drawing = false;
+
   function render() {
     modeSelect.value = current.mode;
     const lines = current.lines.concat(draftLine(current.lines.length + 1));
+    drawing = true;
     while (linesElement.children.length > lines.length) {
       linesElement.lastElementChild.remove();
     }
     lines.forEach((line, index) => {
       fill(linesElement.children[index] || linesElement.appendChild(newRow()), line);
     });
+    drawing = false;
     inputOf(lines.length).placeholder = current.lines.length === 0 ? '(1/3)*3 puis Entrée' : '';
     undoButton.disabled = !current.canUndo;
     redoButton.disabled = !current.canRedo;
@@ -286,12 +292,27 @@
 
   // Acts on the current line of the notebook; the answer of `act` is whether the notebook changed, and `next` the line
   // that follows the change. Only the keys take the focus back to the sheet: a tap would raise the keyboard of a phone.
-  function onCurrentLine(act, next, withFocus) {
+  // The blank line that ends the sheet is not in the notebook yet. Like the desktop (NotebookPresenter), there is nothing
+  // to delete or to move there (`draftMessage` says so, before anything typed is validated), and an insertion appends.
+  function onCurrentLine(act, next, withFocus, draftMessage) {
+    if (draftMessage !== null && currentLine > current.lines.length) {
+      showMessage(draftMessage);
+      return;
+    }
     if (!validatePending()) {
       return;
     }
-    const number = Math.min(currentLine, current.lines.length);
-    if (number < 1 || !act(number)) {
+    const number = currentLine;
+    if (number > current.lines.length) {
+      if (apply(calc.append(''))) {
+        setCurrentLine(current.lines.length);
+        if (withFocus) {
+          focusLine(currentLine);
+        }
+      }
+      return;
+    }
+    if (!act(number)) {
       return;
     }
     setCurrentLine(next(number));
@@ -301,21 +322,28 @@
   }
 
   function insertBelow(withFocus) {
-    onCurrentLine((number) => apply(calc.insertAfter(number, '')), (number) => number + 1, withFocus);
+    onCurrentLine((number) => apply(calc.insertAfter(number, '')), (number) => number + 1, withFocus, null);
   }
 
   function insertAbove(withFocus) {
-    onCurrentLine((number) => apply(calc.insertBefore(number, '')), (number) => number, withFocus);
+    onCurrentLine((number) => apply(calc.insertBefore(number, '')), (number) => number, withFocus, null);
   }
 
   function deleteLine(withFocus) {
-    onCurrentLine((number) => apply(calc.deleteLine(number)), (number) => number, withFocus);
+    onCurrentLine((number) => apply(calc.deleteLine(number)), (number) => number, withFocus,
+      'Cette ligne n\'est pas encore validée : il n\'y a rien à supprimer (Échap abandonne la saisie).');
   }
 
   function moveLine(delta, withFocus) {
-    onCurrentLine(
-      (number) => number + delta >= 1 && number + delta <= current.lines.length && apply(calc.move(number, number + delta)),
-      (number) => number + delta, withFocus);
+    const move = (number) => {
+      if (number + delta < 1 || number + delta > current.lines.length) {
+        showMessage(delta < 0 ? 'La ligne est déjà la première.' : 'La ligne est déjà la dernière.');
+        return false;
+      }
+      return apply(calc.move(number, number + delta));
+    };
+    onCurrentLine(move, (number) => number + delta, withFocus,
+      'Cette ligne n\'est pas encore validée : elle ne peut pas être déplacée.');
   }
 
   // Like the desktop: undo takes the text not yet validated out first, and only then a command of the notebook.
@@ -377,8 +405,9 @@
 
   // ---- The keyboard --------------------------------------------------------------------------------------------------
 
-  // The shortcuts of the desktop (NotebookShortcuts). Cmd does what Ctrl does, except for the display modes: Cmd+M
-  // minimises a window on macOS. A key is taken from the browser only when the page does something with it.
+  // The shortcuts of the desktop (NotebookShortcuts). Cmd does what Ctrl does, Cmd+M included: the desktop keeps Ctrl+M
+  // only because Cmd+M minimises a window on macOS, where a browser may take it before the page. A key is taken from the
+  // browser only when the page does something with it.
   function onMenuKey(event) {
     const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
     if (event.key === 'Enter') {
@@ -391,7 +420,7 @@
       undo(true);
     } else if (key === 'y' || (key === 'z' && event.shiftKey)) {
       redo(true);
-    } else if (key === 'm' && event.ctrlKey && !event.shiftKey) {
+    } else if (key === 'm' && !event.shiftKey) {
       nextMode();
     } else {
       return false;
@@ -442,7 +471,7 @@
 
   // Leaving a line validates it too. Nothing happens when Enter has just done so: the text is already the one of the line.
   linesElement.addEventListener('focusout', (event) => {
-    if (event.target.matches('input.expression')) {
+    if (!drawing && event.target.matches('input.expression')) {
       validate(numberOf(event.target), event.target.value);
     }
   });
