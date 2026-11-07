@@ -23,7 +23,7 @@ Aucun Java n'est à installer pour lancer l'application : le runtime est dans l'
 
 ## Publier une version
 
-Avant de taguer, mettre à jour [`CHANGELOG.md`](../CHANGELOG.md) (déplacer l'entrée « Non publié » sous le numéro de version). Les notes de la release reprennent les messages de commit depuis le tag `vX.Y.Z` précédent.
+Avant de taguer, mettre à jour [`CHANGELOG.md`](../CHANGELOG.md) : déplacer l'entrée « Non publié » sous un titre `## [X.Y.Z] - AAAA-MM-JJ` et la rédiger pour un lecteur qui n'est pas développeur. Les notes de la release sont cette section (liens rendus absolus, plus un lien vers le [guide d'installation](INSTALLATION.md)), produites par `gradlew releaseNotes` : le workflow échoue si la section de la version manque ou est vide. Pour voir le texte avant de taguer : `.\gradlew.bat releaseNotes -PappVersion=X.Y.Z`, puis `build\release-notes.md`.
 
 1. Fusionner dans `main` tout ce qui doit être publié et lancer la CI (`ci.yml`) à la demande sur `main` et attendre qu'elle soit verte (voir [CI.md](CI.md)).
 2. Choisir la version `X.Y.Z` avec `X` ≥ 1 (pas de suffixe : `v1.0.0` convient, `v0.9.0` et `v1.0.0-rc1` sont refusés).
@@ -51,7 +51,7 @@ sur un autre commit).
 
 Onglet **Actions** → **Release** → **Run workflow**, saisir une version de test (par exemple `1.0.0`). Le workflow construit les
 mêmes fichiers et crée une **pré-release** nommée `test-vX.Y.Z-<numéro d'exécution>` (aucun tag `vX.Y.Z` n'est créé, donc aucune
-exécution en cascade). Après vérification, supprimer la pré-release et son tag :
+exécution en cascade). La version saisie doit avoir sa section `## [X.Y.Z]` dans `CHANGELOG.md` : les notes de l'essai en viennent aussi, et une version sans section fait échouer le workflow (c'est voulu). Après vérification, supprimer la pré-release et son tag :
 
 ```bash
 gh release delete test-v1.0.0-12 --cleanup-tag --yes

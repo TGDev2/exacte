@@ -107,8 +107,9 @@ only reads Gradle configurations). A later Epic can add it as a component by han
 
 Jobs: `prepare` (validates the version once), `build` (matrix `ubuntu-latest`, `windows-latest`, `macos-latest`: `check` with
 `-PrequireUiTests=true` and xvfb on Linux as in `ci.yml`, `packageApp`, a smoke test that unpacks the archive, checks the embedded modules, starts the application and checks it is alive after 8 s with no Java error in its output (no window check),
-upload), `publish` (Linux: downloads the three archives, generates the SBOM, writes `SHA256SUMS.txt`, writes the notes from the commit
-subjects since the previous `vX.Y.Z` tag, creates the Release with `gh release create`).
+upload), `publish` (Linux: downloads the three archives, generates the SBOM, writes `SHA256SUMS.txt`, writes the notes (first from the commit
+subjects since the previous `vX.Y.Z` tag; from CHANGELOG.md since the amendment at the end of this record), creates the Release with
+`gh release create`).
 
 Permissions: `contents: read` for the workflow, `contents: write` **only** on `publish`. In that job the checkout does not keep the
 token (`persist-credentials: false`) and `GH_TOKEN` is given to the `gh release create` step alone, so Gradle (the build script and the
@@ -139,6 +140,25 @@ to open the application anyway.
   runner after the other two succeeded.
 - **Release notes by `gh release create --generate-notes`**: rejected, the brief asks for the commit messages since the previous tag;
   GitHub's notes list pull requests.
+
+## Amendement du 2026-11-07 : notes de version issues du CHANGELOG
+
+Decision 8 and the alternative above describe the first design, where `publish` wrote the notes from the commit subjects since the
+previous `vX.Y.Z` tag. They were English commit messages that a user of the application cannot read. The history above is kept as it
+was; from this date:
+
+- The notes are the `## [X.Y.Z]` section of `CHANGELOG.md`, written in French for a reader who is not a developer. The task
+  `gradlew releaseNotes -PappVersion=X.Y.Z` extracts it, makes its relative links absolute (pointing at the commit being released) and
+  adds a link to `docs/INSTALLATION.md` under `## Installer`. `release.yml` runs the task and gives `build/release-notes.md` to
+  `gh release create --notes-file`.
+- The step fails when the section of the version is missing or empty, so a `workflow_dispatch` trial for a version that has no section
+  in `CHANGELOG.md` fails: this is intended, and `docs/RELEASE.md` says so.
+- `publish` no longer needs the full git history (`fetch-depth: 0` is gone). The write token is still kept out of the git
+  configuration and given to the `gh release create` step only.
+- The tool, `calc.release.ReleaseNotes`, lives in the test source set and runs through a `JavaExec` task on the test classpath: it is
+  tested on every system and never shipped with the application. Its tests are hermetic (hard-coded changelogs, plus the real
+  `CHANGELOG.md` and `release.yml` read by relative path).
+- `--generate-notes` stays rejected; so does notes text typed by hand in GitHub.
 
 ## Consequences (Conséquences)
 
