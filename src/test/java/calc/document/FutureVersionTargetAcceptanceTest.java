@@ -364,7 +364,20 @@ class FutureVersionTargetAcceptanceTest {
         Files.write(data.resolve(CURRENT), NotebookCodec.encode(NotebookGenerators.notebook(List.of("a = 2", "a * 3")), DisplayMode.AUTO).bytes());
         NotebookPresenter presenter = NotebookPresenter.open(store, DisplayModeStore.noop(), script);
         presenters.add(presenter);
+        awaitTheCalculation(presenter);
         return presenter;
+    }
+
+    // The draft is calculated on a background thread, and while it runs the status bar puts its count before any message:
+    // on a slow machine the save would be refused with that prefix. The user starts from a calculated notebook.
+    private static void awaitTheCalculation(NotebookPresenter presenter) throws Exception {
+        long deadline = System.nanoTime() + 30_000_000_000L;
+        while (onEdt(presenter::currentView).statusMessage().startsWith("Calcul en cours")) {
+            if (System.nanoTime() > deadline) {
+                throw new AssertionError("the calculation of the draft has not ended within 30 s");
+            }
+            Thread.sleep(10);
+        }
     }
 
     // The text of the line being edited, which the view hands back with every intention.
