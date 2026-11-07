@@ -413,3 +413,30 @@ tasks.cyclonedxBom {
     xmlOutput.unsetConvention()
     projectType = org.cyclonedx.model.Component.Type.APPLICATION
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Release notes: the [X.Y.Z] section of CHANGELOG.md with absolute links and a link to the installation guide.
+//
+//   gradlew releaseNotes -PappVersion=1.0.0   -> build/release-notes.md (fails if CHANGELOG.md has no such section)
+//
+// The tool lives in the test source set (src/test/java/calc/release), so it is tested and never shipped. ADR 0012.
+// ---------------------------------------------------------------------------------------------------------------------
+
+tasks.register<JavaExec>("releaseNotes") {
+    group = "distribution"
+    description = "Writes build/release-notes.md from the section of -PappVersion in CHANGELOG.md."
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass = "calc.release.ReleaseNotes"
+    javaLauncher = javaToolchains.launcherFor(java.toolchain)
+    val repository = providers.environmentVariable("GITHUB_REPOSITORY").orElse("TGDev2/Calculatrice")
+    val ref = providers.environmentVariable("GITHUB_SHA").orElse("main")
+    args(
+        "CHANGELOG.md",
+        project.version.toString(),
+        repository.get(),
+        ref.get(),
+        layout.buildDirectory.file("release-notes.md").get().asFile.absolutePath,
+    )
+    // The changelog is read at the root of the repository, wherever Gradle was started.
+    workingDir = projectDir
+}
