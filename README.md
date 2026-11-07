@@ -2,9 +2,12 @@
 
 [![CI](https://github.com/TGDev2/Calculatrice/actions/workflows/ci.yml/badge.svg)](https://github.com/TGDev2/Calculatrice/actions/workflows/ci.yml)
 
-Calc est une **calculatrice exacte** et un **carnet de calcul** pour le bureau (Java 21, Swing), en français. On écrit une
-expression par ligne ; le résultat s'affiche à droite, exact quand il peut l'être, et approché avec une erreur garantie
-quand il ne peut pas l'être. C'est un projet portfolio : sa promesse est la fiabilité, et chaque affirmation de ce
+[Essayer dans le navigateur](https://tgdev2.github.io/Calculatrice/) : la même calculatrice, sans installation (voir
+[l'ADR 0015](docs/adr/0015-version-web-teavm.md)).
+
+Calc est une **calculatrice exacte** et un **carnet de calcul** en français, application Java 21 (Swing) ou page dans le
+navigateur. On écrit une expression par ligne ; le résultat s'affiche à droite, exact quand il peut l'être, et approché avec
+une erreur garantie quand il ne peut pas l'être. C'est un projet portfolio : sa promesse est la fiabilité, et chaque affirmation de ce
 document renvoie à un test, à une mesure ou à une limite écrite.
 
 ## Fonctionnalités
@@ -118,6 +121,9 @@ de [docs/TESTS.md](docs/TESTS.md)) :
   joint en une seule ; un carnet compte au plus 5000 lignes ; pas d'aperçu du résultat pendant la frappe.
 - **Langage** : pas de multiplication implicite (`2x`), de pourcentage, de constantes `π` ou `e`, ni de fonctions à plusieurs
   arguments ([docs/GUIDE-EXPRESSIONS.md](docs/GUIDE-EXPRESSIONS.md)).
+- **Dans le navigateur, pas de fichier** : pas de menu Fichier, ni d'ouverture et d'enregistrement de fichiers `.calc.json`, de migration des anciens historiques, de verrou et d'écriture atomique ; le carnet reste dans ce navigateur.
+- **Dans le navigateur, un carnet très lourd peut figer l'onglet** : le calcul s'y fait sur le fil principal, sans interruption possible, alors que le bureau calcule en arrière-plan ([ADR 0015](docs/adr/0015-version-web-teavm.md)).
+- **Dans le navigateur, Unicode et conformité** : la classification Unicode de TeaVM est complétée pour coller au JDK 21, et le rapport de conformité ne lit que les résultats de la racine ([docs/TESTS.md](docs/TESTS.md#la-version-web-g29)).
 - **Pas d'internationalisation** : les messages sont écrits en français dans le code.
 - **Mutation et couverture** : elles mesurent ce que les tests détectent, pas l'absence de défaut ; les packages de
   l'interface ne sont pas soumis aux tests de mutation et leur couverture dépend de la présence d'un affichage. Les points

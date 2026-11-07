@@ -20,6 +20,7 @@ tests le vérifient (`NotebookDependenciesTest`, `ServicesDependenciesTest` : vo
 | `calc.ui.widget` | Composants Swing réutilisables : sélecteur de mode, badge d'exactitude, palette et contrastes | la fenêtre |
 | `calc.ui.notebook` | La fenêtre principale : `NotebookPresenter` (toute la logique d'interaction, testable sans Swing), `NotebookViewModel` (état immuable remis à la vue), `NotebookFrame` et `NotebookRowView` (Swing, rien d'autre que l'affichage), `NotebookDialogs` (interface des boîtes de dialogue, remplacée par un faux dans les tests) | — |
 | `calc` | `Main` : branche le magasin du carnet, le mode d'affichage et la fenêtre | — |
+| `calc.web` (sous-projet `web/`) | La version web : `WebNotebook` (le carnet tel que JavaScript le pilote, instantanés JSON), `WebExports` (seul point d'entrée de TeaVM), `calc.web.compat` (compléments du JDK), `calc.web.tools` (rapport de conformité mis en page, sur la machine de construction seulement) | Swing, la persistance, les documents |
 
 ```mermaid
 flowchart TD
@@ -59,6 +60,29 @@ Ce qui se passe quand l'utilisateur valide `prix * 3` :
    change quelque chose, si le document est le carnet sans titre. Le fichier ne contient que les textes des lignes et le
    mode d'affichage : **aucun résultat n'est enregistré**, les résultats sont recalculés à l'ouverture.
 
+## La version web
+
+Le sous-projet Gradle `web/` compile le même cœur vers JavaScript avec TeaVM, sans modifier `src/main/java`
+([ADR 0015](adr/0015-version-web-teavm.md)). Le chemin, de la source à la page :
+
+1. **Java → TeaVM → page.** `calc.web.WebExports` est le seul point d'entrée : TeaVM ne compile que ce qui en est atteignable
+   (`calc.number`, `calc.format`, `calc.expression`, `calc.notebook`, `calc.web`), jamais Swing, la persistance ni les écritures de
+   fichier. La tâche `:web:generateJavaScript` écrit `web/build/generated/teavm/js/calc.js`, et `:web:site` l'assemble avec `web/site`
+   (`index.html`, `style.css`, `app.js`) dans `web/build/site`.
+2. **`WebNotebook`** (`calc.web`, Java pur, donc testé sur la JVM dans `check`) enveloppe un `NotebookEditor` : chaque commande renvoie
+   un instantané JSON, une chaîne identique sur la JVM et sous JavaScript. La mise en forme passe par `ValueFormatter`.
+3. **La page** (`app.js`, script classique, sans dépendance) construit le DOM avec `textContent` à partir de l'instantané : elle ne
+   calcule ni ne formate rien. Elle garde les textes des lignes et le mode dans `localStorage`, jamais un résultat.
+4. **`calc.web.compat`** complète trois morceaux du JDK que TeaVM n'a pas ou traite autrement (`BigIntegerCompat`, `PatternCompat`,
+   `CharacterCompat`). Une extension TeaVM réécrit les appels dans les classes `calc.*` au moment où TeaVM les lit : le bytecode du
+   cœur reste celui de javac.
+5. **Les tests** sont en deux familles, celle de `check` (la racine, sans Node) et celle de `:web:webTest` (golden et parité sous Node,
+   page dans un navigateur), décrites dans [TESTS.md](TESTS.md#la-version-web-g29). `:web` n'a pas de `src/test` : `:web:test` reste vide.
+6. **Le déploiement** est `pages.yml`, voir [CI.md](CI.md#le-déploiement-de-la-page-pagesyml).
+
+La racine ne dépend de `:web` qu'en test, sans transitivité : pas de cycle, et `calc.jar` ne passe pas deux fois sur le chemin de
+classes des tests.
+
 ## Persistance et migrations
 
 - Le carnet courant est `carnet-courant.calc.json` dans le dossier de données (voir le [guide](GUIDE-UTILISATEUR.md) et
@@ -88,5 +112,5 @@ Ce qui se passe quand l'utilisateur valide `prix * 3` :
 
 L'index est dans [adr/README.md](adr/README.md). Les plus utiles pour lire le code : 0003 (représentation numérique),
 0004 (règles d'affichage), 0007 (grammaire), 0008 (sémantique du carnet), 0009 (format v3, documents, exports), 0010
-(éditeur), 0011 (fichiers dans l'interface), 0012 (packaging et releases). Les mesures de fiabilité et leur stratégie sont
+(éditeur), 0011 (fichiers dans l'interface), 0012 (packaging et releases), 0015 (la version web). Les mesures de fiabilité et leur stratégie sont
 dans [TESTS.md](TESTS.md) ; l'intégration continue dans [CI.md](CI.md).

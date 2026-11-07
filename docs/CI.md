@@ -118,3 +118,30 @@ HTML des mutants) et `jacoco/` (couverture). Si un seuil de couverture n'est pas
 
 `release.yml` exécute le même job (`conformity report`, avant la publication) et joint le rapport à la release sous le nom
 `Calc-<version>-rapport-conformite.md`, avec sa somme dans `SHA256SUMS.txt`.
+
+## Le déploiement de la page (`pages.yml`)
+
+Le workflow [`.github/workflows/pages.yml`](../.github/workflows/pages.yml) construit la version web, prouve sa parité avec le bureau
+et publie la page sur GitHub Pages ([ADR 0015](adr/0015-version-web-teavm.md)). Il est distinct de `ci.yml`, qui ne change pas.
+
+**Déclencheur.** Il part lors d'un `push` sur la branche `main`, ou à la main par `workflow_dispatch`. Le déploiement, lui, n'a lieu que
+depuis `main` : lancé depuis une autre branche, le workflow construit et vérifie, sans publier. Un déploiement commencé n'est jamais
+interrompu (`cancel-in-progress: false`) : le suivant attend.
+
+**Prérequis, une action manuelle du propriétaire.** Dans l'interface GitHub : Paramètres → Pages → Source : GitHub Actions. Tant que ce
+réglage manque, le job `deploy` échoue ; il n'est pas versionné dans le dépôt.
+
+**Les jobs**, tous sous Linux :
+
+1. `conformity` (60 minutes au plus) : `./gradlew conformity -PrequireUiTests=true` sous `xvfb`, avec `CALC_TIMING_FACTOR` à 3 pour
+   les budgets de temps. Il publie l'artefact `conformity-report`, dont `RAPPORT-CONFORMITE.md` est à la racine.
+2. `site` (30 minutes au plus), après `conformity` : lance `:web:webTest -PrequireBrowser=true -PparitySeed=<github.run_id>` (golden sous
+   Node, carnet d'essai, corpus de parité, page dans un navigateur sans affichage), télécharge le rapport, puis assemble le site par
+   `:web:site -PconformityReport=conformity/RAPPORT-CONFORMITE.md` et le dépose comme artefact Pages. Un écart de parité fait échouer ce
+   job : rien n'est déployé.
+3. `deploy` (10 minutes au plus), après `conformity` et `site`, et seulement si la référence est `main` : le seul job qui peut écrire
+   sur Pages (`pages: write`, `id-token: write`).
+
+La page est servie à l'adresse https://tgdev2.github.io/Calculatrice/, avec le rapport de conformité à côté (`rapport-conformite.html`).
+Les tests de `web/src/webTest` ne passent que par ce workflow : ni `check` ni `ci.yml` ne les lancent, et le rapport de conformité ne les
+lit pas (voir [TESTS.md](TESTS.md#la-version-web-g29)).

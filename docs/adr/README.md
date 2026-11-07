@@ -29,3 +29,4 @@ Later work reads the ADRs instead of guessing why things are the way they are.
 | 0012 | Packaging and releases: one Gradle task per system, archived application images, automatic GitHub Releases | Accepted |
 | 0013 | Measured quality: coverage and mutation thresholds, and a generated conformity report | Accepted |
 | 0014 | The notebook is calculated off the event thread, and can be interrupted | Accepted |
+| 0015 | The web version: the same core compiled to JavaScript by TeaVM | Accepted |
