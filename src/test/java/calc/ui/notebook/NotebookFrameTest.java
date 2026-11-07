@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.swing.Action;
 import javax.swing.JComponent;
+import javax.swing.JLabel;
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
 import javax.swing.JTextField;
@@ -227,6 +228,13 @@ class NotebookFrameTest {
         assertEquals(0, hidden.get(), "the badge of line 2 was hidden during the recalculation");
         assertTrue(frame.row(1).badge.isVisible());
         assertEquals(ExactnessBadge.EXACT_TEXT, frame.row(1).badge.getText());
+
+        // A kept badge takes room from the result: the sentence shown while a line is calculated still fits.
+        runOnEdt(() -> frame.setVisible(true));
+        runOnEdt(() -> frame.getContentPane().validate());
+        JLabel result = frame.row(1).resultLabel;
+        int sentence = result.getFontMetrics(result.getFont()).stringWidth(NotebookPresenter.PENDING_RESULT);
+        assertTrue(sentence <= result.getWidth(), "« Calcul en cours… » needs " + sentence + " px, has " + result.getWidth());
     }
 
     @Test

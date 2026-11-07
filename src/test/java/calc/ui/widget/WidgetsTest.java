@@ -7,6 +7,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import calc.format.DisplayMode;
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -79,5 +82,35 @@ class WidgetsTest {
         badge.showExactness(true, "");
         assertTrue(badge.isOpaque(), "The box of the badge comes back with its text.");
         assertEquals("Exact", badge.getText());
+    }
+
+    @Test
+    void aBlankBadgeLeavesNoPixelOnTheRow() {
+        ExactnessBadge badge = new ExactnessBadge();
+        badge.setSize(96, 24);
+
+        badge.showExactness(true, "");
+        assertTrue(paintedPixels(badge) > 0, "A badge with a result is painted: the measure below means something.");
+
+        badge.blankBadge();
+        assertEquals(0, paintedPixels(badge), "The row looks the same as with a hidden badge.");
+    }
+
+    private static int paintedPixels(ExactnessBadge badge) {
+        BufferedImage image = new BufferedImage(badge.getWidth(), badge.getHeight(), BufferedImage.TYPE_INT_RGB);
+        Graphics2D graphics = image.createGraphics();
+        graphics.setColor(Color.WHITE);
+        graphics.fillRect(0, 0, image.getWidth(), image.getHeight());
+        badge.paint(graphics);
+        graphics.dispose();
+        int painted = 0;
+        for (int y = 0; y < image.getHeight(); y++) {
+            for (int x = 0; x < image.getWidth(); x++) {
+                if (image.getRGB(x, y) != Color.WHITE.getRGB()) {
+                    painted++;
+                }
+            }
+        }
+        return painted;
     }
 }

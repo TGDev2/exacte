@@ -9,7 +9,7 @@ import javax.swing.border.Border;
 
 /**
  * « Exact » or « ≈ Approché », with the detail (error bound, exact value behind a cut text) as tooltip. The text always
- * says what the colour says. It is empty and invisible while there is no result.
+ * says what the colour says. It paints nothing while there is no result.
  */
 public final class ExactnessBadge extends JLabel {
     private static final long serialVersionUID = 1L;
