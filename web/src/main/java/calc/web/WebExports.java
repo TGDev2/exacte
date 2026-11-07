@@ -24,12 +24,79 @@ import org.teavm.jso.JSExport;
  */
 public final class WebExports {
     private static final String NO_OPERATION = "(none)";
+    private static final WebNotebook NOTEBOOK = new WebNotebook();
 
     private WebExports() {
     }
 
     /** TeaVM requires a main method on its main class; the scripts and the page only call the exports. */
     public static void main(String[] args) {
+    }
+
+    @JSExport
+    public static String load(String lines, String mode) {
+        return NOTEBOOK.load(lines, mode);
+    }
+
+    @JSExport
+    public static String snapshot() {
+        return NOTEBOOK.snapshot();
+    }
+
+    @JSExport
+    public static String append(String text) {
+        return NOTEBOOK.append(text);
+    }
+
+    @JSExport
+    public static String insertBefore(int number, String text) {
+        return NOTEBOOK.insertBefore(number, text);
+    }
+
+    @JSExport
+    public static String insertAfter(int number, String text) {
+        return NOTEBOOK.insertAfter(number, text);
+    }
+
+    @JSExport
+    public static String edit(int number, String text) {
+        return NOTEBOOK.edit(number, text);
+    }
+
+    /** Named deleteLine because delete is a reserved word of JavaScript. */
+    @JSExport
+    public static String deleteLine(int number) {
+        return NOTEBOOK.delete(number);
+    }
+
+    @JSExport
+    public static String move(int number, int toNumber) {
+        return NOTEBOOK.move(number, toNumber);
+    }
+
+    @JSExport
+    public static String clear() {
+        return NOTEBOOK.clear();
+    }
+
+    @JSExport
+    public static String undo() {
+        return NOTEBOOK.undo();
+    }
+
+    @JSExport
+    public static String redo() {
+        return NOTEBOOK.redo();
+    }
+
+    @JSExport
+    public static String setMode(String mode) {
+        return NOTEBOOK.setMode(mode);
+    }
+
+    @JSExport
+    public static String texts() {
+        return NOTEBOOK.texts();
     }
 
     /**
@@ -57,7 +124,7 @@ public final class WebExports {
     public static String trialNotebook(String lines, String mode, int moveNumber, int moveToNumber) {
         DisplayMode displayMode = DisplayMode.valueOf(mode);
         try {
-            NotebookEditor editor = new NotebookEditor(Notebook.of(splitLines(lines)));
+            NotebookEditor editor = new NotebookEditor(Notebook.of(WebNotebook.splitLines(lines)));
             if (moveNumber <= 0) {
                 return rows(editor.current(), displayMode);
             }
@@ -70,17 +137,6 @@ public final class WebExports {
         } catch (NotebookException exception) {
             return "REFUSED\t" + exception.getMessage();
         }
-    }
-
-    private static List<String> splitLines(String lines) {
-        List<String> texts = new ArrayList<>();
-        int start = 0;
-        for (int end = lines.indexOf('\n'); end >= 0; end = lines.indexOf('\n', start)) {
-            texts.add(lines.substring(start, end));
-            start = end + 1;
-        }
-        texts.add(lines.substring(start));
-        return texts;
     }
 
     private static String rows(EvaluatedNotebook evaluated, DisplayMode mode) {
