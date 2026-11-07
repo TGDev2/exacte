@@ -1,0 +1,19 @@
+{
+  "result": "ok",
+  "version": "1.0.0",
+  "tag": "test-v1.0.0-1",
+  "runId": "42377140242",
+  "commit": "767e05bf300a7b79f36e5717baf9ace28f85d145",
+  "prerelease": true,
+  "notesLinkInstallation": true,
+  "windowsStart": "ok",
+  "files": {
+    "Calc-1.0.0-windows-x64.zip": "a373e3a931b3aa5dfe1e1736fa75e24d6b6114963bb38fd0cc734395057c804e",
+    "Calc-1.0.0-macos-arm64.tar.gz": "177aefb94b44801b726bcb0f57841d58e102933bccdd404a08bbffe23c4ef6fb",
+    "Calc-1.0.0-linux-x64.tar.gz": "cba62540a834965f47292d8aaaf9c0ec018bee3da804546d0bdaf82b73754d8f",
+    "Calc-1.0.0-sbom.cdx.json": "4b7d0ba752aaca4a44a1f0a81f80501be56dab2a7c4b73c7b3658f51013fd339",
+    "Calc-1.0.0-rapport-conformite.md": "b7df3b8e98a82b764aec67ed3d018d87c18e22e10b470d240cdefdbdd3785db7",
+    "SHA256SUMS.txt": "31b5c3e8cdbed8381c5fadd02468f75d0c253bd04103f8425ee1f606f204f003"
+  },
+  "problems": []
+}
