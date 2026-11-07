@@ -89,17 +89,19 @@ class FormatterProperties {
 
     /**
      * Every point of the interval rounds to the digits shown, so they are the correct rounding of the true value; only
-     * when the bounds share no digit at all may the text fall back to one digit of the centre.
+     * when the bounds share no digit at all may the text fall back to the centre, and that number stays inside the interval.
      */
     @Property
-    void theDigitsOfAnApproximateValueAreGuaranteed(@ForAll("approximateEnclosures") Enclosure enclosure, @ForAll DisplayMode mode) {
+    void theDigitsOfAnApproximateValueAreGuaranteed(@ForAll("approximateEnclosures") Enclosure enclosure, @ForAll DisplayMode mode)
+            throws NumericException {
         String text = ValueFormatter.format(enclosure.interval(), mode == DisplayMode.FRACTION ? DisplayMode.AUTO : mode).text();
         BigDecimal shown = DisplayTexts.decimal(text);
         int scale = shown.scale();
         BigDecimal lower = round(enclosure.interval().lower(), scale);
         BigDecimal upper = round(enclosure.interval().upper(), scale);
         if (lower.compareTo(upper) != 0) {
-            assertEquals(1, shown.precision(), () -> "The bounds of " + enclosure.interval() + " disagree at the last digit of " + text);
+            assertTrue(enclosure.interval().contains(Rational.parse(shown.toPlainString())),
+                    () -> "The bounds of " + enclosure.interval() + " disagree at the last digit of " + text + ", which is outside");
             return;
         }
         assertEquals(0, lower.compareTo(shown), () -> text + " for " + enclosure.interval());

@@ -198,7 +198,8 @@ Ces propriétés remplacent `RoundingPolicyProperties` (étiquette `rounding-pol
 - Aller-retour : le texte canonique d'une valeur exacte tient dans la borne de saisie et se relit exactement ; celui d'une
   valeur approchée se relit en un point de son intervalle.
 - Chiffres garantis : tout point de l'intervalle (les deux bornes et le point connu) s'arrondit aux chiffres affichés ;
-  seul un intervalle dont les bornes n'ont aucun chiffre commun peut retomber sur un chiffre du centre.
+  seul un intervalle dont les bornes n'ont aucun chiffre commun peut retomber sur son centre, dont le nombre affiché reste
+  dans l'intervalle.
 
 **Réutilisation sans perte** (`LosslessReuseProperties`, `property`) : une suite aléatoire d'au plus 8 opérations exactes
 (`+ − × ÷` sur des décimaux et des fractions), enchaînées par le présentateur (résultat repris dans le premier champ, ou
@@ -391,7 +392,8 @@ vue qui n'affiche que le `NotebookViewModel`. Choix et raccourcis : `docs/adr/00
 
 | Classe | Étiquette | Ce qu'elle garantit |
 |---|---|---|
-| `NotebookPresenterTest` | aucune | `a = 2`, `a * 3`, `ans + 1` donnent 2, 6, 7 ; modifier la ligne 1 recalcule les suivantes ; insertion au-dessus d'une ligne référencée (texte réécrit, même valeur) ; suppression (erreur explicite, annulable) ; déplacement ; annuler / rétablir (annuler avec une saisie en cours abandonne d'abord la saisie, rétablir est refusé) ; Échap ; clic ; modes (remémorisés, sauvegardés avec le carnet, saisie intacte) ; ligne trop longue refusée sans perte ; sauts de ligne collés ; fermeture qui valide ; sauvegarde automatique et rechargement ; échec de sauvegarde simulé (signalé, état en mémoire intact, réparé au coup suivant) ; deuxième instance en lecture seule (message permanent) ; migration d'un historique v1 (statut, lignes, valeurs, sauvegarde automatique) ; aucune dépendance à Swing |
+| `NotebookPresenterTest` | aucune | `a = 2`, `a * 3`, `ans + 1` donnent 2, 6, 7 ; modifier la ligne 1 recalcule les suivantes ; insertion au-dessus d'une ligne référencée (texte réécrit, même valeur) ; suppression (erreur explicite, annulable) ; déplacement ; annuler / rétablir (annuler avec une saisie en cours retire d'abord la saisie, rétablir est refusé tant qu'une saisie est en cours) ; Échap ; clic ; modes (remémorisés, sauvegardés avec le carnet, saisie intacte) ; ligne trop longue refusée sans perte ; sauts de ligne collés ; fermeture qui valide ; sauvegarde automatique et rechargement ; échec de sauvegarde simulé (signalé, état en mémoire intact, réparé au coup suivant) ; deuxième instance en lecture seule (message permanent) ; migration d'un historique v1 (statut, lignes, valeurs, sauvegarde automatique) ; aucune dépendance à Swing |
+| `UndoKeepsDraftAcceptanceTest` | `acceptance` | D10 : Annuler retire une saisie en cours et Rétablir la remet, sans commande du modèle et avant une commande qui peut aussi être refaite ; une saisie au-delà de la longueur maximale revient entière et n'est refusée qu'à la validation ; `Échap` reste définitif ; la saisie retirée est oubliée après une nouvelle saisie, une commande validée ou annulée, un changement de ligne, un nouveau document ou une ouverture |
 | `NotebookResponsivenessTest` | aucune | 500 lignes avec références : valider la ligne 1 (recalcul, 501 lignes affichées, sauvegarde) en moins de 100 ms dans le présentateur ; coût d'un aperçu pendant la frappe (mesure pour la décision de l'ADR, section 6 ; le chiffre inclut la sauvegarde) |
 | `NotebookShortcutConflictTest` | aucune | aucune touche à modificateur du carnet n'est liée par un champ texte des apparences installées ; liste les touches simples que le champ du carnet remplace |
 | `NotebookPaletteContrastTest` | aucune | chaque couleur de texte des lignes atteint 4,5:1 sur ses fonds (rapports imprimés) |
@@ -465,7 +467,7 @@ PIT dure 9 min 50 s, l'ensemble 11 min 16 s.
 | Package | Lignes | Seuil | Branches | Seuil | Mutants détectés | Score | Seuil |
 |---|---|---|---|---|---|---|---|
 | `calc.number` | 321/321 (100 %) | 99 | 253/256 (98,8 %) | 97 | 287/331 | 86,7 % | 85 |
-| `calc.format` | 136/137 (99,3 %) | 98 | 106/106 (100 %) | 99 | 124/129 | 96,1 % | 95 |
+| `calc.format` | 136/137 (99,3 %) | 98 | 106/106 (100 %) | 99 | 137/143 | 95,8 % | 95 |
 | `calc.expression` | 681/700 (97,3 %) | 96 | 413/429 (96,3 %) | 94 | 384/389 | 98,7 % | 97 |
 | `calc.notebook` | 285/298 (95,6 %) | 94 | 142/155 (91,6 %) | 90 | 182/200 | 91,0 % | 90 |
 | `calc.persistence` | 860/917 (93,8 %) | 92 | 489/517 (94,6 %) | 93 | 462/526 | 87,8 % | 86 |
@@ -576,7 +578,7 @@ un test a échoué ou a été ignoré. Les identifiants sont stables ; ajouter u
 - Le budget de 100 ms de `InputFuzzProperties` est une mesure de temps : il prend le meilleur de deux essais et suit un échauffement, mais une machine très chargée peut encore l'invalider.
 - Le recalcul d'un carnet hostile est borné par ligne, pas annulable : les neuf formes de lignes lourdes mesurées (E11) restent sous la seconde pour 5000 lignes, mais aucune preuve ne dit qu'aucune forme n'est plus lente.
 - Le modèle de carnet accepte une ligne plus longue que ce que le fichier écrit (16 384 caractères) : l'éditeur (E12) la refuse avec un message (`NotebookPresenterTest`), mais le modèle lui-même ne la borne toujours pas.
-- Les mesures de réactivité de l'éditeur (E12) sont des mesures de temps sur la machine de développement : le budget de 100 ms est contrôlé sur la médiane de 15 essais après échauffement, et la médiane mesurée (14 à 41 ms) laisse une marge d'un facteur 2 à 7 ; une machine de CI très chargée pourrait quand même l'invalider.
+- Les mesures de réactivité de l'éditeur (E12) sont des mesures de temps sur la machine de développement : le budget de 100 ms est contrôlé sur la médiane de 15 essais après échauffement, et la médiane mesurée (14 à 41 ms) laisse une marge d'un facteur 2 à 7 ; une machine de CI très chargée pourrait quand même l'invalider. Ces mesures dépendent aussi de la position de la souris : chaque masquage ou affichage d'un composant fait demander au système quelle fenêtre se trouve sous le curseur (environ 0,2 ms quand ce n'est pas la fenêtre de l'application). Depuis que le badge d'une ligne en cours de calcul reste en place (`ExactnessBadge.blankBadge`), une Entrée n'en masque plus aucun ; souris hors de la fenêtre, la médiane avec mise en page et peinture est d'environ 50 ms à 500 lignes et de 170 à 300 ms à 5000 lignes, au lieu d'environ 270 ms et 2300 ms.
 - L'éditeur n'est pas contrôlé sur un clavier macOS réel ni avec l'apparence Aqua : les touches sont vérifiées par leur liaison dans le champ (avec `Cmd` simulé) et par les apparences installées dans le JDK de la machine.
 - Les générateurs choisissent leurs formes de valeurs : les cas non prévus (autres alphabets d'espaces, très gros nombres de lignes d'historique) ne sont pas couverts. `-Pjqwik.tries.default=20000` élargit la recherche sans rien changer au code.
 - Le modèle de session du présentateur reproduit la règle de la mémoire des champs : une erreur commune au modèle et au présentateur ne serait pas vue ; `CalculatorPresenterTest` la fixe aussi par des exemples.

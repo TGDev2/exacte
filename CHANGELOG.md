@@ -1,56 +1,47 @@
 # Journal des modifications
 
-Ce fichier suit le format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Aucune version n'a encore été publiée :
-tout ce qui suit est dans la prochaine version. Le numéro sera choisi au moment du tag `vX.Y.Z` (voir
-[docs/RELEASE.md](docs/RELEASE.md)).
+Ce fichier suit le format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). La section de chaque version publiée sert
+aussi de notes de version sur GitHub (voir [docs/RELEASE.md](docs/RELEASE.md)).
 
 ## [Non publié]
 
+## [1.0.0] - 2026-11-07
+
 ### Ajouté
 
-- **Un carnet de calcul** comme fenêtre principale : une expression par ligne, avec variables (`prix = 12,5`), `ans` (le
-  dernier résultat) et `$n` (le résultat de la ligne n), commentaires, annuler / rétablir, renumérotation automatique des
-  références quand on insère, déplace ou supprime des lignes, sauvegarde automatique.
-- **Un langage d'expressions** : `+ - * /`, `^`, `√`, parenthèses, virgule ou point décimal, notation scientifique,
-  espaces insécables pour les milliers, messages d'erreur positionnés (la partie fautive est soulignée).
-- **Documents et exports** : fichiers `.calc.json` (menu Fichier : Nouveau, Ouvrir, Enregistrer, Enregistrer sous),
-  exports Markdown et CSV (neutralisation des formules de tableur).
-- **Modes d'affichage** : Auto, Décimal, Fraction, Scientifique, sans recalcul, avec un badge « Exact » / « ≈ Approché ».
-- **Releases multiplateformes** : applications autonomes pour Windows, macOS (puce Apple) et Linux, sommes SHA-256 et
-  nomenclature logicielle CycloneDX, publiées automatiquement sur un tag `vX.Y.Z`.
-- **Fiabilité mesurée et publiée** : couverture de code (JaCoCo) et tests de mutation (PIT) avec des seuils par package,
-  rapport de conformité généré à partir des résultats réels (`gradlew conformityReport`), publié par la CI et joint à chaque
-  release.
-- Documentation : README, [architecture](docs/ARCHITECTURE.md), [guide de l'utilisateur](docs/GUIDE-UTILISATEUR.md),
-  [guide des expressions](docs/GUIDE-EXPRESSIONS.md), [stratégie de test](docs/TESTS.md), décisions d'architecture
-  ([docs/adr](docs/adr/README.md)).
-
-### Modifié
-
-- **Calcul en arrière-plan** : la fenêtre répond pendant le calcul d'un carnet, même de 5000 lignes coûteuses. Une ligne pas
-  encore calculée affiche « Calcul en cours… », la barre d'état compte les lignes, et `Échap` interrompt le calcul quand aucune
-  saisie n'est en cours.
-- **Moteur exact** : les calculs utilisent des fractions exactes (`1 / 3` puis `× 3` redonne exactement `1`) ; une racine
-  non exacte est un intervalle qui contient certainement la vraie valeur, avec sa borne d'erreur. Remplace l'arrondi à
-  12 décimales de la version 1 (écarts justifiés dans [docs/changements-comportement-E06.md](docs/changements-comportement-E06.md)).
-- **Persistance** : le carnet est un fichier JSON versionné (v3) qui ne garde que les textes des lignes ; écriture
-  atomique, verrou pour qu'une seule fenêtre écrive, fichier d'une version plus récente en lecture seule.
-- Le build passe de Maven à Gradle (Kotlin DSL, JDK 21, JUnit 5 et jqwik).
-
-### Supprimé
-
-- L'ancien formulaire à deux champs (deux nombres et une opération) : chacune de ses fonctions a son équivalent dans le
-  carnet (tableau dans [docs/adr/0011-fichiers-dans-l-interface.md](docs/adr/0011-fichiers-dans-l-interface.md)).
+- **Un carnet de calcul** comme fenêtre principale : une expression par ligne, avec des variables (`prix = 12,5`), `ans` (le
+  dernier résultat) et `$n` (le résultat de la ligne n), des commentaires, annuler / rétablir et une sauvegarde automatique.
+  Les références se renumérotent toutes seules quand on insère, déplace ou supprime des lignes.
+- **Des expressions** : `+ - * /`, `^`, `√`, parenthèses, virgule ou point décimal, notation scientifique. Quand une expression
+  est fausse, la partie fautive est soulignée (voir le [guide des expressions](docs/GUIDE-EXPRESSIONS.md)).
+- **Des calculs exacts** : `1 / 3` puis `× 3` redonne exactement `1`. Une racine non exacte est donnée sous forme d'intervalle
+  qui contient certainement la vraie valeur, avec sa marge d'erreur.
+- **Des documents et des exports** : fichiers `.calc.json` (menu Fichier : Nouveau, Ouvrir, Enregistrer, Enregistrer sous),
+  exports Markdown et CSV. Dans le CSV, la neutralisation partielle des formules de tableur ne remplace pas la prudence :
+  n'ouvrez pas dans un tableur un export dont vous ne connaissez pas le contenu.
+- **Des modes d'affichage** : Auto, Décimal, Fraction et Scientifique, sans recalcul, avec un badge « Exact » ou « ≈ Approché ».
+- **Calcul en arrière-plan** : la fenêtre reste utilisable pendant le calcul d'un gros carnet, même de 5000 lignes coûteuses.
+  Une ligne pas encore calculée affiche « Calcul en cours… » et `Échap` interrompt le calcul.
+- **Conversion de l'ancien historique** : au premier lancement après une ancienne version, l'historique est converti en
+  carnet, et une copie de sauvegarde de l'ancien fichier est gardée (voir le [guide de l'utilisateur](docs/GUIDE-UTILISATEUR.md)).
+- **Aide > À propos de Calc** affiche la version de l'application.
+- **Applications pour Windows, macOS (puce Apple) et Linux**, avec Java inclus : rien d'autre à installer (voir le
+  [guide d'installation](docs/INSTALLATION.md)). Des sommes SHA-256 permettent de vérifier chaque fichier téléchargé.
 
 ### Corrigé
 
-- **Une valeur non nulle n'est plus jamais affichée 0.** Une valeur dont le signe n'a pas pu être établi s'affiche `|x| ≤ b`
-  dans tous les modes, à la place de l'ancien texte ; une valeur trop petite pour être encadrée sans toucher 0 est refusée,
-  avec le même message que sa version exacte (`(sqrt(2) / 16) ^ 4096` comme `(1/16) ^ 4096`).
+- **Annuler ne perd plus la saisie en cours** : Annuler retire de la ligne ce qui n'est pas encore validé, et Rétablir le
+  remet. `Échap` reste un abandon définitif.
+- **Une valeur non nulle n'est plus jamais affichée 0.** Quand le signe d'une valeur n'a pas pu être établi, elle s'affiche
+  `|x| ≤ b` ; une valeur trop petite pour être encadrée est refusée avec un message clair.
+- **Une valeur approchée reste dans son intervalle** : `[1,41728 ; 1,58272]` se lit `≈ 1,5… ± 8,3 × 10⁻²`, et non plus `≈ 2…`.
+- **Fichier > Nouveau n'abandonne plus la conversion d'un ancien historique** qui avait échoué : elle reprend au démarrage
+  suivant tant que rien n'a été saisi.
 
 ### Sécurité
 
-- Entrées bornées avant tout calcul (taille des nombres, profondeur, longueur des lignes, taille des fichiers) ; fichiers
-  hostiles refusés avec une cause sans jamais remplacer le fichier existant.
-- Les applications publiées **ne sont pas signées** (Windows SmartScreen et macOS Gatekeeper avertissent au premier
-  lancement) ; les sommes SHA-256 vérifient le fichier, pas son éditeur.
+- Les entrées sont bornées avant tout calcul (taille des nombres, profondeur, longueur des lignes, taille des fichiers) ; un
+  fichier piégé est refusé avec une explication et ne remplace jamais le vôtre.
+- Un fichier écrit par une version plus récente s'ouvre en lecture seule et n'est jamais réécrit.
+- Les applications **ne sont pas signées** : Windows SmartScreen et macOS Gatekeeper affichent un avertissement au premier
+  lancement. Les sommes SHA-256 prouvent que le fichier est intact, pas qui l'a publié.

@@ -170,6 +170,8 @@ final class NotebookRowView extends JPanel {
         resultLabel.getAccessibleContext().setAccessibleDescription(row.description());
         if (row.hasValue()) {
             badge.showExactness(row.status() == Status.EXACT, row.detail());
+        } else if (row.status() == Status.PENDING) {
+            badge.blankBadge();
         } else {
             badge.clearBadge();
         }

@@ -16,7 +16,8 @@ import java.util.Optional;
  *   <li>at most {@link #SIGNIFICANT_DIGITS} significant digits, rounded {@code HALF_UP} on the magnitude and decided
  *       exactly; « … » when the value has more digits than shown;</li>
  *   <li>an approximate value shows « ≈ » and only the digits on which its whole interval agrees, so they are the
- *       correct rounding of the true value;</li>
+ *       correct rounding of the true value; when they agree on no digit, it shows its centre with the fewest significant
+ *       digits that place it inside the interval;</li>
  *   <li>an approximate value whose interval contains 0 has no established sign: it reads « |x| ≤ b » in every mode, where
  *       b is the largest absolute value of its two bounds, rounded up and written like a « ± » bound;</li>
  *   <li>a value that is not zero is never shown as a text that reads 0: the only text that does is the one of the exact
@@ -83,15 +84,9 @@ public final class ValueFormatter {
         if (containsZero(value)) {
             return "0";
         }
-        Rational centre = value.midpoint();
-        int exponent = exponent(centre);
-        for (int digits = 1; ; digits++) {
-            BigDecimal candidate = round(centre, digits - 1 - exponent);
-            if (compare(candidate, value.lower()) >= 0 && compare(candidate, value.upper()) <= 0) {
-                String plain = plain(candidate.stripTrailingZeros());
-                return plain.length() <= MAX_SHORT_DECIMAL_LENGTH ? plain : exactScientific(candidate);
-            }
-        }
+        BigDecimal centre = roughCentre(value);
+        String plain = plain(centre.stripTrailingZeros());
+        return plain.length() <= MAX_SHORT_DECIMAL_LENGTH ? plain : exactScientific(centre);
     }
 
     private static String canonicalExact(Rational value) {
@@ -214,15 +209,14 @@ public final class ValueFormatter {
 
     /**
      * The largest number of digits (at most 12) at which both bounds round to the same number: since rounding at a
-     * fixed position is monotone, every point of the interval rounds to it. When no digit is common, the centre with
-     * one significant digit.
+     * fixed position is monotone, every point of the interval rounds to it. When no digit is common, the rough centre.
      */
     private static Digits approximateDigits(CertifiedValue value) {
         int digits = commonDigits(value);
         if (digits > 0) {
             return new Digits(withoutCarryDigit(round(value.lower(), digits - 1 - magnitudeExponent(value)), digits), false, true);
         }
-        return new Digits(withoutCarryDigit(roughCentre(value), 1), false, true);
+        return new Digits(roughCentre(value), false, true);
     }
 
     // The number of significant digits on which the whole interval agrees, 0 if there is none.
@@ -237,14 +231,24 @@ public final class ValueFormatter {
         return 0;
     }
 
+    /**
+     * The centre with the fewest significant digits that place it between the bounds, an equal bound being inside. The
+     * centre itself lies inside an interval of non-zero width, so a fine enough rounding always lands there.
+     */
     private static BigDecimal roughCentre(CertifiedValue value) {
         Rational centre = value.midpoint();
-        return round(centre, -exponent(centre));
+        int exponent = exponent(centre);
+        for (int digits = 1; ; digits++) {
+            BigDecimal candidate = round(centre, digits - 1 - exponent);
+            if (compare(candidate, value.lower()) >= 0 && compare(candidate, value.upper()) <= 0) {
+                return withoutCarryDigit(candidate, digits);
+            }
+        }
     }
 
     /**
      * What « ± r » has to cover. Digits common to the whole interval are its correct rounding and r is its radius; but a
-     * rough centre may lie far from the centre of the interval, and r then runs from that text to the farther bound. Around
+     * rough centre is rarely the exact centre of the interval, and r then runs from that text to the farther bound. Around
      * 0, r runs from 0: it is the b of « |x| ≤ b ».
      */
     private static Rational errorFromText(CertifiedValue value) {

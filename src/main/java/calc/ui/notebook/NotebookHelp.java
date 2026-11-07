@@ -54,14 +54,20 @@ public final class NotebookHelp {
         return text.toString();
     }
 
+    public static String about(String versionText) {
+        return "Calc\n" + versionText + "\n\n"
+                + "Le calcul et les données restent sur l'ordinateur : rien n'est envoyé sur le réseau.";
+    }
+
     public static String shortcuts(NotebookShortcuts shortcuts) {
         StringBuilder text = new StringBuilder();
         for (NotebookShortcuts.Command command : NotebookShortcuts.Command.values()) {
             text.append(String.format("%-16s", shortcuts.text(command))).append(command.description()).append('\n');
         }
         text.append("\nAnnuler et Rétablir portent sur les modifications validées. La saisie en cours dans une ligne\n"
-                + "s'annule avec Échap (ou avec Annuler, qui l'abandonne d'abord). Sans saisie en cours, Échap interrompt\n"
-                + "le calcul : les lignes restantes le disent, et la commande suivante relance le calcul.");
+                + "s'abandonne avec Échap. Annuler la retire d'abord, et Rétablir la remet tant que rien d'autre n'a changé.\n"
+                + "Sans saisie en cours, Échap interrompt le calcul : les lignes restantes le disent, et la commande suivante\n"
+                + "relance le calcul.");
         return text.toString();
     }
 }

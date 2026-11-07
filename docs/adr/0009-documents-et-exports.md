@@ -65,8 +65,10 @@ end with it (case-insensitively). Everything else is accepted when opening: the 
 - **Open** leaves the autosaved draft untouched: nothing the user typed is lost by opening a file. The draft is then off the
   screen, and a later **New** would replace it, so `wouldLoseWork()` stays true until it has been replaced or saved.
 - **Save as** from the untitled document **promotes** the draft: once the file is written, the draft file is reset to an empty
-  notebook, so the next run does not resurrect a second copy of what the user has just saved.
-- **New** replaces the current document with an empty untitled one and writes it to the draft file. The service reports whether
+  notebook, so the next run does not resurrect a second copy of what the user has just saved (except while a conversion is
+  waiting, see section 7: no draft was written, and an empty one would end it).
+- **New** replaces the current document with an empty untitled one and writes it to the draft file (except while a conversion is
+  waiting, see section 7). The service reports whether
   work would be discarded (`isModified`, or an untitled notebook that is not empty) so that the presenter can ask first.
 - A file written by a newer version is opened **read only** and **never rewritten**, not even by Save to the same path.
 
@@ -106,8 +108,10 @@ At start, in the data directory, under the lock:
 
 `history.json` is not renamed or deleted: the current interface (until E13) still reads it, and the copy is the safety net.
 A migration that fails at any step leaves every source untouched and is tried again at the next start, as long as no current
-notebook has been written in between (the first autosave of a notebook typed after the failure ends the migration for good;
-`history.json` and its copy stay). A history of more than 5000 entries (a notebook holds 5000 lines, the history up to 10 000)
+notebook has been written in between (the first autosave of a notebook with lines typed after the failure ends the migration for
+good, even if the lines are removed later; `history.json` and its copy stay). So that the promise of the status holds, `DocumentService`
+never writes an empty notebook while the migration waits: not for New, a change of mode or the first Save as of the untitled
+document; a write that fails does not end the wait; the store itself is unchanged. A history of more than 5000 entries (a notebook holds 5000 lines, the history up to 10 000)
 converts its newest 5000 and says where the others are (the copy). A second instance (read only) converts in memory and writes nothing.
 
 ### 8. Exports

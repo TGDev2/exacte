@@ -228,7 +228,7 @@ Au démarrage, dans le dossier de données, sous le verrou :
 | il n'existe ni l'un ni l'autre, mais `history.tsv` (version 1) | la chaîne complète : conversion en `history.json` (`history.tsv.v1.bak`), puis comme ci-dessus |
 | une entrée qu'aucune ligne ne peut écrire (opérande approché, opérande plus long qu'une ligne) | une ligne de commentaire `# Historique non converti : ...` qui dit ce qu'était l'entrée |
 | plus de 5000 entrées | les 5000 plus récentes sont converties ; la phrase d'état dit où sont les autres (la copie) |
-| une copie ou une écriture échoue, ou l'historique est illisible ou d'une version plus récente | rien n'est créé ni modifié ; le carnet démarre vide ; nouvel essai au démarrage suivant, tant qu'aucun carnet courant n'a été écrit |
+| une copie ou une écriture échoue, ou l'historique est illisible ou d'une version plus récente | rien n'est créé ni modifié ; le carnet démarre vide ; nouvel essai au démarrage suivant, tant qu'aucun carnet courant n'a été écrit. Pendant cette attente, un carnet vide n'est jamais écrit (Fichier > Nouveau, changement de mode, Enregistrer sous d'un carnet sans titre) ; le premier carnet avec des lignes écrit y met fin, même si ces lignes sont effacées ensuite, et une écriture qui échoue n'y met pas fin |
 | seconde instance (verrou pris) | conversion en mémoire seulement : ni copie, ni écriture |
 
 `history.json` n'est ni renommé ni supprimé : l'interface actuelle le lit encore (jusqu'à E13) et la copie est le filet de sécurité.

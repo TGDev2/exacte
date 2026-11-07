@@ -283,7 +283,11 @@ public final class NotebookFrame extends JFrame {
         keys.setName("shortcutsItem");
         keys.addActionListener(event -> showHelp("Raccourcis clavier", NotebookHelp.shortcuts(shortcuts)));
         items.add(syntax);
+        JMenuItem about = new JMenuItem("À propos de Calc");
+        about.setName("aboutItem");
+        about.addActionListener(event -> showHelp("À propos de Calc", NotebookHelp.about(AppVersion.current())));
         items.add(keys);
+        items.add(about);
         return items;
     }
 
