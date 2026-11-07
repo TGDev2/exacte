@@ -25,6 +25,8 @@ function write() {
 
 async function run() {
   const frame = document.getElementById('page');
+  // Since E05 a first visit shows the example notebook: this driver starts from an empty notebook that was kept.
+  localStorage.setItem('calc.web.notebook.v1', '{"version":1,"mode":"AUTO","lines":[]}');
   await new Promise((resolve) => {
     frame.addEventListener('load', resolve, {once: true});
     frame.src = 'index.html';

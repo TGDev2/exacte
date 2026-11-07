@@ -3,6 +3,26 @@
 Ce fichier suit le format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). La section de chaque version publiée sert
 aussi de notes de version sur GitHub (voir [docs/RELEASE.md](docs/RELEASE.md)).
 
+## Version web (déployée depuis `main`, hors versions numérotées)
+
+La page est publiée par `pages.yml` à chaque `push` sur `main` ([docs/CI.md](docs/CI.md#le-déploiement-de-la-page-pagesyml)) : elle
+n'a pas de numéro de version et n'est pas jointe aux releases.
+
+### Ajouté
+
+- **Calc dans le navigateur** : https://tgdev2.github.io/Calculatrice/. Le même cœur, compilé vers JavaScript par TeaVM sans modifier
+  `src/main/java`, donne le carnet, les références, les variables, les quatre modes d'affichage, annuler et rétablir. Le carnet
+  reste dans le navigateur ([ADR 0015](docs/adr/0015-version-web-teavm.md)).
+- **Une garantie G29** : la version web donne les mêmes résultats que le bureau, comparée sous Node par `webTest` (70 cas du golden,
+  un corpus de 1074 carnets dans les 4 modes), ce qui bloque le déploiement ([docs/TESTS.md](docs/TESTS.md#la-version-web-g29)).
+- **Le rapport de conformité** est servi à côté de la page.
+
+### Limites
+
+- Pas de menu Fichier, de fichiers `.calc.json`, de migration des anciens historiques, de verrou ni d'écriture atomique.
+- Le calcul se fait sur le fil principal : un carnet très lourd peut figer l'onglet.
+- La classification Unicode de TeaVM est complétée pour coller au JDK 21 ; le rapport de conformité ne lit que les résultats de la racine.
+
 ## [Non publié]
 
 ## [1.0.0] - 2026-11-07

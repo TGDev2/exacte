@@ -528,6 +528,39 @@ un test a échoué ou a été ignoré. Les identifiants sont stables ; ajouter u
 | G26 | L'application démarre sur un historique v1, le migre et retrouve son carnet au démarrage suivant | `MainStartupTest` |
 | G27 | Aucune sortie du moteur ne change sans qu'un test de référence le voie (70 cas rejoués) | `GoldenOutputsTest`, `DisplayRulesTest` |
 | G28 | Toute classe jqwik porte l'étiquette `property` ou `robustness` : aucune propriété ne sort silencieusement d'un sous-ensemble | `PropertyTagsTest` |
+| G29 | La version web donne exactement les mêmes résultats que l'application de bureau : même cœur compilé par TeaVM, comparé sous Node par la tâche webTest, qui bloque le déploiement de la page | `WebNotebookAcceptanceTest`, `BigIntegerCompatPropertyTest` |
+
+## La version web (G29)
+
+Le cœur est compilé vers JavaScript par TeaVM ([ADR 0015](adr/0015-version-web-teavm.md)). Deux familles de tests le gardent :
+
+| Tâche | Contenu | Node, navigateur | Dans `check` |
+|---|---|---|---|
+| `test` (racine), `src/test/java/calc/web/` | `WebNotebook` et `ReportPage` sur la JVM, compléments du JDK (`BigIntegerCompat`, `PatternCompat`, `CharacterCompat`), garde de dépendances, workflow, documentation | non | oui |
+| `:web:webTest`, `web/src/webTest/java/` | golden sous Node, parité JVM contre Node, page dans un navigateur sans affichage | oui | non |
+
+`:web:webTest` ne fait pas partie de `check`, qui reste sans Node : `pages.yml` la lance avant tout déploiement, et un écart la fait échouer.
+Elle rejoue sous Node les 70 cas du golden, un carnet d'essai et le corpus de parité.
+
+**Le corpus.** `ParityCorpusWriter` écrit `build/web-parity/corpus.txt` : un carnet par ligne, 1074 en tout (`export`, 23 `hand-*` pour les
+cas Unicode et les limites, 1000 `line-*` tirés de `ExpressionGenerators.lines()`, 50 `notebook-*` de `NotebookGenerators.notebooks(30)`).
+Chaque carnet est rejoué dans les 4 modes d'affichage, sur la JVM par `WebNotebook` et sous Node par `calc.js`. L'égalité porte sur
+l'instantané JSON entier, chaîne contre chaîne : aucune liste de tolérance, aucun cas retiré.
+
+**La graine.** Elle vient de `-PparitySeed` (un `long`) : 20261107 par défaut, `github.run_id` dans `pages.yml`. Une même graine donne un
+corpus identique à l'octet près ; un échec nomme la graine, le carnet, le mode et les deux valeurs, et se rejoue en la repassant :
+
+```powershell
+.\gradlew.bat :web:webTest --tests "*ParityAcceptanceTest" -PparitySeed=10000000000
+```
+
+Mesures (Windows 11, JDK 21, Node v22.14.0, voir [l'essai](essais/teavm-essai.md)) : 0 écart avec les graines 20261107 et 10000000000, `webTest`
+complet en 17 s environ.
+
+**La limite.** Le rapport de conformité ne lit que les résultats de la racine, `build/test-results/test` : les classes de `web/src/webTest`
+écrivent dans `web/build/webtest-results` et ne sont pas lues. G29 ne cite donc que des classes de la racine, et la comparaison sous Node
+elle-même n'est prouvée que par la réussite de `webTest` dans `pages.yml`, pas par le rapport. Un corpus tiré d'une graine fixe n'établit
+pas l'absence d'écart sur toutes les entrées : une autre graine explore d'autres carnets.
 
 ## Défauts trouvés par les propriétés
 

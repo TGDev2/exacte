@@ -66,6 +66,25 @@ tasks.register<Sync>("site") {
     from("site")
     from(tasks.named("generateJavaScript"))
     into(layout.buildDirectory.dir("site"))
+    // The report files are added after this copy: a run with another value of the property, or none, must copy again so
+    // that Sync removes the files of the earlier run.
+    inputs.property("conformityReport", providers.gradleProperty("conformityReport").getOrElse(""))
+}
+
+// With -PconformityReport=<file>, the conformity report joins the site: rapport-conformite.html and rapport-conformite.md.
+// The path is relative to the root of the repository (rootProject.file: a plain file() would look under web/). Without the
+// property, nothing changes: a trial on this machine has no report, and the site holds none.
+if (providers.gradleProperty("conformityReport").isPresent) {
+    val writeReportPage = tasks.register<JavaExec>("writeReportPage") {
+        description = "Adds the conformity report (-PconformityReport=<file>) to build/site."
+        classpath = sourceSets.main.get().runtimeClasspath
+        mainClass = "calc.web.tools.ReportPageMain"
+        args(
+            rootProject.file(providers.gradleProperty("conformityReport").get()).path,
+            layout.buildDirectory.dir("site").get().asFile.path,
+        )
+    }
+    tasks.named("site") { finalizedBy(writeReportPage) }
 }
 
 tasks.register<Test>("webTest") {

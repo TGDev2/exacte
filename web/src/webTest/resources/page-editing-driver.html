@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Page pilote de l'édition au clavier et de la sauvegarde</title>
+</head>
+<body>
+<iframe id="page" title="Page sous test" style="height: 800px; border: 0"></iframe>
+<pre id="result"></pre>
+<script>
+'use strict';
+// Plays a scenario in an iframe of index.html: real keyboard events, button clicks, reloads, a stored notebook put in
+// localStorage first, and a storage that fails. Writes what it observed, as JSON, in <pre id="result">.
+//
+//   ?scenario={"width":1024,"steps":[...]}
+//
+// Steps (the first one has to be a "load"):
+//   {"load":"normal"}      opens index.html; "methods" opens it with Storage.prototype.getItem and setItem that throw, "property"
+//                          with window.localStorage that throws when it is read (both through srcdoc and a <base href>)
+//   {"reload":true}        reloads the iframe, the way the reload button of the browser does
+//   {"store":value}        puts value under calc.web.notebook.v1 in the localStorage of this origin (null removes the key); a
+//                          string is stored as it is, any other value as its JSON text
+//   {"focus":3,"caret":[1,2]}  focuses the field of line 3 and puts the caret there (the end of the text by default)
+//   {"type":"text"}        types in the focused field without validating (an input event)
+//   {"enter":"text","line":4}  focuses a line (the last one by default), types the text and presses Enter
+//   {"key":"ArrowDown","ctrl":true,"shift":true,"meta":false,"alt":false}  keydown then keyup on the focused element
+//   {"click":"Annuler"}    focuses then clicks the button with this text, as a tap does
+//   {"mode":"Fraction"}    picks the option of #display-mode with this label
+//   {"snapshot":"name"}    keeps the state of the page
+// In "store" values and "type" or "enter" texts, {"$repeat":[item,count]} stands for an array and {"$string":[unit,count]} for a
+// string, so that a scenario does not carry 5001 lines in the address.
+//
+// Only the fixed selectors of page-driver.html are used: [data-line="<number>"], input.expression, .result, .badge, .detail,
+// .error, mark, #display-mode and footer; plus #message for the messages, and the buttons by their text.
+
+const KEY = 'calc.web.notebook.v1';
+const WATCHDOG_MS = 19000;
+const STEP_MS = 20;
+const LOAD_MS = 60;
+const SETTLE_MS = 100;
+
+const observed = {error: null, snapshots: {}, keys: [], clicks: [], alerts: 0, confirms: 0, pageErrors: [], loads: 0};
+let finished = false;
+
+function finish() {
+  if (finished) {
+    return;
+  }
+  finished = true;
+  // Pure ASCII, without any character HTML would escape: the test reads the text of the dump as it is.
+  document.getElementById('result').textContent = JSON.stringify(observed).replace(/[^\x20-\x7e]|[<>&]/g,
+      (unit) => '\\u' + unit.charCodeAt(0).toString(16).padStart(4, '0'));
+}
+
+function pause(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function textOf(element) {
+  return element === null ? '' : element.textContent.replace(/\s+/g, ' ').trim();
+}
+
+function isShown(element) {
+  if (element === null || !element.checkVisibility({checkOpacity: true, checkVisibilityCSS: true})) {
+    return false;
+  }
+  const box = element.getBoundingClientRect();
+  return box.width > 0 && box.height > 0 && element.innerText.trim() !== '';
+}
+
+function expand(value) {
+  if (Array.isArray(value)) {
+    return value.map(expand);
+  }
+  if (value !== null && typeof value === 'object') {
+    if ('$repeat' in value) {
+      return Array.from({length: value.$repeat[1]}, () => expand(value.$repeat[0]));
+    }
+    if ('$string' in value) {
+      return value.$string[0].repeat(value.$string[1]);
+    }
+    const copy = {};
+    for (const name of Object.keys(value)) {
+      copy[name] = expand(value[name]);
+    }
+    return copy;
+  }
+  return value;
+}
+
+function frameOf() {
+  return document.getElementById('page');
+}
+
+function docOf() {
+  return frameOf().contentDocument;
+}
+
+function rowOf(row) {
+  const part = (selector) => row.querySelector(selector);
+  const input = part('input.expression');
+  return {
+    line: Number(row.getAttribute('data-line')),
+    value: input === null ? null : input.value,
+    length: input === null ? 0 : input.value.length,
+    result: textOf(part('.result')),
+    badge: textOf(part('.badge')),
+    detail: textOf(part('.detail')),
+    error: textOf(part('.error')),
+    marks: Array.from(row.querySelectorAll('mark'), (mark) => mark.textContent),
+  };
+}
+
+function fieldOfLine(number) {
+  const row = docOf().querySelector('[data-line="' + number + '"]');
+  const input = row === null ? null : row.querySelector('input.expression');
+  if (input === null) {
+    throw new Error('la ligne ' + number + ' n\'a pas de input.expression');
+  }
+  return input;
+}
+
+function lastLineNumber() {
+  const lines = docOf().querySelectorAll('[data-line]');
+  if (lines.length === 0) {
+    throw new Error('la page ne montre aucune ligne [data-line]');
+  }
+  return Number(lines[lines.length - 1].getAttribute('data-line'));
+}
+
+function activeField() {
+  const active = docOf().activeElement;
+  return active !== null && active.matches('input.expression') ? active : null;
+}
+
+function readState() {
+  const doc = docOf();
+  const win = frameOf().contentWindow;
+  const select = doc.getElementById('display-mode');
+  const active = activeField();
+  const messages = Array.from(doc.querySelectorAll('#message, [role="status"], [role="alert"]'))
+      .filter(isShown).map(textOf);
+  return {
+    rows: Array.from(doc.querySelectorAll('[data-line]'), rowOf),
+    messages: messages,
+    mode: select === null ? null : select.value,
+    modeLabel: select === null || select.selectedIndex < 0 ? null : textOf(select.options[select.selectedIndex]),
+    active: active === null ? null : {
+      line: Number(active.closest('[data-line]').getAttribute('data-line')),
+      start: active.selectionStart,
+      end: active.selectionEnd,
+    },
+    activeTag: doc.activeElement === null ? null : doc.activeElement.tagName,
+    buttons: Array.from(doc.querySelectorAll('button'), (button) => {
+      const box = button.getBoundingClientRect();
+      return {
+        text: textOf(button), disabled: button.disabled, shown: isShown(button),
+        width: box.width, height: box.height, right: box.right,
+      };
+    }),
+    stored: localStorage.getItem(KEY),
+    layout: {
+      innerWidth: win.innerWidth,
+      scrollWidth: doc.documentElement.scrollWidth,
+      clientWidth: doc.documentElement.clientWidth,
+    },
+  };
+}
+
+function watchThePage() {
+  const win = frameOf().contentWindow;
+  win.alert = () => {
+    observed.alerts += 1;
+  };
+  win.prompt = win.alert;
+  // A page that asks before clearing the notebook is answered "yes": the scenarios do not depend on the question.
+  win.confirm = () => {
+    observed.confirms += 1;
+    return true;
+  };
+  win.addEventListener('error', (event) => observed.pageErrors.push(String(event.message)));
+  win.addEventListener('unhandledrejection', (event) => observed.pageErrors.push(String(event.reason)));
+}
+
+async function afterLoad() {
+  await pause(LOAD_MS);
+  const win = frameOf().contentWindow;
+  win.focus();
+  watchThePage();
+  observed.loads += 1;
+}
+
+function waitForLoad(start) {
+  return new Promise((resolve) => {
+    frameOf().addEventListener('load', resolve, {once: true});
+    start();
+  });
+}
+
+// Replaces what the page reads from the storage, before any script of the page runs.
+const BREAKING = {
+  methods: 'Storage.prototype.getItem = function () { throw new Error("getItem refuse"); };'
+    + 'Storage.prototype.setItem = function () { throw new Error("setItem refuse"); };',
+  property: 'Object.defineProperty(window, "localStorage", {configurable: true, get() {'
+    + ' throw new DOMException("acces refuse", "SecurityError"); }});',
+};
+
+async function load(kind) {
+  const frame = frameOf();
+  if (kind === 'normal') {
+    frame.removeAttribute('srcdoc');
+    await waitForLoad(() => {
+      frame.src = 'index.html';
+    });
+  } else if (kind in BREAKING) {
+    const answer = await fetch('index.html', {cache: 'no-store'});
+    if (!answer.ok) {
+      throw new Error('index.html : HTTP ' + answer.status);
+    }
+    const source = await answer.text();
+    const injected = '<head><base href="' + location.origin + '/"><script>' + BREAKING[kind] + '<\/script>';
+    if (!source.includes('<head>')) {
+      throw new Error('index.html n\'a pas de <head> a completer');
+    }
+    await waitForLoad(() => {
+      frame.srcdoc = source.replace('<head>', injected);
+    });
+  } else {
+    throw new Error('load inconnu : ' + kind);
+  }
+  await afterLoad();
+}
+
+async function reload() {
+  await waitForLoad(() => frameOf().contentWindow.location.reload());
+  await afterLoad();
+}
+
+function store(value) {
+  if (value === null) {
+    localStorage.removeItem(KEY);
+  } else if (typeof value === 'string') {
+    localStorage.setItem(KEY, value);
+  } else {
+    localStorage.setItem(KEY, JSON.stringify(expand(value)));
+  }
+}
+
+function focusLine(number, caret) {
+  const input = fieldOfLine(number);
+  input.focus();
+  const end = input.value.length;
+  if (caret) {
+    input.setSelectionRange(caret[0], caret[1]);
+  } else {
+    input.setSelectionRange(end, end);
+  }
+}
+
+function typeInActive(text) {
+  const input = activeField();
+  if (input === null) {
+    throw new Error('type : aucun champ n\'a le focus');
+  }
+  input.value = text;
+  input.dispatchEvent(new (frameOf().contentWindow.Event)('input', {bubbles: true}));
+}
+
+// What a browser does: keydown goes to the focused element, the keyup to whatever holds the focus by then.
+function press(step) {
+  const win = frameOf().contentWindow;
+  const doc = docOf();
+  const init = (key) => ({
+    key: key, code: key.length === 1 ? 'Key' + key.toUpperCase() : key, bubbles: true, cancelable: true,
+    ctrlKey: !!step.ctrl, shiftKey: !!step.shift, metaKey: !!step.meta, altKey: !!step.alt,
+  });
+  const target = () => (doc.activeElement && doc.activeElement.isConnected ? doc.activeElement : doc.body);
+  const down = new win.KeyboardEvent('keydown', init(step.key));
+  target().dispatchEvent(down);
+  observed.keys.push({
+    name: [step.ctrl ? 'ctrl' : null, step.meta ? 'meta' : null, step.shift ? 'shift' : null, step.alt ? 'alt' : null, step.key]
+        .filter((part) => part !== null).join('+'),
+    prevented: down.defaultPrevented,
+  });
+  target().dispatchEvent(new win.KeyboardEvent('keyup', init(step.key)));
+}
+
+function buttonNamed(label) {
+  const found = Array.from(docOf().querySelectorAll('button')).filter((button) => textOf(button) === label);
+  if (found.length !== 1) {
+    throw new Error(found.length + ' bouton(s) avec le texte ' + label);
+  }
+  return found[0];
+}
+
+function click(label) {
+  const button = buttonNamed(label);
+  observed.clicks.push({label: label, disabled: button.disabled});
+  // A tap puts the focus on the button, which makes the field lose it: the page has to remember its line.
+  button.focus();
+  button.click();
+}
+
+async function chooseMode(label) {
+  const win = frameOf().contentWindow;
+  const select = docOf().getElementById('display-mode');
+  if (select === null) {
+    throw new Error('la page n\'a pas de #display-mode');
+  }
+  const option = Array.from(select.options).find((candidate) => textOf(candidate) === label);
+  if (option === undefined) {
+    throw new Error('#display-mode ne propose pas ' + label);
+  }
+  select.value = option.value;
+  select.dispatchEvent(new win.Event('input', {bubbles: true}));
+  select.dispatchEvent(new win.Event('change', {bubbles: true}));
+}
+
+async function enter(step) {
+  const number = 'line' in step ? step.line : lastLineNumber();
+  focusLine(number);
+  typeInActive(expand(step.enter));
+  press({key: 'Enter'});
+  // The key of this step is a way to type, not a shortcut under test.
+  observed.keys.pop();
+}
+
+async function play(step) {
+  if ('load' in step) {
+    await load(step.load);
+  } else if ('reload' in step) {
+    await reload();
+  } else if ('store' in step) {
+    store(step.store);
+  } else if ('focus' in step) {
+    focusLine(step.focus, step.caret);
+  } else if ('type' in step) {
+    typeInActive(expand(step.type));
+  } else if ('enter' in step) {
+    await enter(step);
+  } else if ('key' in step) {
+    press(step);
+  } else if ('click' in step) {
+    click(step.click);
+  } else if ('mode' in step) {
+    await chooseMode(step.mode);
+  } else if ('snapshot' in step) {
+    await pause(SETTLE_MS);
+    observed.snapshots[step.snapshot] = readState();
+    return;
+  } else {
+    throw new Error('étape inconnue : ' + JSON.stringify(step));
+  }
+  await pause(STEP_MS);
+}
+
+async function run() {
+  const scenario = JSON.parse(new URLSearchParams(location.search).get('scenario'));
+  frameOf().style.width = (scenario.width || 1024) + 'px';
+  localStorage.clear();
+  for (const step of scenario.steps) {
+    await play(step);
+  }
+  await pause(SETTLE_MS);
+}
+
+setTimeout(() => {
+  observed.error = observed.error || 'pas de constat au bout de ' + WATCHDOG_MS + ' ms';
+  finish();
+}, WATCHDOG_MS);
+
+run().catch((failure) => {
+  observed.error = String(failure);
+}).finally(finish);
+</script>
+</body>
+</html>
