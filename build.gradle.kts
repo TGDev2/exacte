@@ -440,3 +440,37 @@ tasks.register<JavaExec>("releaseNotes") {
     // The changelog is read at the root of the repository, wherever Gradle was started.
     workingDir = projectDir
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
+// The files of a release: the six files in a folder, their checksums and contents, and the evidence of a trial.
+// Normally run by tools/release/verify-release.sh, which downloads the files and fills in the properties below.
+//
+// The tool lives in the test source set (src/test/java/calc/release), so it is tested and never shipped. ADR 0012.
+// ---------------------------------------------------------------------------------------------------------------------
+
+tasks.register<JavaExec>("verifyReleaseFiles") {
+    group = "verification"
+    description = "Checks the release files of -PreleaseDir for -PappVersion and writes the evidence to -PevidenceFile."
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass = "calc.release.ReleaseFilesCheck"
+    javaLauncher = javaToolchains.launcherFor(java.toolchain)
+    val versionText = project.version.toString()
+    // Read when the task runs: a build that does not run this task needs none of these properties.
+    val values = listOf(
+        "releaseDir",
+        "releaseTag",
+        "releaseRun",
+        "releaseCommit",
+        "releasePrerelease",
+        "releaseNotesLink",
+        "windowsStarted",
+        "evidenceFile",
+    ).associateWith { providers.gradleProperty(it) }
+    doFirst {
+        val missing = values.filterValues { !it.isPresent }.keys
+        require(missing.isEmpty()) { "verifyReleaseFiles needs these properties: ${missing.joinToString { "-P$it" }}" }
+        val given = values.values.map { it.get() }
+        args(listOf(given[0], versionText) + given.drop(1))
+    }
+    workingDir = projectDir
+}
