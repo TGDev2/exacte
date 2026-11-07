@@ -24,6 +24,7 @@ import org.teavm.jso.JSExport;
  */
 public final class WebExports {
     private static final String NO_OPERATION = "(none)";
+    private static final String[] PARITY_MODES = {"AUTO", "DECIMAL", "FRACTION", "SCIENTIFIC"};
     private static final WebNotebook NOTEBOOK = new WebNotebook();
 
     private WebExports() {
@@ -112,6 +113,21 @@ public final class WebExports {
         } catch (CalculationException exception) {
             return "ERROR\t" + exception.getMessage() + "\t";
         }
+    }
+
+    /**
+     * What the differential test compares with the JVM: a new notebook, so that the one of the page stays as it is, then
+     * its snapshots in the modes AUTO, DECIMAL, FRACTION and SCIENTIFIC, joined by line feeds.
+     */
+    @JSExport
+    public static String parityNotebook(String lines) {
+        WebNotebook notebook = new WebNotebook();
+        notebook.load(lines, PARITY_MODES[0]);
+        List<String> snapshots = new ArrayList<>();
+        for (String mode : PARITY_MODES) {
+            snapshots.add(notebook.setMode(mode));
+        }
+        return String.join("\n", snapshots);
     }
 
     /**

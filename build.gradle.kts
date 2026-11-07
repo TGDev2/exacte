@@ -479,3 +479,17 @@ tasks.register<JavaExec>("verifyReleaseFiles") {
     }
     workingDir = projectDir
 }
+
+// The corpus of the differential test of the web version. A CI run passes github.run_id as -PparitySeed.
+val paritySeedValue = providers.gradleProperty("paritySeed").orElse("20261107").get()
+val parityCorpusPath = layout.buildDirectory.file("web-parity/corpus.txt").get().asFile.path
+extra["paritySeedValue"] = paritySeedValue
+extra["parityCorpusPath"] = parityCorpusPath
+
+tasks.register<JavaExec>("writeParityCorpus") {
+    description = "Writes the notebooks that the JVM and Node replay: build/web-parity/corpus.txt, from -PparitySeed."
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass = "calc.expression.ParityCorpusWriter"
+    defaultCharacterEncoding = "UTF-8"
+    args(parityCorpusPath, paritySeedValue)
+}

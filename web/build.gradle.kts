@@ -67,7 +67,9 @@ tasks.register<Test>("webTest") {
     reports.junitXml.outputLocation = layout.buildDirectory.dir("webtest-results")
     binaryResultsDirectory = layout.buildDirectory.dir("webtest-results/binary")
     systemProperty("calc.web.browser.required", providers.gradleProperty("requireBrowser").orElse("false").get())
-    dependsOn("generateJavaScript", ":cyclonedxBom")
+    systemProperty("calc.web.parity.seed", rootProject.extra["paritySeedValue"]!!)
+    systemProperty("calc.web.parity.corpus", rootProject.extra["parityCorpusPath"]!!)
+    dependsOn("generateJavaScript", ":cyclonedxBom", ":writeParityCorpus")
     testLogging {
         events("failed", "skipped")
         exceptionFormat = TestExceptionFormat.FULL
