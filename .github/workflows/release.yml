@@ -179,11 +179,9 @@ jobs:
       PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
       EVENT: ${{ github.event_name }}
     steps:
-      # The full history is needed for the release notes (commits since the previous tag).
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
           # The write token must not stay in the git configuration while Gradle runs.
           persist-credentials: false
 
@@ -238,30 +236,11 @@ jobs:
           sha256sum Calc-* > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
+      # The notes are the section of this version in CHANGELOG.md; the step fails if the section is missing or empty.
       - name: Write the release notes
         run: |
-          if [ "$EVENT" = "push" ]; then
-            base="${TAG}^"
-          else
-            base=HEAD
-          fi
-          previous=$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' "$base" 2>/dev/null || true)
-          {
-            if [ -n "$previous" ]; then
-              echo "## Changes since $previous"
-              echo
-              git log --no-merges --pretty='- %s (%h)' "${previous}..${GITHUB_SHA}"
-            else
-              echo "## First release: the 30 latest changes"
-              echo
-              git log --no-merges -n 30 --pretty='- %s (%h)' "${GITHUB_SHA}"
-            fi
-            echo
-            echo "## Vérifier et ouvrir"
-            echo
-            echo "Les sommes SHA-256 de chaque fichier sont dans \`SHA256SUMS.txt\`. Les applications ne sont **pas signées** : Windows SmartScreen et macOS Gatekeeper affichent un avertissement au premier lancement. La marche à suivre est dans [docs/RELEASE.md](https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_SHA}/docs/RELEASE.md)."
-          } > release-notes.md
-          cat release-notes.md
+          ./gradlew releaseNotes "-PappVersion=$VERSION" --console=plain
+          cat build/release-notes.md
 
       - name: Create the GitHub Release
         # The token is given to this step only, after Gradle has run.
@@ -279,5 +258,5 @@ jobs:
           gh release create "$TAG" "${flags[@]}" \
             --target "$GITHUB_SHA" \
             --title "$title" \
-            --notes-file release-notes.md \
+            --notes-file build/release-notes.md \
             release/Calc-* release/SHA256SUMS.txt
