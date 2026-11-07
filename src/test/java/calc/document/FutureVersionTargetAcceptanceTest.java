@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import calc.document.DocumentException.Kind;
 import calc.engine.AtomicFileWriter;
@@ -12,6 +14,7 @@ import calc.format.DisplayMode;
 import calc.notebook.NotebookCommand;
 import calc.persistence.NotebookCodec;
 import calc.persistence.NotebookStore;
+import calc.testing.CaseSensitivity;
 import calc.testing.NotebookGenerators;
 import calc.ui.DisplayModeStore;
 import calc.ui.StatusTone;
@@ -215,11 +218,33 @@ class FutureVersionTargetAcceptanceTest {
 
         assertEquals(Kind.READ_ONLY_VERSION, assertThrows(DocumentException.class, () -> service.saveAs(documents.resolve("devis"))).kind());
         assertEquals(Kind.READ_ONLY_VERSION,
-                assertThrows(DocumentException.class, () -> service.saveAs(documents.resolve("sub").resolve("..").resolve("DEVIS.CALC.JSON"))).kind(),
-                "nor does a path that goes around, or the case of the name where the system ignores it");
+                assertThrows(DocumentException.class, () -> service.saveAs(documents.resolve("sub").resolve("..").resolve("devis.calc.json"))).kind(),
+                "nor does a path that goes around, on every system");
         assertEquals(0, moves.get());
         assertSameSnapshot(before, snapshot(), "refused");
         assertEquals(FUTURE_99, Files.readString(target, StandardCharsets.UTF_8));
+
+        // Only a folder that ignores the case of names takes the name in capitals for the future file.
+        assumeTrue(CaseSensitivity.ignoresCase(documents), "this system tells devis.calc.json and DEVIS.CALC.JSON apart");
+        assertEquals(Kind.READ_ONLY_VERSION,
+                assertThrows(DocumentException.class, () -> service.saveAs(documents.resolve("sub").resolve("..").resolve("DEVIS.CALC.JSON"))).kind(),
+                "nor does the case of the name, where the system ignores it");
+        assertEquals(0, moves.get());
+        assertSameSnapshot(before, snapshot(), "refused");
+        assertEquals(FUTURE_99, Files.readString(target, StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void theCapitalsVariantOfTheNameLeavesAFutureFileAloneWhereTheSystemKeepsCase() throws Exception {
+        assumeFalse(CaseSensitivity.ignoresCase(documents), "this system takes DEVIS.CALC.JSON for devis.calc.json: refused above");
+        Path target = future("devis.calc.json", FUTURE_99);
+        DocumentService service = prepare(Situation.UNTITLED_WITH_CONTENT);
+
+        Path written = service.saveAs(documents.resolve("DEVIS.CALC.JSON"));
+
+        assertEquals("DEVIS.CALC.JSON", written.getFileName().toString());
+        assertEquals(FUTURE_99, Files.readString(target, StandardCharsets.UTF_8), "another file: the future one is intact");
+        assertEquals(List.of("a = 2", "a * 3"), NotebookCodec.read(written).notebook().texts());
     }
 
     @Test
