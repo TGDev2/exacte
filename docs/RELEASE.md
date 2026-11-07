@@ -51,7 +51,17 @@ sur un autre commit).
 
 Onglet **Actions** → **Release** → **Run workflow**, saisir une version de test (par exemple `1.0.0`). Le workflow construit les
 mêmes fichiers et crée une **pré-release** nommée `test-vX.Y.Z-<numéro d'exécution>` (aucun tag `vX.Y.Z` n'est créé, donc aucune
-exécution en cascade). La version saisie doit avoir sa section `## [X.Y.Z]` dans `CHANGELOG.md` : les notes de l'essai en viennent aussi, et une version sans section fait échouer le workflow (c'est voulu). Après vérification, supprimer la pré-release et son tag :
+exécution en cascade). La version saisie doit avoir sa section `## [X.Y.Z]` dans `CHANGELOG.md` : les notes de l'essai en viennent aussi, et une version sans section fait échouer le workflow (c'est voulu).
+
+Pour contrôler ce que l'essai a publié, lancer depuis la racine du dépôt, sous Windows avec le bash de Git for Windows :
+
+```bash
+bash tools/release/verify-release.sh <tag> <run> <fichier>
+```
+
+`<tag>` est le nom de la pré-release, `<run>` l'identifiant de l'exécution du workflow (celui de son adresse, pas son numéro) et `<fichier>` le fichier JSON de preuve à écrire. Le script télécharge les pièces dans un dossier temporaire et contrôle les six fichiers, les sommes, le SBOM, le rapport, la version dans les trois archives, le statut de pré-version et le lien vers le guide d'installation dans les notes. Il lance aussi l'application Windows pendant 5 secondes, avec un `APPDATA` temporaire. Quand un contrôle échoue, la preuve est écrite avec `result: failed` et le script sort en erreur ; ailleurs que sous Windows, le démarrage ne peut pas être prouvé et l'essai échoue donc toujours. Il ne supprime jamais une release ni un tag.
+
+Après vérification, supprimer la pré-release et son tag :
 
 ```bash
 gh release delete test-v1.0.0-12 --cleanup-tag --yes
