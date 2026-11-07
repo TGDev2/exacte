@@ -105,21 +105,21 @@
     return input.dataset.validated !== undefined && input.value !== input.dataset.validated;
   }
 
-  // A row is kept from one display to the next, so that the field being typed in keeps its focus and its caret, and a
-  // text not yet validated is not written over by a change of mode.
-  function fill(row, line) {
+  // A row is kept from one display to the next, so that the field being typed in keeps its focus and its caret. The field
+  // then shows the text the notebook holds, which is also the text Escape brings back: every command validates what was
+  // typed before it runs. A change of mode is the exception (`keepTyped`): it validates nothing, so the focused field
+  // keeps what is typed in it.
+  function fill(row, line, keepTyped) {
     const number = row.firstElementChild;
     const input = number.nextElementSibling;
     row.setAttribute('data-line', String(line.number));
     row.setAttribute('data-status', line.status);
     number.textContent = String(line.number);
     input.setAttribute('aria-label', 'Ligne ' + line.number);
-    if (!(input === document.activeElement && isPending(input))) {
-      if (input.value !== line.text) {
-        input.value = line.text;
-      }
-      input.dataset.validated = line.text;
+    if (input.value !== line.text && !(keepTyped && input === document.activeElement)) {
+      input.value = line.text;
     }
+    input.dataset.validated = line.text;
     while (input.nextSibling !== null) {
       input.nextSibling.remove();
     }
@@ -149,7 +149,7 @@
   // text is then the text of a line that is gone, not one to validate.
   let drawing = false;
 
-  function render() {
+  function render(keepTyped) {
     modeSelect.value = current.mode;
     const lines = current.lines.concat(draftLine(current.lines.length + 1));
     drawing = true;
@@ -157,7 +157,7 @@
       linesElement.lastElementChild.remove();
     }
     lines.forEach((line, index) => {
-      fill(linesElement.children[index] || linesElement.appendChild(newRow()), line);
+      fill(linesElement.children[index] || linesElement.appendChild(newRow()), line, keepTyped);
     });
     drawing = false;
     inputOf(lines.length).placeholder = current.lines.length === 0 ? '(1/3)*3 puis Entrée' : '';
@@ -256,7 +256,7 @@
   // ---- Commands ------------------------------------------------------------------------------------------------------
 
   // False when the core refuses: the notebook did not change, and the field keeps what was typed so it can be corrected.
-  function apply(answer) {
+  function apply(answer, keepTyped) {
     const snapshot = JSON.parse(answer);
     if (snapshot.message !== null) {
       showMessage(snapshot.message);
@@ -267,7 +267,7 @@
       notice = '';
     }
     save();
-    render();
+    render(keepTyped === true);
     return true;
   }
 
@@ -279,7 +279,14 @@
     return text === line.text || apply(calc.edit(number, text));
   }
 
+  // A field left for the Annuler or Rétablir button with a text not yet validated: a tap moves the focus to the button
+  // first, and leaving the field must not validate the text the button is about to take out or to keep.
+  let heldField = null;
+
   function pendingField() {
+    if (heldField !== null && heldField.isConnected && isPending(heldField)) {
+      return heldField;
+    }
     const active = document.activeElement;
     return active !== null && active.matches('input.expression') && isPending(active) ? active : null;
   }
@@ -349,6 +356,7 @@
   // Like the desktop: undo takes the text not yet validated out first, and only then a command of the notebook.
   function undo(withFocus) {
     const field = pendingField();
+    heldField = null;
     if (field !== null) {
       field.value = field.dataset.validated;
       return;
@@ -360,8 +368,14 @@
 
   // Refused while a text is not validated, so that typing is never written over.
   function redo(withFocus) {
-    if (pendingField() !== null) {
+    const field = pendingField();
+    heldField = null;
+    if (field !== null) {
       showMessage('Validez la saisie en cours (Entrée) ou annulez-la (Échap) avant de rétablir.');
+      // The text stays to be validated or abandoned, in its field.
+      if (field !== document.activeElement) {
+        field.focus();
+      }
       return;
     }
     if (apply(calc.redo()) && withFocus) {
@@ -370,7 +384,7 @@
   }
 
   function nextMode() {
-    apply(calc.setMode(MODES[(MODES.indexOf(current.mode) + 1) % MODES.length]));
+    apply(calc.setMode(MODES[(MODES.indexOf(current.mode) + 1) % MODES.length]), true);
   }
 
   function clearNotebook() {
@@ -463,7 +477,19 @@
     }
   });
 
+  // A field held for Annuler or Rétablir is validated after all when the focus goes anywhere else.
+  function releaseHeldField() {
+    const field = heldField;
+    heldField = null;
+    if (field !== null && field.isConnected && isPending(field)) {
+      validate(numberOf(field), field.value);
+    }
+  }
+
   document.addEventListener('focusin', (event) => {
+    if (heldField !== null && event.target !== undoButton && event.target !== redoButton) {
+      releaseHeldField();
+    }
     if (event.target.matches('input.expression')) {
       setCurrentLine(numberOf(event.target));
     }
@@ -471,13 +497,18 @@
 
   // Leaving a line validates it too. Nothing happens when Enter has just done so: the text is already the one of the line.
   linesElement.addEventListener('focusout', (event) => {
-    if (!drawing && event.target.matches('input.expression')) {
-      validate(numberOf(event.target), event.target.value);
+    if (drawing || !event.target.matches('input.expression')) {
+      return;
     }
+    if ((event.relatedTarget === undoButton || event.relatedTarget === redoButton) && isPending(event.target)) {
+      heldField = event.target;
+      return;
+    }
+    validate(numberOf(event.target), event.target.value);
   });
 
   modeSelect.addEventListener('change', () => {
-    apply(calc.setMode(modeSelect.value));
+    apply(calc.setMode(modeSelect.value), true);
   });
 
   start();
