@@ -59,4 +59,25 @@ class WidgetsTest {
         assertFalse(badge.isVisible());
         assertEquals("", badge.getText());
     }
+
+    @Test
+    void aBlankBadgePaintsNothingAndKeepsItsVisibility() {
+        ExactnessBadge badge = new ExactnessBadge();
+        badge.blankBadge();
+        assertFalse(badge.isVisible(), "No result yet and no badge before: it stays hidden.");
+
+        badge.showExactness(false, "Erreur maximale : ± 2,1 × 10⁻²⁵");
+        badge.blankBadge();
+        assertTrue(badge.isVisible(), "Another result is coming: no hide, no show.");
+        assertEquals("", badge.getText());
+        assertNull(badge.getToolTipText());
+        assertFalse(badge.isOpaque(), "No coloured box without a text.");
+        assertNull(badge.getBorder());
+        assertEquals("Exactitude du résultat", badge.getAccessibleContext().getAccessibleName());
+        assertEquals("Aucun résultat", badge.getAccessibleContext().getAccessibleDescription());
+
+        badge.showExactness(true, "");
+        assertTrue(badge.isOpaque(), "The box of the badge comes back with its text.");
+        assertEquals("Exact", badge.getText());
+    }
 }

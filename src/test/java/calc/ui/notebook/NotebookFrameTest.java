@@ -20,12 +20,15 @@ import java.awt.FocusTraversalPolicy;
 import java.awt.GraphicsEnvironment;
 import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import javax.swing.Action;
 import javax.swing.JComponent;
 import javax.swing.JMenu;
@@ -199,6 +202,32 @@ class NotebookFrameTest {
     }
 
     // ------------------------------------------------------------------------------------------------ results
+
+    // Each hide or show of a component makes AWT ask the system which window is under the mouse (0,2 ms when it is not over this
+    // window), so one hide and one show per row made Enter five times slower as soon as the mouse left the window.
+    @Test
+    @DisplayName("un recalcul ne masque aucun badge : chaque ligne reste en place jusqu'à son nouveau résultat")
+    void aRecalculationNeverHidesTheBadgeOfARowThatKeepsAValue() throws Exception {
+        typeLine("a = 2");
+        typeLine("a * 3");
+        AtomicInteger hidden = new AtomicInteger();
+        runOnEdt(() -> frame.row(1).badge.addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentHidden(ComponentEvent event) {
+                hidden.incrementAndGet();
+            }
+        }));
+
+        press(KeyEvent.VK_UP, 0);
+        press(KeyEvent.VK_UP, 0);
+        typeLine("a = 10");
+        runOnEdt(() -> { }); // the events of a hide are delivered after the calculation
+
+        assertEquals(List.of("10", "30", ""), results());
+        assertEquals(0, hidden.get(), "the badge of line 2 was hidden during the recalculation");
+        assertTrue(frame.row(1).badge.isVisible());
+        assertEquals(ExactnessBadge.EXACT_TEXT, frame.row(1).badge.getText());
+    }
 
     @Test
     @DisplayName("badge et info-bulle d'exactitude sur √2, exact sur un décimal")

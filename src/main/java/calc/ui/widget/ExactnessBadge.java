@@ -19,7 +19,6 @@ public final class ExactnessBadge extends JLabel {
 
     public ExactnessBadge() {
         super("", SwingConstants.CENTER);
-        setOpaque(true);
         clearBadge();
     }
 
@@ -28,6 +27,7 @@ public final class ExactnessBadge extends JLabel {
         String text = exact ? EXACT_TEXT : APPROXIMATE_TEXT;
         Color foreground = exact ? Palette.EXACT_FOREGROUND : Palette.APPROXIMATE_FOREGROUND;
         setText(text);
+        setOpaque(true);
         setForeground(foreground);
         setBackground(exact ? Palette.EXACT_BACKGROUND : Palette.APPROXIMATE_BACKGROUND);
         setBorder(border(foreground));
@@ -39,9 +39,20 @@ public final class ExactnessBadge extends JLabel {
 
     /** Hides the badge: there is no result to qualify. */
     public void clearBadge() {
-        setText("");
-        setToolTipText(null);
+        blankBadge();
         setVisible(false);
+    }
+
+    /**
+     * Paints nothing while a result is being calculated, without changing the visibility: the result usually brings a badge back
+     * at once, and each hide or show makes AWT ask the system which window is under the mouse. With one hide and one show per row,
+     * that cost dominated the update of a long notebook as soon as the mouse left the window.
+     */
+    public void blankBadge() {
+        setText("");
+        setOpaque(false);
+        setBorder(null);
+        setToolTipText(null);
         getAccessibleContext().setAccessibleName(NAME);
         getAccessibleContext().setAccessibleDescription("Aucun résultat");
     }
