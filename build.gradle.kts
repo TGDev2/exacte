@@ -34,6 +34,8 @@ dependencies {
     // the one managed by the junit-bom above.
     testImplementation("net.jqwik:jqwik:1.10.2")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    // The JVM tests of calc.web. Not transitive: calc.jar must not come twice on the test classpath.
+    testImplementation(project(":web")) { isTransitive = false }
 }
 
 application {
@@ -403,6 +405,9 @@ tasks.cyclonedxDirectBom {
     includeConfigs = listOf("runtimeClasspath")
     projectType = org.cyclonedx.model.Component.Type.APPLICATION
 }
+
+// :web is not part of what the application ships, and its classpath holds the TeaVM compiler: the aggregate leaves it out.
+project(":web").tasks.matching { it.name == "cyclonedxDirectBom" }.configureEach { enabled = false }
 
 // One JSON file is enough for the release (the XML twin is not published).
 tasks.withType<org.cyclonedx.gradle.CyclonedxDirectTask>().configureEach {
