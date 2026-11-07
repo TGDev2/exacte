@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import calc.testing.DecimalGenerators;
 import calc.testing.TextGenerators;
+import calc.testing.TimingBudget;
+import java.util.concurrent.TimeUnit;
 import net.jqwik.api.Arbitraries;
 import net.jqwik.api.Arbitrary;
 import net.jqwik.api.ForAll;
@@ -116,7 +118,7 @@ class InputFuzzProperties {
         CalculationException refusal = null;
         long best = Long.MAX_VALUE;
         // Best of two: a garbage collection or a scheduling pause must not fail a property that is not about speed.
-        for (int attempt = 0; attempt < 2 && best >= BUDGET_NANOS; attempt++) {
+        for (int attempt = 0; attempt < 2 && best >= TimingBudget.scaled(BUDGET_NANOS); attempt++) {
             long start = System.nanoTime();
             try {
                 CalculationRecord record = engine.calculate(operation, first, second);
@@ -129,7 +131,7 @@ class InputFuzzProperties {
             }
             best = Math.min(best, System.nanoTime() - start);
         }
-        assertTrue(best < BUDGET_NANOS, "Took " + best / 1_000_000 + " ms for " + operation + " " + abbreviate(first) + " " + abbreviate(second));
+        TimingBudget.assertWithin(operation + " " + abbreviate(first) + " " + abbreviate(second), best, BUDGET_NANOS, TimeUnit.NANOSECONDS);
         return refusal;
     }
 

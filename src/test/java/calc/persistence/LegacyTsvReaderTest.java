@@ -4,6 +4,7 @@ import calc.engine.CalculationHistoryStore;
 import calc.engine.HistoryLoadResult;
 import calc.engine.RejectedLine;
 import calc.persistence.LegacyTsvReader.LegacyHistory;
+import calc.testing.TimingBudget;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -14,7 +15,6 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class LegacyTsvReaderTest {
@@ -150,7 +150,7 @@ public class LegacyTsvReaderTest {
     void testHostileStoredResultIsRejectedImmediately(String storedResult, @TempDir Path tempDirectory) throws Exception {
         Path historyFile = writeHistory(tempDirectory, "ADDITION\t1\t2\t" + storedResult);
 
-        LegacyHistory result = assertTimeoutPreemptively(Duration.ofSeconds(2), () -> LegacyTsvReader.read(historyFile));
+        LegacyHistory result = TimingBudget.assertCompletesWithin(Duration.ofSeconds(2), () -> LegacyTsvReader.read(historyFile));
 
         assertEquals(0, result.records().size(), storedResult);
         assertEquals(1, result.rejections().size(), storedResult);

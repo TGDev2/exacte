@@ -2,10 +2,11 @@ package calc.expression;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import calc.number.Rational;
+import calc.testing.TimingBudget;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.IntFunction;
 import org.junit.jupiter.api.Test;
@@ -62,7 +63,7 @@ class ExpressionRobustnessTest {
             assertEquals(new Span(1000, line.length()), refusal.span());
         }
         System.out.println("1 MB line refused in " + best / 1000 + " microseconds (best of 3)");
-        assertTrue(best < 5_000_000L, "Took " + best / 1_000_000 + " ms");
+        TimingBudget.assertWithin("a 1 MB line refused, best of 3", best, 5_000_000L, TimeUnit.NANOSECONDS);
     }
 
     @Test

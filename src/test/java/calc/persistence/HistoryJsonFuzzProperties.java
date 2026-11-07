@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import calc.engine.CalculationHistoryException;
@@ -17,6 +16,7 @@ import calc.testing.JsonHistoryGenerators;
 import calc.testing.JsonHistoryGenerators.ExpectedRejection;
 import calc.testing.JsonHistoryGenerators.JsonFile;
 import calc.testing.TempDirectories;
+import calc.testing.TimingBudget;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -57,7 +57,7 @@ class HistoryJsonFuzzProperties {
 
     @Property(tries = 400)
     void validEntriesAreRestoredAndEveryRejectionIsReported(@ForAll("structured") JsonFile file) throws Exception {
-        DecodedHistory decoded = assertTimeoutPreemptively(BUDGET, () -> HistoryCodec.decode(file.bytes()));
+        DecodedHistory decoded = TimingBudget.assertCompletesWithin(BUDGET, () -> HistoryCodec.decode(file.bytes()));
 
         assertEquals(file.expectedEntries(), decoded.records().stream().map(CalculationRecord::toString).toList(),
                 () -> "The valid entries, in order, for " + file);
@@ -70,7 +70,7 @@ class HistoryJsonFuzzProperties {
     @Property(tries = 600)
     void anyContentGivesAResultOrTheAnnouncedException(@ForAll("anyContent") byte[] content) throws Exception {
         try {
-            DecodedHistory decoded = assertTimeoutPreemptively(BUDGET, () -> HistoryCodec.decode(content));
+            DecodedHistory decoded = TimingBudget.assertCompletesWithin(BUDGET, () -> HistoryCodec.decode(content));
             decoded.rejections().forEach(rejection -> {
                 assertNotNull(rejection.cause());
                 assertTrue(rejection.lineNumber() >= 1);
@@ -93,7 +93,7 @@ class HistoryJsonFuzzProperties {
                 HistoryLoadResult result = null;
                 CalculationHistoryException refusal = null;
                 try {
-                    result = assertTimeoutPreemptively(BUDGET, store::loadHistory);
+                    result = TimingBudget.assertCompletesWithin(BUDGET, store::loadHistory);
                 } catch (Exception caught) {
                     if (!(caught instanceof CalculationHistoryException exception)) {
                         throw caught;

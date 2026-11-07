@@ -2,11 +2,11 @@ package calc.ui.notebook;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import calc.format.DisplayMode;
 import calc.persistence.NotebookStore;
+import calc.testing.TimingBudget;
 import calc.ui.DisplayModeStore;
 import calc.ui.notebook.NotebookRow.Status;
 import java.nio.file.Path;
@@ -206,7 +206,7 @@ class NotebookParityTest {
     @DisplayName("P14 bornes de taille : une puissance énorme enchaînée est refusée vite, sans geler")
     void p14HugePowersAreRefusedWithoutFreezing() {
         d.line("2^999");
-        assertTimeoutPreemptively(Duration.ofSeconds(1), () -> d.line("ans^999"));
+        TimingBudget.assertCompletesWithin(Duration.ofSeconds(1), () -> d.line("ans^999"));
 
         assertEquals(Status.EXACT, d.row(1).status());
         assertEquals("5,35754303593… × 10³⁰⁰", d.row(1).result());

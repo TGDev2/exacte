@@ -2,11 +2,12 @@ package calc.notebook;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import calc.testing.TimingBudget;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -58,7 +59,7 @@ class NotebookPerformanceTest {
                 undoMillis);
         editor.apply(new NotebookCommand.Edit(first, "taux = 0,3"));
         assertNotEquals(before.result(LINES).value(), editor.current().result(LINES).value(), "the edit of line 1 reaches the last line");
-        assertTrue(sorted[0] < BUDGET_MILLIS, "best " + sorted[0] + " ms");
+        TimingBudget.assertWithin("the edit of line 1, best run", sorted[0], BUDGET_MILLIS, TimeUnit.MILLISECONDS);
     }
 
     // Lines that refer to each other through $n, ans and two variables, with trailing comments; one root every 100 lines.
