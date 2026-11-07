@@ -14,6 +14,7 @@ import calc.number.Rational;
 import calc.persistence.NotebookCodec;
 import calc.testing.DisplayTexts;
 import calc.testing.FractionOracle;
+import calc.testing.TimingBudget;
 import calc.ui.StatusTone;
 import calc.ui.notebook.NotebookRow.Status;
 import java.math.BigDecimal;
@@ -22,6 +23,7 @@ import java.math.MathContext;
 import java.math.RoundingMode;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -210,7 +212,7 @@ class ExactEngineAcceptanceTest {
             }
         }
         System.out.println("[acceptance] input of " + input.length() + " characters refused in " + best + " ms");
-        assertTrue(best < BUDGET_MILLIS, "an input of " + input.length() + " characters took " + best + " ms");
+        TimingBudget.assertWithin("an input of " + input.length() + " characters", best, BUDGET_MILLIS, TimeUnit.MILLISECONDS);
     }
 
     private static Rational square(Rational value) {

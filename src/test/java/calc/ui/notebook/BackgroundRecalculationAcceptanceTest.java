@@ -22,6 +22,7 @@ import calc.notebook.NotebookEvaluator;
 import calc.persistence.DataDirectory;
 import calc.persistence.NotebookCodec;
 import calc.persistence.NotebookStore;
+import calc.testing.TimingBudget;
 import calc.ui.DisplayModeStore;
 import calc.ui.ResultDescription;
 import calc.ui.StatusTone;
@@ -244,7 +245,7 @@ class BackgroundRecalculationAcceptanceTest {
             assertEquals(HOSTILE_LINES, count[1]);
         }
         System.out.printf("[acceptance] event thread back after opening %d hostile lines: best of three %.1f ms%n", HOSTILE_LINES, best);
-        assertTrue(best < EDT_BUDGET_MILLIS, "best of three " + best + " ms");
+        TimingBudget.assertWithin("the event thread back after opening, best of three", best, EDT_BUDGET_MILLIS, TimeUnit.MILLISECONDS);
 
         lab.awaitView("the count of the status bar moves", view -> progressOf(view).filter(count -> count[0] >= 1).isPresent());
     }
@@ -806,12 +807,14 @@ class BackgroundRecalculationAcceptanceTest {
                 facts.put(equal < 0 ? line : line.substring(0, equal), equal < 0 ? "" : line.substring(equal + 1));
             }
 
-            boolean gone = process.waitFor(CLOSE_BUDGET_SECONDS, TimeUnit.SECONDS);
-            assertTrue(gone, "the process is still there " + CLOSE_BUDGET_SECONDS + " s after the window closed. Output: " + seen);
+            long closeLimit = TimingBudget.scaled(CLOSE_BUDGET_SECONDS);
+            boolean gone = process.waitFor(closeLimit, TimeUnit.SECONDS);
+            assertTrue(gone, () -> TimingBudget.message("the process is still there after the window closed. Output: " + seen,
+                    closeLimit, CLOSE_BUDGET_SECONDS, TimeUnit.SECONDS));
             assertEquals(0, process.exitValue(), () -> "exit code. Output: " + seen);
             assertEquals("1", facts.get("RECALC_THREADS"), () -> "one thread named notebook-recalc. Output: " + seen);
             assertEquals("true", facts.get("EVALUATING"), () -> "it is the one evaluating. Output: " + seen);
-            assertTrue(Long.parseLong(facts.get("EDT_MEDIAN_MILLIS")) < EDT_BUDGET_MILLIS, () -> "the event thread answers. Output: " + seen);
+            TimingBudget.assertWithin("the event thread answers. Output: " + seen, Long.parseLong(facts.get("EDT_MEDIAN_MILLIS")), EDT_BUDGET_MILLIS, TimeUnit.MILLISECONDS);
             assertTrue(PROGRESS.matcher(facts.get("STATUS")).matches(), () -> "the status bar counts. Output: " + seen);
             assertEquals(PENDING, facts.get("LAST_RESULT"), () -> "the last line waits. Output: " + seen);
             try (NotebookStore store = NotebookStore.open(Path.of(facts.get("DATA")))) {

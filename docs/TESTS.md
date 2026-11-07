@@ -94,6 +94,7 @@ ArithmeticProperties > subtractionMatchesTheOracle STANDARD_OUT
 | `ArithmeticOracle` | Référence indépendante : analyse du texte, `BigDecimal` à 200 chiffres, texte Auto et texte canonique écrits d'après l'ADR 0004, taille en bits. N'importe rien du code de production. |
 | `DisplayTexts` | Relit le nombre d'un texte affiché (« ≈ », « … », `m × 10ⁿ`, `p/q`) sans le code de production. |
 | `ResultValues` | Valeur décimale exacte d'un résultat, pour la comparer à l'oracle. |
+| `TimingBudget` | Budgets de temps : le facteur de tolérance `CALC_TIMING_FACTOR` et les assertions qui l'appliquent (voir « Budgets de temps »). |
 | `FractionOracle` | Référence indépendante pour les rationnels : paires `BigInteger` jamais réduites, formules d'école, comparaison par produits en croix. N'importe rien du code de production. |
 | `RationalGenerators` | Entiers de toutes tailles (avec une part de -3 à 3), fractions brutes (signe au dénominateur, facteur commun), rationnels, intervalles qui contiennent un point connu (exacts, étroits, larges, autour de zéro), littéraux décimaux lus aussi par `BigDecimal`. |
 | `TempDirectories` | Répertoires temporaires supprimés après usage. |
@@ -573,12 +574,36 @@ un test a échoué ou a été ignoré. Les identifiants sont stables ; ajouter u
    est plafonnée à 100 ; `ExpressionRobustnessTest` le vérifie sur une pile de 512 Ko (256 Ko suffisaient sous Windows
    mais débordaient sous macOS arm64, découvert par la CI).
 
+## Budgets de temps
+
+Un budget de temps est une promesse : une durée mesurée à l'horloge par un test, et tenue sur la **machine de référence**, le poste de développement (Windows 11, JDK 21) où sont prises les mesures de ce document. Les valeurs écrites dans les tests sont ces promesses.
+
+Les machines partagées de la CI sont plus lentes et plus irrégulières : elles peuvent dépasser un budget sans que le produit ait changé. Elles appliquent donc un facteur de tolérance, lu par `calc.testing.TimingBudget` dans la variable d'environnement `CALC_TIMING_FACTOR` :
+
+| Valeur de la variable | Effet |
+|---|---|
+| absente ou vide | facteur 1 : le budget de référence, celui de la vérification locale |
+| un nombre à partir de 1 | le budget est multiplié par ce nombre ; `ci.yml` et `release.yml` fixent le facteur à 3 |
+| autre chose (texte, nombre inférieur à 1, infini) | échec clair du test qui la lit : un facteur inférieur à 1 rendrait un budget plus strict, un facteur infini les supprimerait tous |
+
+Les budgets ne sont pas relevés, parce qu'un budget relevé pour faire passer la CI ne promettrait plus rien sur la machine de référence, où le facteur reste 1 et où `check` fait foi avant une fusion. Le facteur est au contraire visible et séparé des promesses : le message d'un budget dépassé donne la mesure, le budget de référence et le facteur appliqué, par exemple `the median Enter on 500 lines: measured 108.7 ms, reference budget 100 ms, factor 1 (limit 100 ms)`. Aucun test n'est désactivé ni ignoré selon le système pour cette raison.
+
+Le facteur 3 vient du run 42302677032 de la CI, avant ce facteur : sous Windows, médianes de 108,7 ms pour 100 ms et de 1188,6 ms pour 1000 ms ; sous macOS, 281, 793 et 630 ms pour 300 ms. Ce sont les mesures d'une seule exécution : seule une nouvelle exécution de la CI dira si 3 suffit.
+
+Dans un test :
+
+- `TimingBudget.assertWithin(quoi, mesure, budget, unité)` contrôle une mesure, strictement inférieure au budget multiplié ;
+- `TimingBudget.assertCompletesWithin(budget, action)` remplace `assertTimeoutPreemptively`, dont l'échec ne nommerait ni le budget de référence ni le facteur ;
+- `TimingBudget.scaled(budget)` sert à une attente ou à une boucle d'essais, et `TimingBudget.message(...)` au texte d'une assertion qui ne compare pas une mesure.
+
+`TimingBudgetAcceptanceTest` parcourt `src/test/java` et échoue si un budget passe à côté de ces méthodes. Le facteur ne concerne que les durées promises : ni les bornes de calcul (`OutwardRounding.fitsBudget`, limites de taille), ni la patience d'une attente (`deadline`, `waitFor(90, ...)`), qui arrête seulement un test bloqué.
+
 ## Limites connues et points non vérifiés
 
-- Le budget de 100 ms de `InputFuzzProperties` est une mesure de temps : il prend le meilleur de deux essais et suit un échauffement, mais une machine très chargée peut encore l'invalider.
+- Le budget de 100 ms de `InputFuzzProperties` est une mesure de temps : il prend le meilleur de deux essais et suit un échauffement, mais une machine très chargée peut encore dépasser le budget multiplié par son facteur (voir « Budgets de temps »).
 - Le recalcul d'un carnet hostile est borné par ligne, pas annulable : les neuf formes de lignes lourdes mesurées (E11) restent sous la seconde pour 5000 lignes, mais aucune preuve ne dit qu'aucune forme n'est plus lente.
 - Le modèle de carnet accepte une ligne plus longue que ce que le fichier écrit (16 384 caractères) : l'éditeur (E12) la refuse avec un message (`NotebookPresenterTest`), mais le modèle lui-même ne la borne toujours pas.
-- Les mesures de réactivité de l'éditeur (E12) sont des mesures de temps sur la machine de développement : le budget de 100 ms est contrôlé sur la médiane de 15 essais après échauffement, et la médiane mesurée (14 à 41 ms) laisse une marge d'un facteur 2 à 7 ; une machine de CI très chargée pourrait quand même l'invalider. Ces mesures dépendent aussi de la position de la souris : chaque masquage ou affichage d'un composant fait demander au système quelle fenêtre se trouve sous le curseur (environ 0,2 ms quand ce n'est pas la fenêtre de l'application). Depuis que le badge d'une ligne en cours de calcul reste en place (`ExactnessBadge.blankBadge`), une Entrée n'en masque plus aucun ; souris hors de la fenêtre, la médiane avec mise en page et peinture est d'environ 50 ms à 500 lignes et de 170 à 300 ms à 5000 lignes, au lieu d'environ 270 ms et 2300 ms.
+- Les mesures de réactivité de l'éditeur (E12) sont des mesures de temps sur la machine de développement : le budget de 100 ms est contrôlé sur la médiane de 15 essais après échauffement, et la médiane mesurée (14 à 41 ms) laisse une marge d'un facteur 2 à 7 ; une machine de CI très chargée pourrait quand même dépasser le budget multiplié par son facteur (voir « Budgets de temps »). Ces mesures dépendent aussi de la position de la souris : chaque masquage ou affichage d'un composant fait demander au système quelle fenêtre se trouve sous le curseur (environ 0,2 ms quand ce n'est pas la fenêtre de l'application). Depuis que le badge d'une ligne en cours de calcul reste en place (`ExactnessBadge.blankBadge`), une Entrée n'en masque plus aucun ; souris hors de la fenêtre, la médiane avec mise en page et peinture est d'environ 50 ms à 500 lignes et de 170 à 300 ms à 5000 lignes, au lieu d'environ 270 ms et 2300 ms.
 - L'éditeur n'est pas contrôlé sur un clavier macOS réel ni avec l'apparence Aqua : les touches sont vérifiées par leur liaison dans le champ (avec `Cmd` simulé) et par les apparences installées dans le JDK de la machine.
 - Les générateurs choisissent leurs formes de valeurs : les cas non prévus (autres alphabets d'espaces, très gros nombres de lignes d'historique) ne sont pas couverts. `-Pjqwik.tries.default=20000` élargit la recherche sans rien changer au code.
 - Le modèle de session du présentateur reproduit la règle de la mémoire des champs : une erreur commune au modèle et au présentateur ne serait pas vue ; `CalculatorPresenterTest` la fixe aussi par des exemples.

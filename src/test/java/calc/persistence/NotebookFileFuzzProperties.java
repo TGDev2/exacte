@@ -1,13 +1,13 @@
 package calc.persistence;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import calc.format.DisplayMode;
 import calc.notebook.NotebookEvaluator;
 import calc.persistence.NotebookFormatException.Reason;
 import calc.testing.NotebookGenerators;
+import calc.testing.TimingBudget;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -60,7 +60,7 @@ class NotebookFileFuzzProperties {
 
     /** Runs the loader, which may refuse with a {@link NotebookFormatException} and with nothing else. */
     private static DecodedNotebook load(byte[] bytes) {
-        return assertTimeoutPreemptively(BUDGET, () -> {
+        return TimingBudget.assertCompletesWithin(BUDGET, () -> {
             try {
                 DecodedNotebook read = NotebookCodec.decode(bytes);
                 assertTrue(read.notebook().size() <= calc.notebook.Notebook.MAX_LINES);
@@ -96,7 +96,7 @@ class NotebookFileFuzzProperties {
         List<String> elements = texts.stream().map(text -> "{\"source\":" + json(text) + "}").collect(Collectors.toCollection(ArrayList::new));
         elements.add(Math.floorMod(position, elements.size() + 1), notALine);
 
-        assertTimeoutPreemptively(BUDGET, () -> {
+        TimingBudget.assertCompletesWithin(BUDGET, () -> {
             NotebookFormatException refused = org.junit.jupiter.api.Assertions.assertThrows(NotebookFormatException.class,
                     () -> NotebookCodec.decode(file("", elements).getBytes(StandardCharsets.UTF_8)));
             assertEquals(Reason.MALFORMED_STRUCTURE, refused.reason());
@@ -129,7 +129,7 @@ class NotebookFileFuzzProperties {
     void deepNestingIsRefusedAsALimitWithoutOverflowingTheStack(@ForAll("depth") int depth, @ForAll("opener") String opener) {
         String hostile = "{\"format\":\"calc-notebook\",\"version\":3,\"lines\":[],\"x\":" + opener.repeat(depth) + "}";
 
-        assertTimeoutPreemptively(BUDGET, () -> {
+        TimingBudget.assertCompletesWithin(BUDGET, () -> {
             NotebookFormatException refused = org.junit.jupiter.api.Assertions.assertThrows(NotebookFormatException.class,
                     () -> NotebookCodec.decode(hostile.getBytes(StandardCharsets.UTF_8)));
             assertTrue(refused.reason() == Reason.JSON_LIMIT || refused.reason() == Reason.MALFORMED_JSON, refused.reason().name());

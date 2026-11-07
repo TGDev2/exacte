@@ -3,11 +3,13 @@ package calc.number;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import calc.testing.TimingBudget;
 import java.math.BigInteger;
 import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -180,7 +182,7 @@ class NumericLimitsTest {
     }
 
     private static void assertUnderBudget(String name, long bestNanos) {
-        assertTrue(bestNanos < BUDGET_NANOS, () -> name + " took " + bestNanos / 1_000_000.0 + " ms");
+        TimingBudget.assertWithin(name, bestNanos, BUDGET_NANOS, TimeUnit.NANOSECONDS);
     }
 
     // A 4096-bit odd number: the largest components allowed, never sharing a factor 2.

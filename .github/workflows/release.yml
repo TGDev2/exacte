@@ -70,8 +70,10 @@ jobs:
     defaults:
       run:
         shell: bash
+    # The shared runners are slower than the reference machine: see "Budgets de temps" in docs/TESTS.md.
     env:
       VERSION: ${{ needs.prepare.outputs.version }}
+      CALC_TIMING_FACTOR: "3"
     steps:
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -132,8 +134,10 @@ jobs:
     needs: prepare
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    # The shared runners are slower than the reference machine: see "Budgets de temps" in docs/TESTS.md.
     env:
       VERSION: ${{ needs.prepare.outputs.version }}
+      CALC_TIMING_FACTOR: "3"
     steps:
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

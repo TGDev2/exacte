@@ -1,12 +1,14 @@
 package calc.engine;
 
 import calc.persistence.JsonHistoryStore;
+import calc.testing.TimingBudget;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
@@ -15,7 +17,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -39,7 +40,7 @@ public class SizeLimitsTest {
                 "A 4100-character input should pass the length check.");
 
         engine.calculate(Operation.ADDITION, "1", "1");
-        CalculationException exception = assertTimeoutPreemptively(Duration.ofMillis(100), () -> assertThrows(
+        CalculationException exception = TimingBudget.assertCompletesWithin(Duration.ofMillis(100), () -> assertThrows(
                 CalculationException.class,
                 () -> engine.calculate(Operation.ADDITION, paddedOne(MAX_LENGTH + 1), "1"),
                 "A 4101-character input should be refused."));
@@ -53,7 +54,7 @@ public class SizeLimitsTest {
         assertEquals("2", engine.calculate(Operation.ADDITION, "1", paddedOne(MAX_LENGTH)).getFormattedResult(),
                 "A 4100-character input should pass the length check.");
 
-        CalculationException exception = assertTimeoutPreemptively(Duration.ofMillis(100), () -> assertThrows(
+        CalculationException exception = TimingBudget.assertCompletesWithin(Duration.ofMillis(100), () -> assertThrows(
                 CalculationException.class,
                 () -> engine.calculate(Operation.ADDITION, "1", paddedOne(MAX_LENGTH + 1)),
                 "A 4101-character input should be refused."));
@@ -70,7 +71,7 @@ public class SizeLimitsTest {
 
     @Test
     void testPowerOfTwoIsAcceptedAndItsResultCanBeChained() throws Exception {
-        CalculationRecord power = assertTimeoutPreemptively(ACCEPTED_CASE_LIMIT,
+        CalculationRecord power = TimingBudget.assertCompletesWithin(ACCEPTED_CASE_LIMIT,
                 () -> engine.calculate(Operation.POWER, "2", "999"));
         BigInteger expected = BigInteger.TWO.pow(999);
         assertEquals("5,35754303593… × 10³⁰⁰", power.getFormattedResult(), "2^999 is shown with 12 significant digits.");
@@ -94,7 +95,7 @@ public class SizeLimitsTest {
     void testPowerOfAHugeResultIsRefusedImmediately() throws Exception {
         String twoPower999 = engine.calculate(Operation.POWER, "2", "999").getReusableValue();
 
-        CalculationException exception = assertTimeoutPreemptively(Duration.ofSeconds(1), () -> assertThrows(
+        CalculationException exception = TimingBudget.assertCompletesWithin(Duration.ofSeconds(1), () -> assertThrows(
                 CalculationException.class,
                 () -> engine.calculate(Operation.POWER, twoPower999, "999"),
                 "(2^999)^999 should be refused before any computation."));
@@ -105,7 +106,7 @@ public class SizeLimitsTest {
     @ParameterizedTest
     @ValueSource(strings = {"99", "10", "0,0001"})
     void testPowerSizeIsRefusedBeforeComputing(String base) {
-        CalculationException exception = assertTimeoutPreemptively(Duration.ofSeconds(1), () -> assertThrows(
+        CalculationException exception = TimingBudget.assertCompletesWithin(Duration.ofSeconds(1), () -> assertThrows(
                 CalculationException.class,
                 () -> engine.calculate(Operation.POWER, base, "4096"),
                 base + " ^ 4096 should be refused."));
@@ -126,7 +127,7 @@ public class SizeLimitsTest {
     @ParameterizedTest
     @ValueSource(strings = {"0,5", "9", "2", "-2"})
     void testPowersWithinTheLimitAreAcceptedAndExact(String base) {
-        CalculationRecord record = assertTimeoutPreemptively(ACCEPTED_CASE_LIMIT,
+        CalculationRecord record = TimingBudget.assertCompletesWithin(ACCEPTED_CASE_LIMIT,
                 () -> engine.calculate(Operation.POWER, base, "999"));
         assertTrue(record.isExact(), base + "^999 is exact.");
         assertTrue(record.getReusableValue().length() <= MAX_LENGTH, base + "^999 can be typed back.");
@@ -134,7 +135,7 @@ public class SizeLimitsTest {
 
     @Test
     void testNegativeExponentWithinTheLimitIsAccepted() throws Exception {
-        CalculationRecord record = assertTimeoutPreemptively(ACCEPTED_CASE_LIMIT,
+        CalculationRecord record = TimingBudget.assertCompletesWithin(ACCEPTED_CASE_LIMIT,
                 () -> engine.calculate(Operation.POWER, "2", "-999"));
         assertEquals("1,86652723701… × 10⁻³⁰¹", record.getFormattedResult(), "2^-999 is shown with its significant digits.");
         assertEquals("1/" + BigInteger.TWO.pow(999), record.getReusableValue(), "The fraction is shorter than the 999 decimals.");
@@ -171,10 +172,10 @@ public class SizeLimitsTest {
     void testSixtyThousandDigitInputIsRefusedImmediatelyOnEitherOperand() {
         String sixtyThousandDigits = repeat('9', 60_000);
 
-        CalculationException first = assertTimeoutPreemptively(Duration.ofSeconds(2), () -> assertThrows(
+        CalculationException first = TimingBudget.assertCompletesWithin(Duration.ofSeconds(2), () -> assertThrows(
                 CalculationException.class,
                 () -> engine.calculate(Operation.ADDITION, sixtyThousandDigits, "1")));
-        CalculationException second = assertTimeoutPreemptively(Duration.ofSeconds(2), () -> assertThrows(
+        CalculationException second = TimingBudget.assertCompletesWithin(Duration.ofSeconds(2), () -> assertThrows(
                 CalculationException.class,
                 () -> engine.calculate(Operation.MULTIPLICATION, "1", sixtyThousandDigits)));
 
@@ -222,8 +223,8 @@ public class SizeLimitsTest {
                 }
                 best = Math.min(best, System.nanoTime() - start);
             }
-            assertTrue(best < Duration.ofMillis(50).toNanos(),
-                    operation + " " + abbreviate(testCase[1]) + " " + abbreviate(testCase[2]) + " took " + best / 1_000_000.0 + " ms");
+            TimingBudget.assertWithin(operation + " " + abbreviate(testCase[1]) + " " + abbreviate(testCase[2]),
+                    best, Duration.ofMillis(50).toNanos(), TimeUnit.NANOSECONDS);
         }
     }
 
@@ -234,15 +235,15 @@ public class SizeLimitsTest {
     @Test
     void testBoundaryCasesStayFast() {
         String thousandOnes = repeat('1', 1000);
-        CalculationRecord sum = assertTimeoutPreemptively(ACCEPTED_CASE_LIMIT,
+        CalculationRecord sum = TimingBudget.assertCompletesWithin(ACCEPTED_CASE_LIMIT,
                 () -> engine.calculate(Operation.ADDITION, thousandOnes, thousandOnes));
         assertEquals(repeat('2', 1000), sum.getReusableValue(), "Two 1000-digit numbers add up to 1000 digits.");
         assertEquals("2,22222222222… × 10⁹⁹⁹", sum.getFormattedResult());
 
-        assertTimeoutPreemptively(ACCEPTED_CASE_LIMIT, () -> engine.calculate(Operation.POWER, "2", "999"));
-        assertTimeoutPreemptively(ACCEPTED_CASE_LIMIT, () -> engine.calculate(Operation.POWER, "9", "999"));
-        assertTimeoutPreemptively(ACCEPTED_CASE_LIMIT, () -> engine.calculate(Operation.ROOT, thousandOnes, ""));
-        assertTimeoutPreemptively(ACCEPTED_CASE_LIMIT, () -> engine.calculate(Operation.DIVISION, repeat('1', 900), "7"));
+        TimingBudget.assertCompletesWithin(ACCEPTED_CASE_LIMIT, () -> engine.calculate(Operation.POWER, "2", "999"));
+        TimingBudget.assertCompletesWithin(ACCEPTED_CASE_LIMIT, () -> engine.calculate(Operation.POWER, "9", "999"));
+        TimingBudget.assertCompletesWithin(ACCEPTED_CASE_LIMIT, () -> engine.calculate(Operation.ROOT, thousandOnes, ""));
+        TimingBudget.assertCompletesWithin(ACCEPTED_CASE_LIMIT, () -> engine.calculate(Operation.DIVISION, repeat('1', 900), "7"));
     }
 
     @Test
@@ -255,7 +256,7 @@ public class SizeLimitsTest {
 
         HistoryLoadResult loaded;
         try (JsonHistoryStore store = JsonHistoryStore.open(tempDirectory)) {
-            loaded = assertTimeoutPreemptively(Duration.ofSeconds(2), store::loadHistory);
+            loaded = TimingBudget.assertCompletesWithin(Duration.ofSeconds(2), store::loadHistory);
         }
 
         assertEquals(2, loaded.records().size(), "The valid lines around the oversized one should load.");

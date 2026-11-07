@@ -2,19 +2,20 @@ package calc.ui.notebook;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import calc.format.DisplayMode;
 import calc.notebook.Notebook;
 import calc.notebook.NotebookException;
 import calc.persistence.NotebookStore;
 import calc.persistence.NotebookStoreException;
+import calc.testing.TimingBudget;
 import calc.ui.DisplayModeStore;
 import calc.ui.notebook.NotebookRow.Status;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -86,7 +87,7 @@ class NotebookResponsivenessTest {
                     LINES, values, approximate, references, d.view.rows().size(), sorted[0], sorted[RUNS / 2], sorted[RUNS - 1],
                     Arrays.toString(millis));
             assertNotEquals(before, d.row(LINES).result(), "the edit of line 1 reaches the last line");
-            assertTrue(sorted[RUNS / 2] < BUDGET_MILLIS, "median " + sorted[RUNS / 2] + " ms");
+            TimingBudget.assertWithin("the median Enter on line 1", sorted[RUNS / 2], BUDGET_MILLIS, TimeUnit.MILLISECONDS);
         }
     }
 
@@ -118,7 +119,7 @@ class NotebookResponsivenessTest {
             Arrays.sort(sorted);
             System.out.printf("Preview cost, %d lines (recalculation of the lines below line 1 + formatting, no save): best %.1f ms,"
                             + " median %.1f ms, worst %.1f ms%n", LINES, sorted[0], sorted[RUNS / 2], sorted[RUNS - 1]);
-            assertTrue(sorted[RUNS / 2] < 150, "median " + sorted[RUNS / 2] + " ms");
+            TimingBudget.assertWithin("the median cost of a preview", sorted[RUNS / 2], 150, TimeUnit.MILLISECONDS);
         }
     }
 }

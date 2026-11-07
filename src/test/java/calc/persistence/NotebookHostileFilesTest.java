@@ -2,13 +2,13 @@ package calc.persistence;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import calc.notebook.EvaluatedNotebook;
 import calc.notebook.Notebook;
 import calc.notebook.NotebookEvaluator;
 import calc.persistence.NotebookFormatException.Reason;
 import calc.testing.NotebookGenerators;
+import calc.testing.TimingBudget;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -17,6 +17,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -94,7 +95,7 @@ class NotebookHostileFilesTest {
         });
 
         System.out.println("[hostile-notebook] " + hostile.label + " (" + bytes.length + " bytes): " + hostile.expected + " in " + millis + " ms");
-        assertTrue(millis < BUDGET_MILLIS, hostile.label + " took " + millis + " ms");
+        TimingBudget.assertWithin(hostile.label, millis, BUDGET_MILLIS, TimeUnit.MILLISECONDS);
     }
 
     @Test
@@ -111,7 +112,7 @@ class NotebookHostileFilesTest {
 
         System.out.println("[hostile-notebook] a 100 MB file: " + refusal.reason() + " in " + millis + " ms");
         assertEquals(Reason.TOO_LARGE, refusal.reason());
-        assertTrue(millis < 500, "Refused from its size alone: " + millis + " ms");
+        TimingBudget.assertWithin("a 100 MB file, refused from its size alone", millis, 500, TimeUnit.MILLISECONDS);
     }
 
     @Test
@@ -172,10 +173,10 @@ class NotebookHostileFilesTest {
                     + " bytes): loaded in " + loadMillis + " ms, recalculated in " + evaluateMillis + " ms (" + values + " values, "
                     + (Notebook.MAX_LINES - values) + " errors)");
             assertEquals(Notebook.MAX_LINES, read.notebook().size());
-            assertTrue(loadMillis < BUDGET_MILLIS, hostile.label() + ": load took " + loadMillis + " ms");
+            TimingBudget.assertWithin(hostile.label() + ": load", loadMillis, BUDGET_MILLIS, TimeUnit.MILLISECONDS);
             worst = Math.max(worst, evaluateMillis);
         }
-        assertTrue(worst < 60_000, "the slowest recalculation took " + worst + " ms");
+        TimingBudget.assertWithin("the slowest recalculation", worst, 60_000, TimeUnit.MILLISECONDS);
     }
 
     private static String padded(int length) {

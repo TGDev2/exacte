@@ -2,11 +2,11 @@ package calc.ui.notebook;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 import calc.persistence.NotebookStore;
+import calc.testing.TimingBudget;
 import calc.ui.DisplayModeStore;
 import java.awt.GraphicsEnvironment;
 import java.awt.Toolkit;
@@ -15,6 +15,7 @@ import java.awt.event.KeyEvent;
 import java.awt.image.BufferedImage;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.concurrent.TimeUnit;
 import javax.swing.Action;
 import javax.swing.JComponent;
 import javax.swing.KeyStroke;
@@ -41,14 +42,14 @@ class NotebookFrameResponsivenessTest {
     @Test
     void validatingTheFirstLineOfFiveHundredLinesUpdatesTheWindowWithinTheBudget() throws Exception {
         double median = measure(NotebookResponsivenessTest.LINES);
-        assertTrue(median < BUDGET_MILLIS, "median " + median + " ms");
+        TimingBudget.assertWithin("the median Enter on 500 lines", median, BUDGET_MILLIS, TimeUnit.MILLISECONDS);
     }
 
     /** The limit of the model: no budget is promised, the measure is reported (docs/adr/0010-editeur-carnet.md). */
     @Test
     void theLimitOfTheModelFiveThousandLinesStaysUsable() throws Exception {
         double median = measure(calc.notebook.Notebook.MAX_LINES);
-        assertTrue(median < 1000, "median " + median + " ms");
+        TimingBudget.assertWithin("the median Enter at the limit of the model", median, 1000, TimeUnit.MILLISECONDS);
     }
 
     // Opens a window on a notebook of this many lines and returns the median time of an Enter on line 1, with layout and paint.

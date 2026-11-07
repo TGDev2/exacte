@@ -4,7 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import calc.testing.TextGenerators;
+import calc.testing.TimingBudget;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import net.jqwik.api.Arbitraries;
 import net.jqwik.api.Arbitrary;
 import net.jqwik.api.ForAll;
@@ -63,7 +65,7 @@ class ExpressionFuzzProperties {
     @Property
     void anyLineGivesAResultOrATypedErrorQuickly(@ForAll("lines") String line) {
         long best = Long.MAX_VALUE;
-        for (int attempt = 0; attempt < 2 && best >= BUDGET_NANOS; attempt++) {
+        for (int attempt = 0; attempt < 2 && best >= TimingBudget.scaled(BUDGET_NANOS); attempt++) {
             long start = System.nanoTime();
             ExpressionException refusal = answer(line);
             best = Math.min(best, System.nanoTime() - start);
@@ -76,8 +78,7 @@ class ExpressionFuzzProperties {
                         refusal::getMessage);
             }
         }
-        long took = best;
-        assertTrue(took < BUDGET_NANOS, () -> "Took " + took / 1_000_000 + " ms for '" + abbreviate(line) + "'");
+        TimingBudget.assertWithin("'" + abbreviate(line) + "'", best, BUDGET_NANOS, TimeUnit.NANOSECONDS);
     }
 
     /** Reads and evaluates the line; returns the refusal if there was one. Any other exception fails the property. */

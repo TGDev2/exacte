@@ -12,6 +12,7 @@ import calc.engine.CalculatorEngine;
 import calc.engine.HistoryLoadResult;
 import calc.engine.Operation;
 import calc.testing.RecordGenerators;
+import calc.testing.TimingBudget;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -20,6 +21,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -76,7 +78,7 @@ class HostileFilesTest {
         });
 
         System.out.println("[hostile] " + hostile.label + " (" + bytes.length + " bytes): " + hostile.expected + " in " + millis + " ms");
-        assertTrue(millis < BUDGET_MILLIS, hostile.label + " took " + millis + " ms");
+        TimingBudget.assertWithin(hostile.label, millis, BUDGET_MILLIS, TimeUnit.MILLISECONDS);
     }
 
     @ParameterizedTest
@@ -91,7 +93,7 @@ class HostileFilesTest {
             CalculationHistoryException refusal = assertThrows(CalculationHistoryException.class, store::loadHistory);
             long millis = (System.nanoTime() - start) / 1_000_000;
 
-            assertTrue(millis < BUDGET_MILLIS, hostile.label + " took " + millis + " ms");
+            TimingBudget.assertWithin(hostile.label, millis, BUDGET_MILLIS, TimeUnit.MILLISECONDS);
             assertTrue(refusal.getMessage().contains(file.toString()), "The error names the file.");
             if (hostile.expected.isLimit()) {
                 assertEquals(null, refusal.getBackupFile(), "A file over a limit is not copied.");
@@ -119,7 +121,7 @@ class HostileFilesTest {
             long millis = (System.nanoTime() - start) / 1_000_000;
 
             System.out.println("[hostile] a 100 MB file: TOO_LARGE in " + millis + " ms");
-            assertTrue(millis < 500, "Refused from its size alone: " + millis + " ms");
+            TimingBudget.assertWithin("a 100 MB file, refused from its size alone", millis, 500, TimeUnit.MILLISECONDS);
             assertEquals(List.of("history.json", "history.lock"), fileNames(directory), "Not copied.");
         }
     }
@@ -146,7 +148,7 @@ class HostileFilesTest {
         });
 
         System.out.println("[hostile] six hostile numbers written as text: rejected in " + millis + " ms");
-        assertTrue(millis < BUDGET_MILLIS, "took " + millis + " ms");
+        TimingBudget.assertWithin("six hostile numbers written as text", millis, BUDGET_MILLIS, TimeUnit.MILLISECONDS);
     }
 
     @Test
@@ -167,7 +169,8 @@ class HostileFilesTest {
         long worstMillis = bestOfThree(() -> assertTrue(HistoryCodec.decode(worstFile).records().size() > 100));
         System.out.println("[hostile] the size limit filled with entries of two 600-digit operands (" + worstFile.length + " bytes): loaded in " + worstMillis + " ms");
 
-        assertTrue(usualMillis < 5_000 && worstMillis < 15_000, usualMillis + " ms and " + worstMillis + " ms");
+        TimingBudget.assertWithin("the usual entries, up to the limit", usualMillis, 5_000, TimeUnit.MILLISECONDS);
+        TimingBudget.assertWithin("the size limit filled with the largest entries", worstMillis, 15_000, TimeUnit.MILLISECONDS);
         assertFalse(worstFile.length > StorageLimits.MAX_FILE_BYTES);
     }
 

@@ -15,6 +15,7 @@ import calc.notebook.Notebook;
 import calc.notebook.NotebookEvaluator;
 import calc.persistence.NotebookCodec;
 import calc.persistence.NotebookStore;
+import calc.testing.TimingBudget;
 import calc.ui.DisplayModeStore;
 import calc.ui.StatusTone;
 import calc.ui.notebook.NotebookDialogs.ExportFormat;
@@ -542,9 +543,9 @@ class NotebookRecalculationTest {
             long percentile = sorted.get(sorted.size() * 99 / 100);
             System.out.printf("[acceptance] File > Open of %d hostile lines in the window: best %d ms from an empty window, best %d ms from a full one;"
                     + " while the rows appear the event thread answers in %d ms at the 99th percentile, worst %d ms%n", EDT_LINES, bestEmpty, bestFull, percentile, worst);
-            assertTrue(bestEmpty < EDT_BUDGET_MILLIS, "from an empty window: " + bestEmpty + " ms");
-            assertTrue(bestFull < EDT_BUDGET_MILLIS, "from a full window: " + bestFull + " ms");
-            assertTrue(percentile < EDT_BUDGET_MILLIS, "the event thread answers: 99th percentile " + percentile + " ms");
+            TimingBudget.assertWithin("File > Open from an empty window", bestEmpty, EDT_BUDGET_MILLIS, TimeUnit.MILLISECONDS);
+            TimingBudget.assertWithin("File > Open from a full window", bestFull, EDT_BUDGET_MILLIS, TimeUnit.MILLISECONDS);
+            TimingBudget.assertWithin("the event thread answers, 99th percentile", percentile, EDT_BUDGET_MILLIS, TimeUnit.MILLISECONDS);
             assertTrue(sorted.size() > 10, "the wait was sampled: " + sorted.size());
 
             EventQueue.invokeAndWait(() -> {
@@ -704,7 +705,7 @@ class NotebookRecalculationTest {
         String java = Path.of(System.getProperty("java.home"), "bin", "java").toString();
         long best = Long.MAX_VALUE;
         List<String> runs = new ArrayList<>();
-        for (int run = 0; run < 3 && best >= EDT_BUDGET_MILLIS; run++) {
+        for (int run = 0; run < 3 && best >= TimingBudget.scaled(EDT_BUDGET_MILLIS); run++) {
             Path data = Files.createDirectories(root.resolve("cold-" + run));
             Path output = root.resolve("cold-" + run + ".txt");
             Process process = new ProcessBuilder(java, "-cp", System.getProperty("java.class.path"), ColdOpen.class.getName(), file.toString(), data.toString())
@@ -721,7 +722,7 @@ class NotebookRecalculationTest {
             best = Math.min(best, Math.max(Long.parseLong(parts[1]), Long.parseLong(parts[2])));
         }
         System.out.printf("[acceptance] first File > Open of a process on %d hostile lines (command, worst wait of the event thread, in ms): %s%n", EDT_LINES, runs);
-        assertTrue(best < EDT_BUDGET_MILLIS, "best of three: " + runs);
+        TimingBudget.assertWithin("the first File > Open of a process, best of three: " + runs, best, EDT_BUDGET_MILLIS, TimeUnit.MILLISECONDS);
     }
 
     private static String readQuietly(Path file) {

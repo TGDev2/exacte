@@ -13,6 +13,7 @@ import calc.persistence.LoadedNotebook;
 import calc.persistence.LockHolder;
 import calc.persistence.NotebookCodec;
 import calc.persistence.NotebookStore;
+import calc.testing.TimingBudget;
 import calc.ui.DisplayModeStore;
 import calc.ui.StatusTone;
 import calc.ui.notebook.NotebookRow.Status;
@@ -128,7 +129,7 @@ class RobustnessAcceptanceTest {
         }
 
         System.out.println("[acceptance] " + hostile + " (" + Files.size(file) + " bytes) opened in " + best + " ms");
-        assertTrue(best < BUDGET_MILLIS, hostile + " took " + best + " ms");
+        TimingBudget.assertWithin(hostile + " opened", best, BUDGET_MILLIS, TimeUnit.MILLISECONDS);
         assertEquals(hash, AcceptanceSession.sha256(file), "opening a file never changes it");
     }
 
@@ -161,7 +162,7 @@ class RobustnessAcceptanceTest {
         }
 
         System.out.println("[acceptance] " + hostile + " at start in " + best + " ms");
-        assertTrue(best < BUDGET_MILLIS, hostile + " took " + best + " ms");
+        TimingBudget.assertWithin(hostile + " at start", best, BUDGET_MILLIS, TimeUnit.MILLISECONDS);
     }
 
     /** Opens each file of a folder under a small heap; an {@link OutOfMemoryError} ends the process with an error. Not a test. */
