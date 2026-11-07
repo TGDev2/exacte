@@ -53,6 +53,12 @@ Les actions sont épinglées par SHA de commit, avec la version en commentaire. 
 ([`.github/dependabot.yml`](../.github/dependabot.yml)) propose chaque semaine la mise à jour des dépendances Gradle et
 des actions GitHub (5 pull requests ouvertes au maximum par écosystème).
 
+## Le facteur de tolérance des budgets de temps
+
+Les budgets de temps des tests sont des promesses tenues sur la machine de référence, le poste de développement. Les runners de GitHub, partagés, sont plus lents et plus irréguliers : `ci.yml` (jobs `check` et `conformity report`) et `release.yml` (jobs `package` et `conformity report`) y définissent donc `CALC_TIMING_FACTOR: "3"`, un facteur 3 qui multiplie chaque budget mesuré à l'horloge.
+
+Sur le poste de développement, la variable est absente : le facteur vaut 1 et la vérification locale contrôle les budgets de référence. Les budgets ne sont pas relevés, parce qu'une valeur relevée pour la CI ne promettrait plus rien sur la machine de référence. Le détail est dans [TESTS.md](TESTS.md), section « Budgets de temps ».
+
 ## Pourquoi les tests d'interface sont obligatoires en CI
 
 Les tests portant le tag JUnit `ui` (`NotebookFrameTest`, `NotebookFrameFilesTest`, `NotebookFrameResponsivenessTest`, `MainStartupTest`) pilotent la vraie fenêtre Swing. Sans affichage ils sont
