@@ -134,6 +134,47 @@ select {
   padding-left: calc(var(--marge-x) + var(--retrait));
 }
 
+/* ---- The buttons: the same actions as the keys, for a finger -------------------------------------------------------- */
+
+.outils {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0 1rem 0.5rem calc(var(--marge-x) + var(--retrait));
+}
+
+.outils button {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0 0.75rem;
+  border: 1.5px solid var(--encre);
+  border-radius: 3px;
+  background: var(--papier);
+  color: var(--encre);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.25rem;
+  cursor: pointer;
+}
+
+.outils button:hover:not(:disabled) {
+  background: var(--encre);
+  color: var(--sur-encre);
+}
+
+.outils button:disabled {
+  border-color: var(--crayon);
+  color: var(--crayon);
+  cursor: default;
+  opacity: 0.55;
+}
+
+.outils button:focus-visible {
+  outline: 2px solid var(--encre);
+  outline-offset: 2px;
+}
+
 /* ---- The lines ---------------------------------------------------------------------------------------------------- */
 
 #lines {
@@ -147,6 +188,11 @@ select {
   display: grid;
   grid-template-columns: var(--marge-x) minmax(8rem, 1fr) minmax(0, auto) 6.5rem;
   align-items: start;
+}
+
+.line.courante .number {
+  color: var(--marge);
+  font-weight: 700;
 }
 
 .number {
