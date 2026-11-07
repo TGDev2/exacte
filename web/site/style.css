@@ -1,0 +1,325 @@
+/*
+ * A sheet of French school paper: the Seyes ruling, a red margin with the line numbers in it, results written on the
+ * right, and errors corrected in red. Every text sits on a height that is a multiple of --pas, so the ruling stays
+ * under the text whatever a line holds.
+ */
+:root {
+  color-scheme: light dark;
+
+  --papier: #fbfcff;
+  --bureau: #dde3f2;
+  --ligne: #c3cdea;
+  --ligne-fine: #e8ecf8;
+  --marge: #d9566b;
+  --encre: #1c2f8f;
+  --sur-encre: #ffffff;
+  --graphite: #1a1d29;
+  --crayon: #565c73;
+  --correction: #b3122e;
+  --correction-fond: #fde4e8;
+
+  --pas: 0.5rem;
+  --interligne: 2rem;
+  --assise: -0.4rem;
+  --marge-x: 3.5rem;
+  --retrait: 0.5rem;
+
+  --chiffres: "Cascadia Mono", "SF Mono", ui-monospace, Menlo, Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace;
+  --texte: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", "Liberation Sans", sans-serif;
+  --titre: "Palatino Linotype", Palatino, "Iowan Old Style", "Book Antiqua", "URW Palladio L", serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --papier: #141a2e;
+    --bureau: #0c1020;
+    --ligne: #313b5e;
+    --ligne-fine: #1d2541;
+    --marge: #b9475a;
+    --encre: #aebfff;
+    --sur-encre: #10152a;
+    --graphite: #eef1fb;
+    --crayon: #a6aec9;
+    --correction: #ff9aa8;
+    --correction-fond: #48202c;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bureau);
+  color: var(--graphite);
+  font-family: var(--texte);
+  font-size: 1rem;
+  line-height: var(--interligne);
+}
+
+/* ---- The sheet ---------------------------------------------------------------------------------------------------- */
+
+.feuille {
+  max-width: 60rem;
+  margin: var(--interligne) auto;
+  background-color: var(--papier);
+  background-image:
+    linear-gradient(to right,
+      transparent calc(var(--marge-x) - 2px), var(--marge) calc(var(--marge-x) - 2px),
+      var(--marge) var(--marge-x), transparent var(--marge-x)),
+    linear-gradient(to bottom, transparent calc(100% - 1px), var(--ligne) calc(100% - 1px)),
+    linear-gradient(to bottom, transparent calc(100% - 1px), var(--ligne-fine) calc(100% - 1px));
+  background-size: 100% 100%, 100% var(--interligne), 100% var(--pas);
+  background-position: 0 0, 0 var(--assise), 0 var(--assise);
+  background-repeat: no-repeat, repeat, repeat;
+}
+
+.entete,
+.pied {
+  padding-left: calc(var(--marge-x) + var(--retrait));
+  padding-right: 1rem;
+}
+
+.entete {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  column-gap: 2rem;
+  padding-top: var(--interligne);
+  padding-bottom: var(--interligne);
+}
+
+h1 {
+  margin: 0;
+  color: var(--encre);
+  font-family: var(--titre);
+  font-size: 3rem;
+  font-style: italic;
+  font-weight: 400;
+  line-height: calc(2 * var(--interligne));
+}
+
+.these,
+.reglage {
+  margin: 0;
+}
+
+.reglage {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: var(--interligne);
+}
+
+select {
+  height: 1.75rem;
+  border: 1px solid var(--crayon);
+  border-radius: 3px;
+  background: var(--papier);
+  color: var(--graphite);
+  font: inherit;
+}
+
+#message {
+  margin: 0;
+  padding-left: calc(var(--marge-x) + var(--retrait));
+  color: var(--correction);
+  font-weight: 600;
+}
+
+.sans-script {
+  margin: 0;
+  padding-left: calc(var(--marge-x) + var(--retrait));
+}
+
+/* ---- The lines ---------------------------------------------------------------------------------------------------- */
+
+#lines {
+  min-height: calc(8 * var(--interligne));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.line {
+  display: grid;
+  grid-template-columns: var(--marge-x) minmax(8rem, 1fr) minmax(0, auto) 6.5rem;
+  align-items: start;
+}
+
+.number {
+  grid-column: 1;
+  padding-right: 0.75rem;
+  color: var(--crayon);
+  font-family: var(--chiffres);
+  font-size: 0.8rem;
+  text-align: right;
+}
+
+input.expression {
+  grid-column: 2;
+  width: 100%;
+  min-width: 0;
+  height: var(--interligne);
+  padding: 0 var(--retrait);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--encre);
+  font-family: var(--chiffres);
+  font-size: 1rem;
+  line-height: var(--interligne);
+}
+
+input.expression::placeholder {
+  color: var(--crayon);
+  opacity: 1;
+}
+
+input.expression:focus-visible,
+select:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--encre);
+  outline-offset: -2px;
+}
+
+.line[data-status="COMMENT"] input.expression {
+  color: var(--crayon);
+  font-style: italic;
+}
+
+.result {
+  grid-column: 3;
+  min-width: 0;
+  padding-left: 0.75rem;
+  font-size: 1.0625rem;
+  font-variant-numeric: lining-nums tabular-nums;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+/* Solid when the value is certain, dashed when it is bounded: the same line convention as a technical drawing. */
+.badge {
+  grid-column: 4;
+  justify-self: end;
+  margin: 0.25rem 0.75rem 0 0;
+  padding: 0 0.4rem;
+  border: 1.5px solid var(--encre);
+  border-radius: 3px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.25rem;
+  white-space: nowrap;
+}
+
+.badge-exact {
+  background: var(--encre);
+  color: var(--sur-encre);
+}
+
+.badge-approche {
+  border-style: dashed;
+  color: var(--encre);
+}
+
+.detail,
+.error,
+.faulty {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.5rem;
+}
+
+.detail {
+  grid-column: 2 / 4;
+  color: var(--crayon);
+  font-size: 0.875rem;
+  font-variant-numeric: lining-nums tabular-nums;
+  text-align: right;
+}
+
+.error,
+.faulty {
+  grid-column: 2 / -1;
+  padding: 0 0.75rem 0 var(--retrait);
+}
+
+.error {
+  color: var(--correction);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.faulty {
+  font-family: var(--chiffres);
+  font-size: 0.9rem;
+  white-space: pre-wrap;
+}
+
+mark {
+  background: var(--correction-fond);
+  color: var(--correction);
+  font-weight: 700;
+  text-decoration: underline solid var(--correction) 2px;
+  text-underline-offset: 3px;
+}
+
+/* ---- The foot of the sheet ---------------------------------------------------------------------------------------- */
+
+.pied {
+  padding-top: var(--interligne);
+  padding-bottom: var(--interligne);
+  color: var(--crayon);
+  font-size: 0.9rem;
+}
+
+.pied p {
+  margin: 0;
+}
+
+.liens {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 1.5rem;
+}
+
+.pied a {
+  color: var(--encre);
+}
+
+/* ---- A phone: the result goes under its expression, still on the right ------------------------------------------- */
+
+@media (max-width: 36rem) {
+  :root {
+    --marge-x: 2.5rem;
+  }
+
+  .feuille {
+    margin: 0;
+  }
+
+  .line {
+    grid-template-columns: var(--marge-x) minmax(0, 1fr) auto;
+  }
+
+  input.expression {
+    grid-column: 2 / -1;
+  }
+
+  .result {
+    grid-column: 2;
+  }
+
+  .badge {
+    grid-column: 3;
+    margin-left: 0.5rem;
+  }
+
+  .detail {
+    grid-column: 2 / -1;
+    padding-right: 0.75rem;
+  }
+}

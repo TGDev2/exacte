@@ -34,6 +34,8 @@ dependencies {
     // the one managed by the junit-bom above.
     testImplementation("net.jqwik:jqwik:1.10.2")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    // The JVM tests of calc.web. Not transitive: calc.jar must not come twice on the test classpath.
+    testImplementation(project(":web")) { isTransitive = false }
 }
 
 application {
@@ -404,6 +406,9 @@ tasks.cyclonedxDirectBom {
     projectType = org.cyclonedx.model.Component.Type.APPLICATION
 }
 
+// :web is not part of what the application ships, and its classpath holds the TeaVM compiler: the aggregate leaves it out.
+project(":web").tasks.matching { it.name == "cyclonedxDirectBom" }.configureEach { enabled = false }
+
 // One JSON file is enough for the release (the XML twin is not published).
 tasks.withType<org.cyclonedx.gradle.CyclonedxDirectTask>().configureEach {
     xmlOutput.unsetConvention()
@@ -473,4 +478,18 @@ tasks.register<JavaExec>("verifyReleaseFiles") {
         args(listOf(given[0], versionText) + given.drop(1))
     }
     workingDir = projectDir
+}
+
+// The corpus of the differential test of the web version. A CI run passes github.run_id as -PparitySeed.
+val paritySeedValue = providers.gradleProperty("paritySeed").orElse("20261107").get()
+val parityCorpusPath = layout.buildDirectory.file("web-parity/corpus.txt").get().asFile.path
+extra["paritySeedValue"] = paritySeedValue
+extra["parityCorpusPath"] = parityCorpusPath
+
+tasks.register<JavaExec>("writeParityCorpus") {
+    description = "Writes the notebooks that the JVM and Node replay: build/web-parity/corpus.txt, from -PparitySeed."
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass = "calc.expression.ParityCorpusWriter"
+    defaultCharacterEncoding = "UTF-8"
+    args(parityCorpusPath, paritySeedValue)
 }

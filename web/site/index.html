@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Un carnet de calcul exact dans le navigateur : chaque résultat est exact, ou donné avec son erreur maximale.">
+<title>Calc : le carnet de calcul exact</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="feuille">
+<header class="entete">
+<div>
+<h1>Calc</h1>
+<p class="these">Chaque résultat est exact, ou donné avec son erreur maximale.</p>
+</div>
+<p class="reglage">
+<label for="display-mode">Affichage</label>
+<select id="display-mode">
+<option value="AUTO">Auto</option>
+<option value="DECIMAL">Décimal</option>
+<option value="FRACTION">Fraction</option>
+<option value="SCIENTIFIC">Scientifique</option>
+</select>
+</p>
+</header>
+<main>
+<p id="message" role="status" hidden></p>
+<ol id="lines"></ol>
+<noscript><p class="sans-script">Cette page calcule dans le navigateur : activez JavaScript pour écrire un carnet.</p></noscript>
+</main>
+<footer class="pied">
+<p>Le carnet reste dans ce navigateur, sans fichier ni envoi.</p>
+<p class="liens">
+<a href="https://github.com/TGDev2/Calculatrice">Code source</a>
+<a href="rapport-conformite.html">Rapport de conformité</a>
+</p>
+</footer>
+</div>
+<script src="calc.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
