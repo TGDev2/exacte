@@ -5,7 +5,8 @@ import org.teavm.gradle.api.JSModuleType
 // Trial and measures: docs/essais/teavm-essai.md.
 //
 //   gradlew :web:generateJavaScript   -> web/build/generated/teavm/js/calc.js
-//   gradlew :web:webTest              -> the tests that run Node, kept out of the lifecycle of the build (D3)
+//   gradlew :web:site                 -> web/build/site, the static page with calc.js
+//   gradlew :web:webTest              -> the tests that run Node or a browser, kept out of the lifecycle of the build (D3)
 
 plugins {
     java
@@ -60,6 +61,14 @@ tasks.register<JavaExec>("generateCharacterCompat") {
     args(file("src/main/java/calc/web/compat/CharacterCompat.java").path)
 }
 
+tasks.register<Sync>("site") {
+    group = "build"
+    description = "Assembles the static page and the compiled core under build/site."
+    from("site")
+    from(tasks.named("generateJavaScript"))
+    into(layout.buildDirectory.dir("site"))
+}
+
 tasks.register<Test>("webTest") {
     group = "verification"
     description = "Runs the tests that need Node or a browser against the code compiled by TeaVM."
@@ -76,7 +85,7 @@ tasks.register<Test>("webTest") {
     systemProperty("calc.web.browser.required", providers.gradleProperty("requireBrowser").orElse("false").get())
     systemProperty("calc.web.parity.seed", rootProject.extra["paritySeedValue"]!!)
     systemProperty("calc.web.parity.corpus", rootProject.extra["parityCorpusPath"]!!)
-    dependsOn("generateJavaScript", ":cyclonedxBom", ":writeParityCorpus")
+    dependsOn("generateJavaScript", "site", ":cyclonedxBom", ":writeParityCorpus")
     testLogging {
         events("failed", "skipped")
         exceptionFormat = TestExceptionFormat.FULL
