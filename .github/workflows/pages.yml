@@ -1,0 +1,118 @@
+name: Pages
+
+# Builds the conformity report, proves the parity of the web version, and publishes the page on GitHub Pages.
+# Runs on every push to main and on demand; the deployment itself only happens from main (docs/adr, decision D5).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# A deployment that has started is never cut: the next run waits for it.
+concurrency:
+  group: pages-${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  conformity:
+    name: conformity report
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    # The shared runners are slower than the reference machine: see "Budgets de temps" in docs/TESTS.md.
+    env:
+      CALC_TIMING_FACTOR: "3"
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Java 21
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # Also validates the checksum of every Gradle wrapper jar.
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          validate-wrappers: true
+
+      # check (tests, coverage thresholds), then PIT, then the report; it fails if a threshold or a source is missing.
+      - name: Check, mutation tests and conformity report
+        run: xvfb-run -a ./gradlew conformity -PrequireUiTests=true -Pjqwik.reporting.onlyfailures=false --console=plain
+
+      # One path only: RAPPORT-CONFORMITE.md is then at the root of the artifact.
+      - name: Upload the conformity report
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: conformity-report
+          path: build/reports/conformite
+          if-no-files-found: error
+          retention-days: 30
+
+  site:
+    name: site
+    needs: conformity
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Java 21
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          validate-wrappers: true
+
+      - name: Set up Node 22
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+
+      # Node and a headless browser (preinstalled on the runner) against the code compiled by TeaVM:
+      # 70/70 golden cases, the trial notebook, the parity corpus (seeded by the run) and the page.
+      - name: Web tests
+        run: ./gradlew :web:webTest -PrequireBrowser=true -PparitySeed=${{ github.run_id }} --console=plain
+
+      - name: Download the conformity report
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: conformity-report
+          path: conformity
+
+      - name: Check that the report is there
+        run: test -s conformity/RAPPORT-CONFORMITE.md
+
+      - name: Assemble the site with the report
+        run: ./gradlew :web:site -PconformityReport=conformity/RAPPORT-CONFORMITE.md --console=plain
+
+      - name: Upload the site
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: web/build/site
+
+  deploy:
+    name: deploy
+    needs: [conformity, site]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # The only job that can write to Pages.
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
