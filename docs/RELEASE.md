@@ -32,7 +32,7 @@ Avant de taguer, mettre à jour [`CHANGELOG.md`](../CHANGELOG.md) : déplacer l'
    ```bash
    git switch main
    git pull
-   git tag vX.Y.Z
+   git tag -a vX.Y.Z -m "Calc X.Y.Z"
    git push origin vX.Y.Z
    ```
 
@@ -78,6 +78,53 @@ Le résultat est `build\release\Calc-1.0.0-<windows|macos|linux>-<x64|arm64>.<zi
 `0.0.0-local` et `packageApp` refuse de continuer (message explicite) : un fichier construit à la main ne doit pas passer pour une
 version publiée. Les étapes intermédiaires sont dans `build\packaging\` (`modules.txt` : modules calculés par `jdeps`, `image\` :
 l'application avant archivage). Le SBOM : `gradlew cyclonedxBom` → `build\reports\cyclonedx\bom.json`.
+
+## Publier la version 1.0.0
+
+Les notes de la release 1.0.0 sont la section `## [1.0.0]` de `CHANGELOG.md`. L'essai final (run `42377140242`, commit `767e05bf300a7b79f36e5717baf9ace28f85d145`, pré-version `test-v1.0.0-1`) a prouvé que cette chaîne publie les six fichiers : voir `docs/essais/release-1.0.0-essai-final.json`. Rien n'est poussé ni supprimé par le dépôt : les étapes ci-dessous sont à faire par le mainteneur.
+
+1. **Vérifications préalables.** Depuis la racine du dépôt, être sur `main` à jour, sans modification en cours :
+
+   ```bash
+   git switch main
+   git pull
+   git status
+   ```
+
+2. **Date du journal.** `CHANGELOG.md` donne `## [1.0.0] - 2026-11-07`. Si le tag part un autre jour que celui écrit, corriger la date de [1.0.0] dans CHANGELOG.md, la fusionner dans `main` par une pull request, puis refaire l'étape 1.
+3. **Créer et pousser le tag.** Le workflow « Release » se lance tout seul sur ce tag :
+
+   ```bash
+   git tag -a v1.0.0 -m "Calc 1.0.0"
+   git push origin v1.0.0
+   ```
+
+4. **Vérifier la page de la release** (onglet **Releases**, ou `gh release view v1.0.0`) :
+   - les six fichiers sont là : `Calc-1.0.0-windows-x64.zip`, `Calc-1.0.0-macos-arm64.tar.gz`, `Calc-1.0.0-linux-x64.tar.gz`, `Calc-1.0.0-sbom.cdx.json`, `Calc-1.0.0-rapport-conformite.md` et `SHA256SUMS.txt` ;
+   - le titre est « Calc 1.0.0 » ;
+   - ce n'est pas une pré-version (aucune pastille « Pre-release ») ;
+   - les notes sont en français et contiennent le lien vers `INSTALLATION.md` ;
+   - télécharger une archive et `SHA256SUMS.txt`, puis comparer les sommes comme dans « Vérifier un téléchargement ».
+5. **Supprimer les pré-versions d'essai**, avec le tag réel de chacune. Celle de l'essai final :
+
+   ```bash
+   gh release delete test-v1.0.0-1 --cleanup-tag --yes
+   ```
+
+   Pour toute autre pré-version, la lister puis supprimer chaque tag trouvé :
+
+   ```bash
+   gh release list --limit 20
+   gh release delete <tag lu dans la liste> --cleanup-tag --yes
+   ```
+
+   Ne supprimer que les tags qui commencent par `test-v1.0.0-` (filtre de `gh release list`) : la release `v1.0.0` n'en fait pas partie.
+
+**Si la publication de `v1.0.0` doit être refaite** (tag poussé sur le mauvais commit, par exemple), supprimer le tag final et sa release, puis reprendre à l'étape 1 :
+
+```bash
+gh release delete v1.0.0 --cleanup-tag --yes
+```
 
 ## Vérifier un téléchargement
 
@@ -142,6 +189,5 @@ périmètre de cette livraison. Conséquence au premier lancement d'un fichier t
 - **Le SBOM ne liste que le classpath d'exécution.** Calc n'a aucune bibliothèque tierce à l'exécution : le SBOM contient donc le
   composant `calc` et aucun autre. Le runtime Java embarqué dans chaque archive n'y figure pas.
 - **Architectures** : Windows x64, macOS arm64 (puce Apple), Linux x64. Pas de Mac Intel, pas de Linux arm64.
-- **Ce qui n'a pas été exécuté pour E14** : le workflow `release.yml` (GitHub Actions ne se lance pas depuis le poste) et le packaging
-  macOS et Linux. Seul Windows a été construit et démarré. La première exécution réelle est l'essai décrit plus haut, à faire après la
-  fusion.
+- **Ce qui a tourné, et ce qui reste non vérifié.** Le workflow `release.yml` a tourné en essai à blanc (run `42377140242`, pré-version `test-v1.0.0-1`, preuve dans `docs/essais/release-1.0.0-essai-final.json`) : les trois archives, le SBOM, le rapport et `SHA256SUMS.txt` ont été publiés et contrôlés par `tools/release/verify-release.sh`, et l'application Windows est restée vivante 5 secondes sans contrôle de la fenêtre. Sous macOS et Linux, l'application empaquetée n'a connu qu'un test de fumée en CI (le processus reste vivant 8 secondes) : aucun usage réel n'y est vérifié. La release `v1.0.0` elle-même n'est pas encore publiée.
+- **Tag** : une publication part d'un tag poussé par le mainteneur ; le workflow n'en crée aucun. Le détail de ce que la recette a et n'a pas vu est dans [RECETTE.md](RECETTE.md).
