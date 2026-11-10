@@ -25,7 +25,7 @@ Section titles follow the Epic E00 brief; the French wording is given in parenth
 - Tags: `autopilot/E6`, `autopilot/E7`, `autopilot/E8`, `autopilot/E9`, `autopilot/E10`.
 - Branches: local `epic/e6-durable-format`, `epic/e7-input-parsing`, `epic/e8-ui-polish`, `epic/e9-structure-cleanup`,
   `epic/e10-final-docs`, `main`; remote `origin/main`, `origin/epic/e1-build-foundation`, `origin/epic/e2-history-safety`,
-  `origin/epic/e3-typed-errors`. Remote: `https://github.com/TGDev2/Calculatrice.git`.
+  `origin/epic/e3-typed-errors`. Remote: `https://github.com/TGDev2/exacte.git`.
 - Last 20 commits (`git log --oneline -20`):
 
 ```

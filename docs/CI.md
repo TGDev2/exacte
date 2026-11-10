@@ -1,6 +1,6 @@
 # Intégration continue
 
-[![CI](https://github.com/TGDev2/Calculatrice/actions/workflows/ci.yml/badge.svg)](https://github.com/TGDev2/Calculatrice/actions/workflows/ci.yml)
+[![CI](https://github.com/TGDev2/exacte/actions/workflows/ci.yml/badge.svg)](https://github.com/TGDev2/exacte/actions/workflows/ci.yml)
 
 ## Ce que fait la CI
 
@@ -142,6 +142,6 @@ réglage manque, le job `deploy` échoue ; il n'est pas versionné dans le dép�
 3. `deploy` (10 minutes au plus), après `conformity` et `site`, et seulement si la référence est `main` : le seul job qui peut écrire
    sur Pages (`pages: write`, `id-token: write`).
 
-La page est servie à l'adresse https://tgdev2.github.io/Calculatrice/, avec le rapport de conformité à côté (`rapport-conformite.html`).
+La page est servie à l'adresse https://tgdev2.github.io/exacte/, avec le rapport de conformité à côté (`rapport-conformite.html`).
 Les tests de `web/src/webTest` ne passent que par ce workflow : ni `check` ni `ci.yml` ne les lancent, et le rapport de conformité ne les
 lit pas (voir [TESTS.md](TESTS.md#la-version-web-g29)).

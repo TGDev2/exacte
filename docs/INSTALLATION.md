@@ -11,7 +11,7 @@ Pour chaque système, les étapes sont les mêmes :
 3. décompresser l'archive et lancer Calc ;
 4. passer l'avertissement du premier lancement.
 
-**Où télécharger.** Ouvrez la page des versions : <https://github.com/TGDev2/Calculatrice/releases>. Prenez la version la plus
+**Où télécharger.** Ouvrez la page des versions : <https://github.com/TGDev2/exacte/releases>. Prenez la version la plus
 haute de la liste, par exemple `1.0.0`. **Ne prenez pas** les pré-versions dont le nom commence par `test-` (par exemple
 `test-v1.0.0-12`) : ce sont des essais du mainteneur, pas des versions pour les utilisateurs.
 
@@ -213,7 +213,7 @@ Vous pouvez aussi supprimer l'archive téléchargée.
 - **Vous avez téléchargé une pré-version `test-`.** Retournez sur la page des versions et prenez la version la plus haute qui ne
   commence pas par `test-`.
 
-**Signaler un problème.** Ouvrez une demande sur <https://github.com/TGDev2/Calculatrice/issues> : indiquez votre système et sa
+**Signaler un problème.** Ouvrez une demande sur <https://github.com/TGDev2/exacte/issues> : indiquez votre système et sa
 version, le nom de l'archive téléchargée et ce que vous avez vu à l'écran. Les étapes pour macOS et Linux n'ont pas été essayées
 sur de vraies machines : vos retours sont précieux.
 

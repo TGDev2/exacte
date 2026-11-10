@@ -10,7 +10,7 @@ n'a pas de numéro de version et n'est pas jointe aux releases.
 
 ### Ajouté
 
-- **Calc dans le navigateur** : https://tgdev2.github.io/Calculatrice/. Le même cœur, compilé vers JavaScript par TeaVM sans modifier
+- **Calc dans le navigateur** : https://tgdev2.github.io/exacte/. Le même cœur, compilé vers JavaScript par TeaVM sans modifier
   `src/main/java`, donne le carnet, les références, les variables, les quatre modes d'affichage, annuler et rétablir. Le carnet
   reste dans le navigateur ([ADR 0015](docs/adr/0015-version-web-teavm.md)).
 - **Une garantie G29** : la version web donne les mêmes résultats que le bureau, comparée sous Node par `webTest` (70 cas du golden,

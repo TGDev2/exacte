@@ -429,7 +429,7 @@ class WebPageDisplayAcceptanceTest {
         for (Json link : footer.get("links").items()) {
             links.put(link.get("text").text(), link.get("href").isNull() ? null : link.get("href").text());
         }
-        assertEquals("https://github.com/TGDev2/Calculatrice", links.get("Code source"), "Liens du pied de page : " + links);
+        assertEquals("https://github.com/TGDev2/exacte", links.get("Code source"), "Liens du pied de page : " + links);
         assertEquals("rapport-conformite.html", links.get("Rapport de conformité"), "Liens du pied de page : " + links);
         String text = footer.get("text").text().toLowerCase(Locale.ROOT);
         assertTrue(text.contains("carnet") && text.contains("reste dans ce navigateur"), "Pied de page : " + footer.get("text").text());

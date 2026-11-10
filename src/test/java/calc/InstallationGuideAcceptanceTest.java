@@ -33,7 +33,7 @@ class InstallationGuideAcceptanceTest {
     private static final Path DATA_DIRECTORY = Path.of("src", "main", "java", "calc", "persistence", "DataDirectory.java");
     private static final Path NOTEBOOK_STORE = Path.of("src", "main", "java", "calc", "persistence", "NotebookStore.java");
 
-    private static final String RELEASES_URL = "https://github.com/TGDev2/Calculatrice/releases";
+    private static final String RELEASES_URL = "https://github.com/TGDev2/exacte/releases";
 
     private static String read(Path file) throws IOException {
         assertTrue(Files.isRegularFile(file), file + " must exist");
@@ -186,7 +186,7 @@ class InstallationGuideAcceptanceTest {
 
     @Test
     void theGuideSendsReadersToTheReleasesPageAndTheIssues() throws IOException {
-        assertContainsAll("docs/INSTALLATION.md", read(GUIDE), RELEASES_URL, "https://github.com/TGDev2/Calculatrice/issues");
+        assertContainsAll("docs/INSTALLATION.md", read(GUIDE), RELEASES_URL, "https://github.com/TGDev2/exacte/issues");
     }
 
     @Test

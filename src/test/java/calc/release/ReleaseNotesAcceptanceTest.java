@@ -42,8 +42,8 @@ class ReleaseNotesAcceptanceTest {
     private static final Path RELEASE_DOC = Path.of("docs", "RELEASE.md");
     private static final Path RELEASE_ADR = Path.of("docs", "adr", "0012-packaging-et-releases.md");
 
-    private static final String REPOSITORY = "TGDev2/Calculatrice";
-    private static final String BLOB = "https://github.com/TGDev2/Calculatrice/blob/abc123/";
+    private static final String REPOSITORY = "TGDev2/exacte";
+    private static final String BLOB = "https://github.com/TGDev2/exacte/blob/abc123/";
     private static final String GUIDE_LINK = BLOB + "docs/INSTALLATION.md";
 
     private static final LocalDate FIRST_POSSIBLE_DATE = LocalDate.of(2026, 11, 6);

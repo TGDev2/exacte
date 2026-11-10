@@ -433,7 +433,7 @@ tasks.register<JavaExec>("releaseNotes") {
     classpath = sourceSets["test"].runtimeClasspath
     mainClass = "calc.release.ReleaseNotes"
     javaLauncher = javaToolchains.launcherFor(java.toolchain)
-    val repository = providers.environmentVariable("GITHUB_REPOSITORY").orElse("TGDev2/Calculatrice")
+    val repository = providers.environmentVariable("GITHUB_REPOSITORY").orElse("TGDev2/exacte")
     val ref = providers.environmentVariable("GITHUB_SHA").orElse("main")
     args(
         "CHANGELOG.md",

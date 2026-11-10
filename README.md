@@ -1,8 +1,8 @@
 # Calc
 
-[![CI](https://github.com/TGDev2/Calculatrice/actions/workflows/ci.yml/badge.svg)](https://github.com/TGDev2/Calculatrice/actions/workflows/ci.yml)
+[![CI](https://github.com/TGDev2/exacte/actions/workflows/ci.yml/badge.svg)](https://github.com/TGDev2/exacte/actions/workflows/ci.yml)
 
-[Essayer dans le navigateur](https://tgdev2.github.io/Calculatrice/) : la même calculatrice, sans installation (voir
+[Essayer dans le navigateur](https://tgdev2.github.io/exacte/) : la même calculatrice, sans installation (voir
 [l'ADR 0015](docs/adr/0015-version-web-teavm.md)).
 
 Calc est une **calculatrice exacte** et un **carnet de calcul** en français, application Java 21 (Swing) ou page dans le
@@ -54,7 +54,7 @@ ans * 3                  # 1                 (exactement)
 
 ## Téléchargement
 
-Chaque version est une [release GitHub](https://github.com/TGDev2/Calculatrice/releases) avec une application autonome par
+Chaque version est une [release GitHub](https://github.com/TGDev2/exacte/releases) avec une application autonome par
 système, sans Java à installer. Le pas-à-pas (vérification des sommes, premier lancement, données, mise à jour) est dans le
 [guide d'installation](docs/INSTALLATION.md).
 

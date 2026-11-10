@@ -43,7 +43,7 @@ class WebDocumentationAcceptanceTest {
     private static final Path CHANGELOG = Path.of("CHANGELOG.md");
     private static final Path TEST_SOURCES = Path.of("src", "test", "java");
 
-    private static final String PAGE_LINK = "[Essayer dans le navigateur](https://tgdev2.github.io/Calculatrice/)";
+    private static final String PAGE_LINK = "[Essayer dans le navigateur](https://tgdev2.github.io/exacte/)";
 
     private static String read(Path file) throws IOException {
         assertTrue(Files.isRegularFile(file), file + " must exist");
