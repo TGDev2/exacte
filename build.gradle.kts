@@ -516,3 +516,21 @@ tasks.register<JavaExec>("screenshots") {
         args(dir.get(), theme.get(), scale.get())
     }
 }
+
+// The files generated from the design tokens (ADR 0016): the FlatLaf themes and web/site/tokens.css, all versioned.
+//
+//   gradlew generateDesignTokens   -> src/main/resources/calc/ui/theme/CalcLightLaf.properties, CalcDarkLaf.properties
+//                                     and web/site/tokens.css, from src/main/resources/calc/ui/design/tokens.properties
+//
+// Run it after a change of the tokens; DesignTokensAcceptanceTest fails while a file differs from the generator. The tool
+// lives in the test source set (src/test/java/calc/ui/design), is never shipped and is tied to no other task.
+tasks.register<JavaExec>("generateDesignTokens") {
+    group = "build setup"
+    description = "Rewrites the FlatLaf themes and web/site/tokens.css from the design tokens."
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass = "calc.ui.design.DesignTokenGenerator"
+    javaLauncher = javaToolchains.launcherFor(java.toolchain)
+    defaultCharacterEncoding = "UTF-8"
+    workingDir = projectDir
+    args(projectDir.absolutePath)
+}

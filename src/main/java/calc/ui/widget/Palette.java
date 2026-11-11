@@ -1,23 +1,72 @@
 package calc.ui.widget;
 
+import calc.ui.design.DesignTokens;
+import calc.ui.design.Theme;
 import java.awt.Color;
 
 /**
- * The colours of the status messages and of the exactness marks. The colour only completes a text (« Exact »,
- * « ≈ Approché », the status sentence), it never carries the information alone. Every foreground reaches
- * {@link Contrast#MINIMUM_TEXT_RATIO} on its background; the status colours are checked against the usual panel
- * backgrounds of the system look and feels (white, light grey), see PaletteContrastTest.
+ * The colours of the status messages and of the exactness marks, read from the design tokens of one theme (ADR 0016). The
+ * colour only completes a text (« Exact », « ≈ Approché », the status sentence), it never carries the information alone.
+ * Every foreground reaches {@link Contrast#MINIMUM_TEXT_RATIO} on its background in both themes; the status colours of the
+ * light theme are also checked against the usual panel backgrounds of the system look and feels, see PaletteContrastTest.
  */
 public final class Palette {
-    public static final Color SUCCESS = new Color(18, 93, 56);
-    public static final Color ERROR = new Color(163, 44, 44);
-    public static final Color INFO = new Color(60, 60, 60);
+    /** The theme the window is drawn in: the light one until the choice of a theme exists. */
+    private static final Theme ACTIVE_THEME = Theme.LIGHT;
 
-    public static final Color EXACT_FOREGROUND = new Color(10, 70, 40);
-    public static final Color EXACT_BACKGROUND = new Color(214, 240, 224);
-    public static final Color APPROXIMATE_FOREGROUND = new Color(102, 56, 0);
-    public static final Color APPROXIMATE_BACKGROUND = new Color(255, 235, 190);
+    private final Theme theme;
 
-    private Palette() {
+    private Palette(Theme theme) {
+        this.theme = theme;
+    }
+
+    /** The theme the window is drawn in. */
+    public static Theme activeTheme() {
+        return ACTIVE_THEME;
+    }
+
+    /** The palette of the active theme. */
+    public static Palette active() {
+        return of(ACTIVE_THEME);
+    }
+
+    public static Palette of(Theme theme) {
+        return new Palette(theme);
+    }
+
+    public Theme theme() {
+        return theme;
+    }
+
+    public Color success() {
+        return role("exact.sign");
+    }
+
+    public Color error() {
+        return role("error.text");
+    }
+
+    public Color info() {
+        return role("text.secondary");
+    }
+
+    public Color exactForeground() {
+        return role("exact.sign");
+    }
+
+    public Color exactBackground() {
+        return role("exact.surface");
+    }
+
+    public Color approximateForeground() {
+        return role("approximate.sign");
+    }
+
+    public Color approximateBackground() {
+        return role("approximate.surface");
+    }
+
+    private Color role(String role) {
+        return DesignTokens.load().color(theme, role);
     }
 }

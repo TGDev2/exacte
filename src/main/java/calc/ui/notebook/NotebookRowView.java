@@ -59,12 +59,12 @@ final class NotebookRowView extends JPanel {
         field.setName("lineField");
         field.setFont(plainFont);
         field.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(new Color(200, 200, 200)), BorderFactory.createEmptyBorder(3, 6, 3, 6)));
+                BorderFactory.createLineBorder(NotebookPalette.active().border()), BorderFactory.createEmptyBorder(3, 6, 3, 6)));
 
         numberLabel.setName("numberLabel");
         numberLabel.setOpaque(true);
         numberLabel.setFont(plainNumberFont);
-        numberLabel.setForeground(NotebookPalette.NUMBER_FOREGROUND);
+        numberLabel.setForeground(NotebookPalette.active().numberForeground());
         FontMetrics metrics = numberLabel.getFontMetrics(boldNumberFont);
         numberLabel.setPreferredSize(new Dimension(metrics.stringWidth("5000") + 16, 24));
         numberLabel.setBorder(BorderFactory.createEmptyBorder(0, 4, 0, 8));
@@ -72,12 +72,12 @@ final class NotebookRowView extends JPanel {
 
         resultLabel.setName("resultLabel");
         resultLabel.setFont(plainFont);
-        resultLabel.setForeground(NotebookPalette.RESULT_FOREGROUND);
+        resultLabel.setForeground(NotebookPalette.active().resultForeground());
         badge.setName("exactnessBadge");
         badge.setPreferredSize(new Dimension(BADGE_WIDTH, badge.getPreferredSize().height));
 
         errorLabel.setName("errorLabel");
-        errorLabel.setForeground(Palette.ERROR);
+        errorLabel.setForeground(Palette.active().error());
         errorLabel.setFont(plainNumberFont);
         errorLabel.setVisible(false);
 
@@ -188,15 +188,15 @@ final class NotebookRowView extends JPanel {
     }
 
     private void restyle(boolean active, NotebookRow row) {
-        Color background = active ? NotebookPalette.ACTIVE_ROW_BACKGROUND : NotebookPalette.ROW_BACKGROUND;
+        Color background = active ? NotebookPalette.active().activeRowBackground() : NotebookPalette.active().rowBackground();
         setBackground(background);
         numberLabel.setFont(active ? boldNumberFont : plainNumberFont);
         if (row.definesVariable()) {
-            numberLabel.setBackground(NotebookPalette.VARIABLE_BACKGROUND);
-            numberLabel.setForeground(NotebookPalette.VARIABLE_FOREGROUND);
+            numberLabel.setBackground(NotebookPalette.active().variableBackground());
+            numberLabel.setForeground(NotebookPalette.active().variableForeground());
         } else {
             numberLabel.setBackground(background);
-            numberLabel.setForeground(NotebookPalette.NUMBER_FOREGROUND);
+            numberLabel.setForeground(NotebookPalette.active().numberForeground());
         }
     }
 }

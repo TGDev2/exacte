@@ -50,12 +50,12 @@ class WidgetsTest {
         assertTrue(badge.isVisible());
         assertEquals("≈ Approché", badge.getText());
         assertEquals("Erreur maximale : ± 2,1 × 10⁻²⁵", badge.getToolTipText());
-        assertEquals(Palette.APPROXIMATE_FOREGROUND, badge.getForeground());
+        assertEquals(Palette.active().approximateForeground(), badge.getForeground());
 
         badge.showExactness(true, "");
         assertEquals("Exact", badge.getText());
         assertNull(badge.getToolTipText());
-        assertEquals(Palette.EXACT_FOREGROUND, badge.getForeground());
+        assertEquals(Palette.active().exactForeground(), badge.getForeground());
         assertEquals("Exactitude du résultat : Exact", badge.getAccessibleContext().getAccessibleName());
 
         badge.clearBadge();

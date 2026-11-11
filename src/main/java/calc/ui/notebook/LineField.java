@@ -83,7 +83,7 @@ final class LineField extends JTextField {
         Graphics2D g = (Graphics2D) graphics.create();
         try {
             g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-            g.setColor(NotebookPalette.PLACEHOLDER);
+            g.setColor(NotebookPalette.active().placeholder());
             g.setFont(getFont());
             FontMetrics metrics = g.getFontMetrics();
             int x = getInsets().left;
@@ -131,7 +131,7 @@ final class LineField extends JTextField {
                     return;
                 }
                 Color previous = graphics.getColor();
-                graphics.setColor(NotebookPalette.ERROR_UNDERLINE);
+                graphics.setColor(NotebookPalette.active().errorUnderline());
                 int y = from.y + from.height - 2;
                 graphics.fillRect(from.x, y, Math.max(2, to.x - from.x), 2);
                 graphics.setColor(previous);

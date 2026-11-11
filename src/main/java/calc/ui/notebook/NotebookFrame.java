@@ -7,7 +7,6 @@ import calc.ui.widget.DisplayModeSelector;
 import calc.ui.widget.DisplayModeText;
 import calc.ui.widget.Palette;
 import java.awt.BorderLayout;
-import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Rectangle;
@@ -102,7 +101,7 @@ public final class NotebookFrame extends JFrame {
         scrollPane = new JScrollPane(rowsPanel, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         scrollPane.setName("notebookScroll");
         scrollPane.getVerticalScrollBar().setUnitIncrement(24);
-        scrollPane.getViewport().setBackground(NotebookPalette.ROW_BACKGROUND);
+        scrollPane.getViewport().setBackground(NotebookPalette.active().rowBackground());
         scrollPane.getAccessibleContext().setAccessibleName("Carnet de calcul");
         scrollPane.getViewport().addMouseListener(new MouseAdapter() {
             @Override
@@ -135,7 +134,7 @@ public final class NotebookFrame extends JFrame {
 
         statusLabel.setName("statusLabel");
         statusLabel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(200, 200, 200)),
+                BorderFactory.createMatteBorder(1, 0, 0, 0, NotebookPalette.active().border()),
                 BorderFactory.createEmptyBorder(5, 10, 5, 10)));
 
         getContentPane().add(top, BorderLayout.NORTH);
@@ -557,9 +556,9 @@ public final class NotebookFrame extends JFrame {
         statusLabel.setText(message);
         statusLabel.setToolTipText(message);
         statusLabel.setForeground(switch (tone) {
-            case SUCCESS -> Palette.SUCCESS;
-            case ERROR -> Palette.ERROR;
-            case INFO -> Palette.INFO;
+            case SUCCESS -> Palette.active().success();
+            case ERROR -> Palette.active().error();
+            case INFO -> Palette.active().info();
         });
         statusLabel.getAccessibleContext().setAccessibleName("État");
         statusLabel.getAccessibleContext().setAccessibleDescription(message);
@@ -604,7 +603,7 @@ public final class NotebookFrame extends JFrame {
 
         RowsPanel() {
             setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
-            setBackground(NotebookPalette.ROW_BACKGROUND);
+            setBackground(NotebookPalette.active().rowBackground());
             setOpaque(true);
         }
 
