@@ -8,7 +8,7 @@ plugins {
     java
     application
     jacoco
-    id("org.cyclonedx.bom") version "3.5.1"
+    id("org.cyclonedx.bom") version "3.6.1"
     id("info.solidsoft.pitest") version "1.19.0"
 }
 
