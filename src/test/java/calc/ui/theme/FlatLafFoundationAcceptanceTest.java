@@ -304,10 +304,13 @@ final class FlatLafFoundationAcceptanceTest {
         for (String name : List.of("Inter-OFL.txt", "JetBrainsMono-OFL.txt")) {
             String text = words(read(LICENCES.resolve(name)));
             String upper = text.toUpperCase(Locale.ROOT);
-            for (String part : List.of("SIL OPEN FONT LICENSE", "VERSION 1.1", "PREAMBLE", "DEFINITIONS", "PERMISSION & CONDITIONS",
-                    "TERMINATION", "DISCLAIMER", "Reserved Font Name")) {
+            for (String part : List.of("SIL OPEN FONT LICENSE", "VERSION 1.1", "PREAMBLE", "DEFINITIONS", "TERMINATION", "DISCLAIMER",
+                    "Reserved Font Name")) {
                 assertTrue(upper.contains(part.toUpperCase(Locale.ROOT)), name + " is the full SIL Open Font License 1.1: it has \"" + part + "\"");
             }
+            // The official texts differ here: JetBrains Mono writes "PERMISSION & CONDITIONS", Inter "PERMISSION AND CONDITIONS".
+            assertTrue(upper.contains("PERMISSION & CONDITIONS") || upper.contains("PERMISSION AND CONDITIONS"),
+                    name + " is the full SIL Open Font License 1.1: it has its section PERMISSION & CONDITIONS");
             assertTrue(text.length() > 3500, name + " is the full text, not a summary: " + text.length() + " characters");
             String font = name.startsWith("Inter") ? "Inter" : "JetBrains Mono";
             int copyright = text.indexOf("Copyright");
