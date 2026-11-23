@@ -168,7 +168,7 @@ class NotebookFrameFilesTest {
         assertTrue(Files.exists(documents.resolve("devis.calc.json")));
 
         typeLine("ans * 2");
-        assertEquals("• devis.calc.json — Calc", frame.getTitle());
+        assertEquals("devis.calc.json (modifié) — Calc", frame.getTitle());
 
         press(KeyEvent.VK_S, menuMask());
         assertEquals("devis.calc.json — Calc", frame.getTitle());
@@ -205,12 +205,12 @@ class NotebookFrameFilesTest {
         dialogs.willSaveTo(documents.resolve("work"));
         press(KeyEvent.VK_S, menuMask());
         typeLine("ans + 1");
-        assertEquals("• work.calc.json — Calc", frame.getTitle());
+        assertEquals("work.calc.json (modifié) — Calc", frame.getTitle());
 
         dialogs.willAnswer(Unsaved.CANCEL);
         close();
         assertTrue(frame.isDisplayable(), "cancel keeps the window");
-        assertEquals("• work.calc.json — Calc", frame.getTitle());
+        assertEquals("work.calc.json (modifié) — Calc", frame.getTitle());
 
         dialogs.willAnswer(Unsaved.DISCARD);
         close();

@@ -398,7 +398,7 @@ class RobustnessAcceptanceTest {
             d.save();
             assertEquals(StatusTone.ERROR, d.view.statusTone());
             assertEquals(saved, AcceptanceSession.contentOf(documents), "the previous content, no temporary file");
-            assertTrue(d.view.title().startsWith("• "), "still marked as modified: " + d.view.title());
+            assertTrue(d.view.title().contains(" (modifié) "), "still marked as modified: " + d.view.title());
 
             failing.set(false);
             d.save();

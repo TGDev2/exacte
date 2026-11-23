@@ -64,13 +64,10 @@ final class NotebookRowView extends JPanel {
 
         field.setName("lineField");
         field.setFont(plainFont);
-        field.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(NotebookPalette.active().border()), BorderFactory.createEmptyBorder(3, 6, 3, 6)));
 
         numberLabel.setName("numberLabel");
         numberLabel.setOpaque(true);
         numberLabel.setFont(plainNumberFont);
-        numberLabel.setForeground(NotebookPalette.active().numberForeground());
         FontMetrics metrics = numberLabel.getFontMetrics(boldNumberFont);
         numberLabel.setPreferredSize(new Dimension(metrics.stringWidth("5000") + 16, 24));
         numberLabel.setBorder(BorderFactory.createEmptyBorder(0, 4, 0, 8));
@@ -78,12 +75,10 @@ final class NotebookRowView extends JPanel {
 
         resultLabel.setName("resultLabel");
         resultLabel.setFont(plainFont);
-        resultLabel.setForeground(NotebookPalette.active().resultForeground());
         badge.setName("exactnessBadge");
         badge.setPreferredSize(new Dimension(BADGE_WIDTH, badge.getPreferredSize().height));
 
         errorLabel.setName("errorLabel");
-        errorLabel.setForeground(Palette.active().error());
         errorLabel.setFont(plainNumberFont);
         errorLabel.setVisible(false);
 
@@ -130,6 +125,31 @@ final class NotebookRowView extends JPanel {
         numberLabel.addMouseListener(focusField);
         resultLabel.addMouseListener(focusField);
         errorLabel.addMouseListener(focusField);
+        colour();
+    }
+
+    /** A change of theme: the row takes the colours of the new theme, for the line it shows. */
+    @Override
+    public void updateUI() {
+        super.updateUI();
+        // Called by the constructor of JPanel before the fields exist.
+        if (field != null) {
+            colour();
+            if (shownRow != null) {
+                showRow(shownRow);
+                restyle(shownActive, shownRow);
+            }
+        }
+    }
+
+    // The colours that do not depend on the line, from the theme in force.
+    private void colour() {
+        field.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(NotebookPalette.active().border()), BorderFactory.createEmptyBorder(3, 6, 3, 6)));
+        numberLabel.setForeground(NotebookPalette.active().numberForeground());
+        resultLabel.setForeground(NotebookPalette.active().resultForeground());
+        errorLabel.setForeground(Palette.active().error());
+        setBackground(NotebookPalette.active().rowBackground());
     }
 
     @Override

@@ -154,7 +154,7 @@ class NotebookFrameTest {
         assertEquals(DisplayMode.DECIMAL, frame.shown().displayMode());
         assertEquals(DisplayMode.DECIMAL, frame.modeSelector().mode());
 
-        runOnEdt(() -> frame.modeSelector().setSelectedItem(DisplayMode.FRACTION));
+        runOnEdt(() -> frame.modeSelector().button(DisplayMode.FRACTION).doClick(0));
         assertEquals("1/3", frame.row(0).resultLabel.getText());
 
         JMenuItem scientific = findMenuItem("modeItemSCIENTIFIC");
@@ -386,6 +386,18 @@ class NotebookFrameTest {
         }
         assertEquals(List.of("Annuler", "Rétablir", "Insérer une ligne au-dessus", "Insérer une ligne au-dessous",
                 "Supprimer la ligne", "Monter la ligne", "Descendre la ligne", "Tout effacer"), items);
+        List<String> display = new ArrayList<>();
+        for (java.awt.Component component : frame.getJMenuBar().getMenu(2).getMenuComponents()) {
+            if (component instanceof JMenuItem item) {
+                display.add(item.getText());
+            }
+        }
+        assertEquals(List.of("Auto", "Décimal", "Fraction", "Scientifique", "Mode suivant", "Thème"), display);
+        List<String> themes = new ArrayList<>();
+        for (java.awt.Component component : ((JMenu) findMenuItem("themeMenu")).getMenuComponents()) {
+            themes.add(((JMenuItem) component).getText());
+        }
+        assertEquals(List.of("Clair", "Sombre"), themes, "no system theme without a detection");
 
         JMenuItem undo = findMenuItem("undoItem");
         JMenuItem redo = findMenuItem("redoItem");

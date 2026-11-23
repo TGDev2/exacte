@@ -21,6 +21,10 @@ import calc.persistence.StorageLimits;
 import calc.ui.DisplayModeStore;
 import calc.ui.ResultDescription;
 import calc.ui.StatusTone;
+import calc.ui.ThemeChoice;
+import calc.ui.ThemeStore;
+import calc.ui.design.Theme;
+import calc.ui.theme.SystemThemeDetector;
 import calc.ui.widget.DisplayModeText;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -80,14 +84,19 @@ public final class NotebookPresenter {
     static final String RESERVED_FILE_STATUS = "Ce fichier est réservé à Calc : choisissez un autre nom.";
     static final String UNTITLED_NAME = "Carnet sans titre";
     private static final String TITLE_SUFFIX = " — Calc";
-    private static final String MODIFIED_MARKER = "• ";
+    private static final String MODIFIED_MARKER = " (modifié)";
+    private static final String READ_ONLY_MARKER = " (lecture seule)";
     static final String READ_ONLY_FILE_STATUS = "Ce carnet vient d'une version plus récente de Calc : il est en lecture seule. "
             + "« Enregistrer sous » en garde une copie.";
 
     private final DocumentService document;
     private final DisplayModeStore modeStore;
+    private final ThemeStore themeStore;
+    private final SystemThemeDetector systemTheme;
     private final NotebookDialogs dialogs;
     private DisplayMode mode;
+    // The theme chosen in Affichage > Thème; never SYSTEM when the theme of the system cannot be read.
+    private ThemeChoice theme;
     // Set by a quit that may go on; the next view model asks the window to close.
     private boolean closeRequested;
     // The active line; null while the notebook has no line (the window then shows one blank row).
@@ -125,17 +134,28 @@ public final class NotebookPresenter {
         this(document, loaded, modeStore, dialogs, SHARED_CALCULATION, JUST_EVALUATE);
     }
 
+    NotebookPresenter(DocumentService document, LoadedNotebook loaded, DisplayModeStore modeStore, NotebookDialogs dialogs, Executor executor,
+                      BiFunction<String, Supplier<LineResult>, LineResult> aroundEachLine) {
+        this(document, loaded, modeStore, ThemeStore.noop(), SystemThemeDetector.none(), dialogs, executor, aroundEachLine);
+    }
+
     /**
+     * @param themeStore     where the chosen theme is remembered
+     * @param systemTheme    the theme of the system, which « Système » follows; « Système » is offered only when it is available
      * @param executor       what calculates: {@link #newRecalculationExecutor()} in the application, never the event thread
      * @param aroundEachLine called on the calculating thread with the text of each line really evaluated and its evaluation
      */
-    NotebookPresenter(DocumentService document, LoadedNotebook loaded, DisplayModeStore modeStore, NotebookDialogs dialogs, Executor executor,
+    NotebookPresenter(DocumentService document, LoadedNotebook loaded, DisplayModeStore modeStore, ThemeStore themeStore,
+                      SystemThemeDetector systemTheme, NotebookDialogs dialogs, Executor executor,
                       BiFunction<String, Supplier<LineResult>, LineResult> aroundEachLine) {
         this.document = Objects.requireNonNull(document, "document");
         this.modeStore = Objects.requireNonNull(modeStore, "modeStore");
+        this.themeStore = Objects.requireNonNull(themeStore, "themeStore");
+        this.systemTheme = Objects.requireNonNull(systemTheme, "systemTheme");
         this.dialogs = Objects.requireNonNull(dialogs, "dialogs");
         Objects.requireNonNull(loaded, "loaded");
         mode = document.displayMode() != DisplayMode.AUTO ? document.displayMode() : modeStore.load();
+        theme = offered(themeStore.load());
         Message first = loaded.statusMessage().map(text -> new Message(text, toneOf(loaded.condition()))).orElse(null);
         lastingMessage = document.isStoreReadOnly()
                 ? new Message(first != null ? first.text() : READ_ONLY_STATUS, StatusTone.ERROR)
@@ -189,6 +209,28 @@ public final class NotebookPresenter {
     /** The presenter of what {@code store} has already loaded (off the event thread: a migration evaluates), calculating on {@code executor}. */
     public static NotebookPresenter open(NotebookStore store, LoadedNotebook loaded, DisplayModeStore modeStore, NotebookDialogs dialogs, Executor executor) {
         return new NotebookPresenter(new DocumentService(store, loaded), loaded, modeStore, dialogs, executor, JUST_EVALUATE);
+    }
+
+    /**
+     * Same as {@link #open(NotebookStore, LoadedNotebook, DisplayModeStore, NotebookDialogs, Executor)}, with the theme remembered
+     * in {@code themeStore} and the theme of the system read by {@code systemTheme}.
+     */
+    public static NotebookPresenter open(NotebookStore store, LoadedNotebook loaded, DisplayModeStore modeStore, ThemeStore themeStore,
+                                         SystemThemeDetector systemTheme, NotebookDialogs dialogs, Executor executor) {
+        return new NotebookPresenter(new DocumentService(store, loaded), loaded, modeStore, themeStore, systemTheme, dialogs, executor,
+                JUST_EVALUATE);
+    }
+
+    /**
+     * The theme drawn for {@code choice}: the one of the system for « Système », light when it cannot be read. Main applies it
+     * before the window is built.
+     */
+    public static Theme effectiveTheme(ThemeChoice choice, SystemThemeDetector systemTheme) {
+        return switch (choice) {
+            case LIGHT -> Theme.LIGHT;
+            case DARK -> Theme.DARK;
+            case SYSTEM -> systemTheme.current().orElse(Theme.LIGHT);
+        };
     }
 
     static NotebookPresenter open(NotebookStore store, DisplayModeStore modeStore, NotebookDialogs dialogs, Executor executor,
@@ -406,6 +448,26 @@ public final class NotebookPresenter {
             calculateAgainIfInterrupted();
         }
         return view(NotebookFocus.NONE);
+    }
+
+    /**
+     * Affichage > Thème: remembers {@code choice}; the window draws {@link NotebookViewModel#effectiveTheme()}. Nothing is
+     * calculated or formatted again, and the line being typed keeps its text. « Système » is ignored where the theme of the
+     * system cannot be read: it is not offered there.
+     */
+    public NotebookViewModel onThemeChanged(ThemeChoice choice, String pending) {
+        syncDraft(pending);
+        if (choice != null && offered(choice) == choice && choice != theme) {
+            theme = choice;
+            themeStore.save(theme);
+            say("Thème : " + theme.label() + ".", StatusTone.INFO);
+        }
+        return view(NotebookFocus.NONE);
+    }
+
+    // SYSTEM is offered only when the theme of the system can be read; otherwise the light theme stands for it.
+    private ThemeChoice offered(ThemeChoice choice) {
+        return choice == ThemeChoice.SYSTEM && !systemTheme.available() ? ThemeChoice.LIGHT : choice;
     }
 
     /** Same as {@link #onDisplayModeChanged} with the mode that follows the current one (the first after the last). */
@@ -701,8 +763,8 @@ public final class NotebookPresenter {
     }
 
     private String title() {
-        return (document.isModified() ? MODIFIED_MARKER : "") + documentName()
-                + (document.isReadOnlyFile() ? " (lecture seule)" : "") + TITLE_SUFFIX;
+        return documentName() + (document.isModified() ? MODIFIED_MARKER : "")
+                + (document.isReadOnlyFile() ? READ_ONLY_MARKER : "") + TITLE_SUFFIX;
     }
 
     // ------------------------------------------------------------------------------------------------ internals
@@ -933,7 +995,8 @@ public final class NotebookPresenter {
         boolean close = closeRequested;
         closeRequested = false;
         return new NotebookViewModel(rows, activeIndex(), draft, focus, document.canUndo(), document.canRedo() || isDraftRestorable(), mode,
-                status.text(), status.tone(), showHelp ? WATERMARK : "", title(), !document.isReadOnlyFile(), close);
+                status.text(), status.tone(), showHelp ? WATERMARK : "", title(), !document.isReadOnlyFile(), close,
+                theme, effectiveTheme(theme, systemTheme), systemTheme.available());
     }
 
     // The count of a calculation under way comes first, followed by what cannot wait for its end: see urgentError. Then that

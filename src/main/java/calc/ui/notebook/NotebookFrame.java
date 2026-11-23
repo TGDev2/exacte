@@ -2,8 +2,10 @@ package calc.ui.notebook;
 
 import calc.format.DisplayMode;
 import calc.ui.StatusTone;
+import calc.ui.ThemeChoice;
 import calc.ui.design.DesignTokens;
 import calc.ui.notebook.NotebookShortcuts.Command;
+import calc.ui.theme.ThemeManager;
 import calc.ui.widget.DisplayModeSelector;
 import calc.ui.widget.DisplayModeText;
 import calc.ui.widget.Palette;
@@ -72,6 +74,7 @@ public final class NotebookFrame extends JFrame {
     private final JLabel statusLabel = new JLabel(" ");
     private final DisplayModeSelector modeSelector = new DisplayModeSelector();
     private final transient Map<DisplayMode, JRadioButtonMenuItem> modeItems = new EnumMap<>(DisplayMode.class);
+    private final transient Map<ThemeChoice, JRadioButtonMenuItem> themeItems = new EnumMap<>(ThemeChoice.class);
     private final transient Action saveAction;
     private final transient Action undoAction;
     private final transient Action redoAction;
@@ -123,20 +126,16 @@ public final class NotebookFrame extends JFrame {
         JLabel modeLabel = new JLabel("Affichage");
         modeLabel.setLabelFor(modeSelector);
         modeLabel.setDisplayedMnemonic('A');
+        // The title of the window names the document: the header only holds the display modes.
         JPanel top = new JPanel(new BorderLayout(8, 0));
         top.setBorder(BorderFactory.createEmptyBorder(6, 10, 6, 10));
-        JLabel title = new JLabel("Carnet de calcul");
-        title.setFont(title.getFont().deriveFont(Font.BOLD, title.getFont().getSize2D() + 3f));
-        top.add(title, BorderLayout.WEST);
-        JPanel modePanel = new JPanel(new BorderLayout(6, 0));
+        JPanel modePanel = new JPanel(new BorderLayout(8, 0));
         modePanel.add(modeLabel, BorderLayout.WEST);
         modePanel.add(modeSelector, BorderLayout.CENTER);
-        top.add(modePanel, BorderLayout.EAST);
+        top.add(modePanel, BorderLayout.WEST);
 
         statusLabel.setName("statusLabel");
-        statusLabel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createMatteBorder(1, 0, 0, 0, NotebookPalette.active().border()),
-                BorderFactory.createEmptyBorder(5, 10, 5, 10)));
+        frameStatusBar();
 
         getContentPane().add(top, BorderLayout.NORTH);
         getContentPane().add(scrollPane, BorderLayout.CENTER);
@@ -271,7 +270,48 @@ public final class NotebookFrame extends JFrame {
         next.setAccelerator(shortcuts.stroke(Command.NEXT_MODE));
         next.addActionListener(event -> apply(presenter.onNextDisplayMode(pendingText())));
         items.add(next);
+        items.add(null);
+        items.add(themeMenu());
         return items;
+    }
+
+    // Affichage > Thème: Clair, Sombre, and Système only where the theme of the system can be read (ADR 0017).
+    private JMenu themeMenu() {
+        JMenu menu = new JMenu("Thème");
+        menu.setName("themeMenu");
+        ButtonGroup group = new ButtonGroup();
+        boolean system = presenter.currentView().systemThemeAvailable();
+        for (ThemeChoice choice : ThemeChoice.values()) {
+            if (choice == ThemeChoice.SYSTEM && !system) {
+                continue;
+            }
+            JRadioButtonMenuItem item = new JRadioButtonMenuItem(choice.label());
+            item.setName("themeItem" + choice.name());
+            item.addActionListener(event -> {
+                if (!applying) {
+                    applyTheme(presenter.onThemeChanged(choice, pendingText()));
+                }
+            });
+            group.add(item);
+            themeItems.put(choice, item);
+            menu.add(item);
+        }
+        return menu;
+    }
+
+    // The same window, its rows and what is typed kept: the look and feel changes and every component reads its colours again.
+    private void applyTheme(NotebookViewModel viewModel) {
+        apply(viewModel);
+        ThemeManager.apply(viewModel.effectiveTheme());
+        scrollPane.getViewport().setBackground(NotebookPalette.active().rowBackground());
+        frameStatusBar();
+        showStatus(shown.statusMessage(), shown.statusTone());
+    }
+
+    private void frameStatusBar() {
+        statusLabel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(1, 0, 0, 0, NotebookPalette.active().border()),
+                BorderFactory.createEmptyBorder(5, 10, 5, 10)));
     }
 
     private List<JMenuItem> help() {
@@ -522,6 +562,10 @@ public final class NotebookFrame extends JFrame {
         redoAction.setEnabled(viewModel.canRedo());
         modeSelector.showMode(viewModel.displayMode());
         modeItems.get(viewModel.displayMode()).setSelected(true);
+        JRadioButtonMenuItem themeItem = themeItems.get(viewModel.theme());
+        if (themeItem != null) {
+            themeItem.setSelected(true);
+        }
         showStatus(viewModel.statusMessage(), viewModel.statusTone());
         shown = viewModel;
         growLater();
@@ -606,6 +650,13 @@ public final class NotebookFrame extends JFrame {
             setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
             setBackground(NotebookPalette.active().rowBackground());
             setOpaque(true);
+        }
+
+        @Override
+        public void updateUI() {
+            super.updateUI();
+            // A change of theme: the sheet takes the surface of the new theme.
+            setBackground(NotebookPalette.active().rowBackground());
         }
 
         @Override

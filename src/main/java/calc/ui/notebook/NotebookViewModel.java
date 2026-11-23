@@ -2,6 +2,8 @@ package calc.ui.notebook;
 
 import calc.format.DisplayMode;
 import calc.ui.StatusTone;
+import calc.ui.ThemeChoice;
+import calc.ui.design.Theme;
 import java.util.List;
 
 /**
@@ -14,6 +16,9 @@ import java.util.List;
  *
  * <p>{@code title} is the title of the window (document name, modified marker), {@code canSave} whether « Enregistrer » can
  * write the document (false for a file from a newer version), {@code closeWindow} that the window must now be closed.
+ *
+ * <p>{@code theme} is the choice of Affichage > Thème, {@code effectiveTheme} the theme the window draws for it, and
+ * {@code systemThemeAvailable} whether the choice of the system theme is offered.
  *
  * @param activeIndex the index, from 0, of the active row
  * @param focus       where the focus must go once the view model is shown
@@ -31,7 +36,10 @@ public record NotebookViewModel(
         String watermark,
         String title,
         boolean canSave,
-        boolean closeWindow) {
+        boolean closeWindow,
+        ThemeChoice theme,
+        Theme effectiveTheme,
+        boolean systemThemeAvailable) {
 
     public NotebookViewModel {
         rows = List.copyOf(rows);

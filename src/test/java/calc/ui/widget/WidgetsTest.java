@@ -23,7 +23,9 @@ class WidgetsTest {
         assertEquals(
                 List.of("Auto", "Décimal", "Fraction", "Scientifique"),
                 java.util.Arrays.stream(DisplayMode.values()).map(DisplayModeText::label).toList());
-        assertEquals("Mode d'affichage", selector.getAccessibleContext().getAccessibleName());
+        assertEquals("Affichage", selector.getAccessibleContext().getAccessibleName());
+        assertEquals(List.of("Auto", "Décimal", "Fraction", "Scientifique"), java.util.Arrays.stream(DisplayMode.values())
+                .map(mode -> selector.button(mode).getText()).toList());
         assertNotNull(selector.getAccessibleContext().getAccessibleDescription());
     }
 
@@ -37,7 +39,7 @@ class WidgetsTest {
         assertEquals(DisplayMode.FRACTION, selector.mode());
         assertEquals(List.of(), chosen, "Showing a mode is not a choice.");
 
-        selector.setSelectedItem(DisplayMode.SCIENTIFIC);
+        selector.button(DisplayMode.SCIENTIFIC).doClick(0);
         assertEquals(List.of(DisplayMode.SCIENTIFIC), chosen);
     }
 

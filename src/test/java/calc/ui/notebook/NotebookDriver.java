@@ -1,6 +1,7 @@
 package calc.ui.notebook;
 
 import calc.format.DisplayMode;
+import calc.ui.ThemeChoice;
 import java.awt.Frame;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -34,7 +35,8 @@ final class NotebookDriver {
         NotebookViewModel settled = onEdt(presenter::currentView);
         view = new NotebookViewModel(settled.rows(), settled.activeIndex(), settled.activeDraft(), told.focus(), settled.canUndo(),
                 settled.canRedo(), settled.displayMode(), settled.statusMessage(), settled.statusTone(), settled.watermark(),
-                settled.title(), settled.canSave(), told.closeWindow());
+                settled.title(), settled.canSave(), told.closeWindow(), settled.theme(), settled.effectiveTheme(),
+                settled.systemThemeAvailable());
         field = settled.activeDraft();
     }
 
@@ -137,6 +139,12 @@ final class NotebookDriver {
 
     NotebookDriver redo() {
         show(() -> presenter.onRedo(field));
+        return this;
+    }
+
+    /** Affichage > Thème, with what is typed in the active field. */
+    NotebookDriver theme(ThemeChoice choice) {
+        show(() -> presenter.onThemeChanged(choice, field));
         return this;
     }
 

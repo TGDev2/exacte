@@ -220,7 +220,7 @@ class NotebookScenariosAcceptanceTest {
         byte[] saved = Files.readAllBytes(file);
 
         d.click(0).line("a = 5");
-        assertEquals("• devis.calc.json — Calc", d.view.title());
+        assertEquals("devis.calc.json (modifié) — Calc", d.view.title());
         assertArrayEquals(saved, Files.readAllBytes(file), "no automatic save over a document with a file");
 
         d.save();
