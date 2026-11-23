@@ -19,7 +19,6 @@ import java.awt.Point;
 import java.awt.Toolkit;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.awt.font.FontRenderContext;
 import java.util.Locale;
 import java.util.Map;
 import javax.swing.JLabel;
@@ -38,8 +37,11 @@ import javax.swing.plaf.basic.BasicGraphicsUtils;
 final class NotebookRowView extends JPanel {
     private static final long serialVersionUID = 1L;
     private static final int RESULT_WIDTH = 330;
-    /** Room right of the column of the commas: the comma and up to 14 characters (decimals, « … », « × 10ⁿ »). */
-    private static final int DECIMAL_CHARACTERS = 15;
+    /**
+     * Room right of the column of the commas, in characters: the comma, 12 decimals and « … » (0,333333333333…), and 2 more
+     * so that a rounding of the advances never pushes such a result left of the column. A longer one (« × 10ⁿ ») moves left.
+     */
+    private static final int DECIMAL_CHARACTERS = 16;
 
     final int index;
     final LineField field = new LineField();
@@ -383,25 +385,20 @@ final class NotebookRowView extends JPanel {
             repaint();
         }
 
-        /** The abscissa of the column of the commas, in the coordinates of this label. */
+        /**
+         * The abscissa of the column of the commas, in the coordinates of this label: the same for every row, since it only
+         * depends on the width of the label and on its font.
+         */
         int anchor() {
-            double room = DECIMAL_CHARACTERS * width("0");
-            return (int) Math.max(getInsets().left, Math.round(getWidth() - getInsets().right - room));
-        }
-
-        // The width of a text where the text is laid out: in the font render context of this label, whatever the Graphics.
-        private double width(String text) {
-            return getFont().getStringBounds(text, context()).getWidth();
-        }
-
-        private FontRenderContext context() {
-            return getFontMetrics(getFont()).getFontRenderContext();
+            int room = DECIMAL_CHARACTERS * getFontMetrics(getFont()).charWidth('0');
+            return Math.max(getInsets().left, getWidth() - getInsets().right - room);
         }
 
         /**
-         * Draws the result. The column, the widths and the place of every glyph come from one font render context, that of
-         * this label: a Graphics measures with its own hints and transform, and Swing's drawString stretches a printed text to
-         * its width on screen, so that a result measured by one and drawn by another left the column by a few pixels.
+         * Draws the result, measured and drawn by the same Graphics with the text hints of the desktop. The metrics of the
+         * label, those of another Graphics and Swing's drawString (which stretches a printed text to its width on screen) round
+         * the advances differently, depending on the screen and on the look and feels set before: a result measured by one and
+         * drawn by another left the column by up to 3 px.
          */
         @Override
         protected void paintComponent(Graphics graphics) {
@@ -416,27 +413,22 @@ final class NotebookRowView extends JPanel {
                 }
                 g.setFont(getFont());
                 g.setColor(getForeground());
-                FontMetrics metrics = getFontMetrics(getFont());
+                FontMetrics metrics = g.getFontMetrics();
                 Insets insets = getInsets();
-                double left = insets.left;
-                double right = getWidth() - insets.right;
-                double x = anchor() - width(integerPart);
-                double width = width(text);
+                int left = insets.left;
+                int right = getWidth() - insets.right;
+                int x = anchor() - metrics.stringWidth(integerPart);
+                int width = metrics.stringWidth(text);
                 if (x + width > right) {
                     x = right - width;
                 }
                 String shown = text;
                 if (x < left) {
                     x = left;
-                    shown = BasicGraphicsUtils.getClippedString(this, metrics, text, (int) (right - left));
+                    shown = BasicGraphicsUtils.getClippedString(this, metrics, text, right - left);
                 }
-                float y = insets.top + (getHeight() - insets.top - insets.bottom - metrics.getHeight()) / 2f + metrics.getAscent();
-                if (getFont().canDisplayUpTo(shown) < 0) {
-                    g.drawGlyphVector(getFont().createGlyphVector(context(), shown), (float) x, y);
-                } else {
-                    // A character the font lacks: only the Graphics finds it in another font.
-                    g.drawString(shown, (float) x, y);
-                }
+                int y = insets.top + (getHeight() - insets.top - insets.bottom - metrics.getHeight()) / 2 + metrics.getAscent();
+                g.drawString(shown, x, y);
             } finally {
                 g.dispose();
             }
