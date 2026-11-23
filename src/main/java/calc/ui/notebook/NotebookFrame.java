@@ -2,6 +2,7 @@ package calc.ui.notebook;
 
 import calc.format.DisplayMode;
 import calc.ui.StatusTone;
+import calc.ui.design.DesignTokens;
 import calc.ui.notebook.NotebookShortcuts.Command;
 import calc.ui.widget.DisplayModeSelector;
 import calc.ui.widget.DisplayModeText;
@@ -316,7 +317,7 @@ public final class NotebookFrame extends JFrame {
         area.setEditable(false);
         area.setLineWrap(true);
         area.setWrapStyleWord(true);
-        area.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 13));
+        area.setFont(new Font(DesignTokens.load().fontFamily("mono"), Font.PLAIN, 13));
         area.setCaretPosition(0);
         area.setMargin(new java.awt.Insets(8, 10, 8, 10));
         area.getAccessibleContext().setAccessibleName(title);

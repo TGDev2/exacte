@@ -1,5 +1,6 @@
 package calc.ui.notebook;
 
+import calc.ui.design.DesignTokens;
 import calc.ui.notebook.NotebookRow.Status;
 import calc.ui.widget.ExactnessBadge;
 import calc.ui.widget.Palette;
@@ -49,11 +50,16 @@ final class NotebookRowView extends JPanel {
         setName("row");
         setOpaque(true);
 
+        // What the user types and the results are in the monospaced face of the tokens (JetBrains Mono, ADR 0017), one
+        // point above the fields of the look and feel; the number and the message are in its default face (Inter).
         Font base = UIManager.getFont("TextField.font");
-        float size = (base != null ? base.getSize2D() : 13f) + 1f;
-        plainFont = new Font(Font.MONOSPACED, Font.PLAIN, Math.round(size));
+        if (base == null) {
+            base = new Font(Font.DIALOG, Font.PLAIN, 13);
+        }
+        float size = base.getSize2D() + 1f;
+        plainFont = new Font(DesignTokens.load().fontFamily("mono"), Font.PLAIN, Math.round(size));
         italicFont = plainFont.deriveFont(Font.ITALIC);
-        plainNumberFont = plainFont.deriveFont(size - 1f);
+        plainNumberFont = base.deriveFont(Font.PLAIN, size - 1f);
         boldNumberFont = plainNumberFont.deriveFont(Font.BOLD);
 
         field.setName("lineField");

@@ -4,21 +4,18 @@ import calc.persistence.LoadedNotebook;
 import calc.persistence.NotebookStore;
 import calc.ui.DisplayModeStore;
 import calc.ui.PreferencesDisplayModeStore;
+import calc.ui.design.Theme;
 import calc.ui.notebook.NotebookFrame;
 import calc.ui.notebook.NotebookPresenter;
 import calc.ui.notebook.SwingNotebookDialogs;
+import calc.ui.theme.ThemeManager;
 import java.awt.Desktop;
 import java.awt.desktop.QuitStrategy;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import javax.swing.SwingUtilities;
-import javax.swing.UIManager;
 
 public class Main {
-    private static final Logger LOGGER = Logger.getLogger(Main.class.getName());
-
     public static void main(String[] args) {
         // Opens the data directory (taking the lock that makes a second instance read only), migrates the old history
         // into a notebook on the first start and loads the current notebook. The system releases the lock with the
@@ -28,7 +25,7 @@ public class Main {
         Runtime.getRuntime().addShutdownHook(new Thread(store::close, "notebook-lock-release"));
         LoadedNotebook loaded = store.load();
         SwingUtilities.invokeLater(() -> {
-            useSystemLookAndFeel();
+            applyTheme();
             closeWindowsOnQuit();
             NotebookFrame frame = createWindow(store, loaded, PreferencesDisplayModeStore.forCurrentUser());
             frame.addWindowListener(new WindowAdapter() {
@@ -58,11 +55,9 @@ public class Main {
         }
     }
 
-    private static void useSystemLookAndFeel() {
-        try {
-            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-        } catch (Exception exception) {
-            LOGGER.log(Level.WARNING, "Cannot apply the system look and feel, using the default one", exception);
-        }
+    // The embedded fonts and the light theme, on the event thread before the window is built (ADR 0017).
+    private static void applyTheme() {
+        ThemeManager.installFonts();
+        ThemeManager.apply(Theme.LIGHT);
     }
 }
