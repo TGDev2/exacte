@@ -197,6 +197,7 @@ Build Gradle, JUnit 5, tests par propriétés et de robustesse, tests d'interfac
 - [ ] Pendant ce calcul, appuyer sur Échap : le calcul s'arrête et les lignes restantes disent « Non calculée : calcul interrompu ».
 - [ ] Taper `√2 - √2` dans la fenêtre : le résultat se lit `|x| ≤ …` et ne contient pas `≈ 0`.
 - [ ] Taper `(sqrt(2) / 16) ^ 4096` : la ligne est en erreur avec le même message que `(1/16) ^ 4096`.
+- [ ] Thème et Cmd+K sous macOS : non vérifié (Affichage > Thème Clair et Sombre sur un vrai Mac, sans l'option Système).
 
 ## 9. Recommandations hiérarchisées
 

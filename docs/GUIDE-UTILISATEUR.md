@@ -42,12 +42,22 @@ exactement `1`. Seule une racine carrée qui ne tombe pas juste est approchée.
 Un nombre non nul n'est jamais affiché `0` : une valeur trop petite pour être encadrée sans toucher 0 est refusée, avec le
 même message que `(1/16) ^ 4096`. Le badge est toujours accompagné d'un texte : la couleur seule ne porte pas l'information.
 
-## Modes d'affichage
+## Modes d'affichage et thème
 
-Le menu **Affichage** (et le sélecteur en haut de la fenêtre) change la notation des résultats, **sans rien recalculer** :
-Auto, Décimal, Fraction, Scientifique. `Ctrl+M` passe au mode suivant (toujours `Ctrl`, même sous macOS où `Cmd+M`
-minimise la fenêtre). Le mode est enregistré avec le carnet et mémorisé entre deux lancements ; si les préférences de Java
-sont inaccessibles, l'application démarre en mode Auto.
+Le menu **Affichage**, et le contrôle segmenté en haut de la fenêtre (quatre boutons côte à côte, celui du mode en vigueur
+enfoncé), changent la notation des résultats, **sans rien recalculer** : Auto, Décimal, Fraction, Scientifique. `Ctrl+M`
+passe au mode suivant (toujours `Ctrl`, même sous macOS où `Cmd+M` minimise la fenêtre) ; le bouton enfoncé et le menu
+suivent. Au clavier, `Tab` atteint chaque bouton et `Espace` le choisit. Le mode est enregistré avec le carnet et mémorisé
+entre deux lancements ; si les préférences de Java sont inaccessibles, l'application démarre en mode Auto.
+
+**Affichage > Thème** choisit l'apparence de la fenêtre : **Clair** ou **Sombre**, et **Système** sous Windows, qui suit le
+réglage clair ou sombre de Windows (lu au lancement de Calc). Sous macOS et Linux, Système n'est pas proposé. Le changement
+s'applique tout de suite à la fenêtre ouverte, sans rien recalculer ni perdre ce qui est en cours de saisie. Le thème est
+mémorisé entre deux lancements ; sans choix mémorisé, ou si les préférences de Java sont inaccessibles, Calc démarre en
+thème Clair.
+
+Le titre de la fenêtre nomme le document : « Carnet sans titre — Calc », « Devis.calc.json — Calc », avec « (modifié) »
+quand des changements ne sont pas enregistrés et « (lecture seule) » pour un fichier d'une version plus récente.
 
 Les définitions précises (nombre de chiffres, bascule en notation scientifique, fraction secondaire) sont dans
 [l'ADR 0004](adr/0004-regles-affichage.md).
@@ -95,7 +105,7 @@ Le modificateur de menu est `Ctrl` sous Windows et Linux, `Cmd` sous macOS. La l
 |---|---|
 | `Entrée` | valider la ligne et passer à la suivante |
 | `↑` / `↓` | ligne précédente / suivante (la ligne quittée est validée) |
-| `Échap` | abandonner la saisie en cours dans la ligne ; sans saisie, interrompre le calcul, aussi depuis le sélecteur de modes |
+| `Échap` | abandonner la saisie en cours dans la ligne ; sans saisie, interrompre le calcul, aussi depuis les boutons des modes |
 | `Ctrl+Z` | retirer la saisie en cours ; sans saisie, annuler la dernière modification validée |
 | `Ctrl+Y`, `Ctrl+Maj+Z` | remettre la saisie retirée par Annuler ; sinon, rétablir la dernière modification annulée |
 | `Ctrl+Entrée` / `Ctrl+Maj+Entrée` | insérer une ligne au-dessous / au-dessus |

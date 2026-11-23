@@ -56,4 +56,8 @@ La hausse est de 3 511 732 octets, soit 9,8 %. Elle vient surtout des deux polic
 - `ModeShortcutConflictTest` et `NotebookShortcutConflictTest` ne parcourent que les apparences installées dans le JDK ; `FlatLafFoundationAcceptanceTest` vérifie en plus que ni le thème clair ni le thème sombre ne lient Ctrl+M ni les raccourcis du carnet.
 - La netteté du rendu à 150 % et 200 % sous Windows reste un contrôle manuel.
 - `gradlew screenshots` construit la fenêtre comme `Main` : polices embarquées et thème clair. Les images `docs/images/avant`, prises avant cette décision, gardent l'apparence du système. Le générateur ouvre désormais son carnet d'un coup, depuis le magasin, au lieu d'entrer les lignes une à une : un calcul par ligne entrée gardait en vie environ 1 500 générations de son carnet de 1 500 lignes, plus de 400 Mo sous Metal comme sous FlatLaf, au bord du tas de 512 Mo des tests.
-- Le menu Thème, le thème « Système », le titre de la fenêtre et la refonte des lignes s'appuieront sur `ThemeManager` et les deux familles de polices.
+- Le menu Affichage > Thème (Clair, Sombre, Système) bascule la fenêtre ouverte par `ThemeManager.apply` ; le choix est mémorisé dans les préférences de Java (nœud `/calc/display`, clé `theme`). La refonte des lignes s'appuiera sur les deux familles de polices.
+
+### Thème « Système » limité à Windows
+
+Le thème « Système » doit suivre un réglage vérifié, et seul Windows est disponible pour le vérifier. La détection lit donc la valeur `AppsUseLightTheme` de `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize` par `reg query` (FlatLaf 3.8 n'expose pas de détection publique), une seule fois au lancement, avec un délai maximal de 2 s. Sous macOS et Linux, l'option n'apparaît pas ; `docs/RECETTE.md` garde une case manuelle pour macOS. Écartés : `defaults read` sous macOS et `gsettings` sous Linux, qu'on ne peut pas vérifier ici.
