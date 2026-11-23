@@ -347,10 +347,12 @@ val checkAppVersion = tasks.register("checkAppVersion") {
 }
 
 val stageAppInput = tasks.register<Sync>("stageAppInput") {
-    description = "Collects the application jar and its runtime dependencies in the jpackage input directory."
+    description = "Collects the application jar, its runtime dependencies and their licences in the jpackage input directory."
     dependsOn(checkAppVersion)
     from(tasks.jar)
     from(configurations.runtimeClasspath)
+    // The licences of the runtime dependencies, in app/licences of the image (ADR 0017).
+    from("config/licences") { into("licences") }
     into(packagingDir.map { it.dir("input") })
 }
 
