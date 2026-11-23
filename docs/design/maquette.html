@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maquette de Calc : une feuille qui calcule</title>
+<link rel="stylesheet" href="../../web/site/tokens.css">
+<link rel="stylesheet" href="maquette.css">
+</head>
+<body>
+<header class="planche-entete">
+  <h1>Une feuille qui calcule</h1>
+  <p>Maquette statique du bureau : le carnet « Devis cuisine » du README, plus une ligne approchée et une ligne en erreur,
+    en clair puis en sombre. Couleurs, tailles et polices viennent toutes de <code>web/site/tokens.css</code> ; les règles
+    sont dans <code>DESIGN.md</code>.</p>
+</header>
+
+<main class="themes">
+
+<!-- ============================================================================================================ clair -->
+<section class="theme" data-theme="clair" aria-labelledby="theme-clair">
+  <h2 id="theme-clair" class="theme-nom">Clair</h2>
+
+  <div class="fenetre">
+    <div class="barre-titre">Devis.calc.json — Calc</div>
+    <div class="menus"><span>Fichier</span><span>Édition</span><span>Affichage</span><span>Aide</span></div>
+    <div class="entete">
+      <div class="modes" role="radiogroup" aria-label="Affichage">
+        <span class="segment choisi" role="radio" aria-checked="true">Auto</span>
+        <span class="segment" role="radio" aria-checked="false">Décimal</span>
+        <span class="segment" role="radio" aria-checked="false">Fraction</span>
+        <span class="segment" role="radio" aria-checked="false">Scientifique</span>
+      </div>
+    </div>
+
+    <ol class="feuille">
+      <li class="ligne ligne-titre">
+        <span class="marge"><span class="numero">1</span><span class="signe"></span><span class="marque"></span></span>
+        <span class="expression"># Devis cuisine</span>
+        <span class="nom"></span><span class="resultat"></span>
+      </li>
+      <li class="ligne ligne-source">
+        <span class="marge"><span class="numero">2</span><span class="signe signe-exact">=</span><span class="marque">◆</span></span>
+        <span class="expression">plan = 1&#8239;250,00 <span class="commentaire"># plan de travail</span></span>
+        <span class="nom">plan</span><span class="resultat">1&#8239;250             </span>
+      </li>
+      <li class="ligne ligne-source">
+        <span class="marge"><span class="numero">3</span><span class="signe signe-exact">=</span><span class="marque">◆</span></span>
+        <span class="expression">meubles = 3&#8239;480</span>
+        <span class="nom">meubles</span><span class="resultat">3&#8239;480             </span>
+      </li>
+      <li class="ligne ligne-source">
+        <span class="marge"><span class="numero">4</span><span class="signe signe-exact">=</span><span class="marque">◆</span></span>
+        <span class="expression">pose = 35 * 12,5</span>
+        <span class="nom">pose</span><span class="resultat">437,5           </span>
+      </li>
+      <li class="ligne ligne-active">
+        <span class="marge"><span class="numero">5</span><span class="signe signe-exact">=</span><span class="marque"></span></span>
+        <span class="expression champ-focus">total = plan + meubles + pose</span>
+        <span class="nom">total</span><span class="resultat">5&#8239;167,5           </span>
+        <div class="detail">
+          <p class="detail-ligne"><span class="detail-intitule">Développement</span><span class="detail-valeur">1&#8239;250 + 3&#8239;480 + 437,5</span></p>
+          <p class="detail-ligne"><span class="detail-intitule">Résultat</span><span class="detail-valeur"><span class="detail-signe">=</span> 5&#8239;167,5</span></p>
+          <p class="detail-ligne"><span class="detail-intitule">Liens</span><span class="detail-texte">Sources : lignes 2, 3 et 4 · Utilisée par 1 ligne</span></p>
+        </div>
+      </li>
+      <li class="ligne">
+        <span class="marge"><span class="numero">6</span><span class="signe signe-exact">=</span><span class="marque"></span></span>
+        <span class="expression">taux = 0,2</span>
+        <span class="nom">taux</span><span class="resultat">0,2           </span>
+      </li>
+      <li class="ligne survol">
+        <span class="marge"><span class="numero">7</span><span class="signe signe-exact">=</span><span class="marque"></span></span>
+        <span class="expression">total * (1 + taux) <span class="commentaire"># TTC</span></span>
+        <span class="nom"></span><span class="resultat">6&#8239;201             </span>
+      </li>
+      <li class="ligne">
+        <span class="marge"><span class="numero">8</span><span class="signe signe-exact">=</span><span class="marque"></span></span>
+        <span class="expression">ans / 12 <span class="commentaire"># mensualité sur un an</span></span>
+        <span class="nom"></span><span class="resultat">516,75          </span>
+      </li>
+      <li class="ligne">
+        <span class="marge"><span class="numero">9</span><span class="signe signe-approche">≈</span><span class="marque"></span></span>
+        <span class="expression">racine(2) <span class="commentaire"># diagonale d'un carreau de 1</span></span>
+        <span class="nom"></span><span class="resultat resultat-approche">1,41421356237…</span>
+      </li>
+      <li class="ligne ligne-erreur">
+        <span class="marge"><span class="numero">10</span><span class="signe signe-erreur">!</span><span class="marque"></span></span>
+        <span class="expression">total - <span class="partie-fautive">remise</span></span>
+        <span class="nom"></span><span class="resultat"></span>
+        <p class="message-erreur">Variable inconnue « remise ».</p>
+      </li>
+      <li class="ligne ligne-vide">
+        <span class="marge"><span class="numero">11</span><span class="signe"></span><span class="marque"></span></span>
+        <span class="expression"></span>
+        <span class="nom"></span><span class="resultat"></span>
+      </li>
+    </ol>
+
+    <div class="barre-etat">
+      <span class="etat-message">Ctrl+K : palette de commandes</span>
+      <span>Enregistré</span>
+      <span>11 lignes</span>
+      <span class="etat-resume">7 exactes, 1 approchée, 1 en erreur</span>
+    </div>
+  </div>
+
+  <div class="planche-etats">
+    <figure class="carte">
+      <figcaption>Aperçu pendant la frappe</figcaption>
+      <div class="ligne ligne-active ligne-apercu">
+        <span class="marge"><span class="numero">11</span><span class="signe"></span><span class="marque"></span></span>
+        <span class="expression champ-focus">total / 12<span class="curseur"></span></span>
+        <span class="nom"></span><span class="resultat apercu">430,625</span>
+      </div>
+    </figure>
+    <figure class="carte">
+      <figcaption>Palette de commandes · Ctrl+K</figcaption>
+      <div class="palette">
+        <div class="palette-recherche champ-focus">thème</div>
+        <ul class="palette-liste">
+          <li>Thème : Clair</li>
+          <li class="choisi">Thème : Sombre</li>
+          <li>Thème : Système</li>
+        </ul>
+      </div>
+    </figure>
+    <figure class="carte">
+      <figcaption>Carnet vide</figcaption>
+      <div class="vide">
+        <p class="vide-filigrane">Une expression par ligne, par exemple : prix = 12,5</p>
+        <p class="vide-invite">Commencer par un exemple :</p>
+        <div class="exemples">
+          <span class="exemple">Devis cuisine</span>
+          <span class="exemple">Racine carrée</span>
+          <span class="exemple">Références entre lignes</span>
+        </div>
+      </div>
+    </figure>
+  </div>
+</section>
+
+<!-- =========================================================================================================== sombre -->
+<section class="theme" data-theme="sombre" aria-labelledby="theme-sombre">
+  <h2 id="theme-sombre" class="theme-nom">Sombre</h2>
+
+  <div class="fenetre">
+    <div class="barre-titre">Devis.calc.json — Calc</div>
+    <div class="menus"><span>Fichier</span><span>Édition</span><span>Affichage</span><span>Aide</span></div>
+    <div class="entete">
+      <div class="modes" role="radiogroup" aria-label="Affichage">
+        <span class="segment choisi" role="radio" aria-checked="true">Auto</span>
+        <span class="segment" role="radio" aria-checked="false">Décimal</span>
+        <span class="segment" role="radio" aria-checked="false">Fraction</span>
+        <span class="segment" role="radio" aria-checked="false">Scientifique</span>
+      </div>
+    </div>
+
+    <ol class="feuille">
+      <li class="ligne ligne-titre">
+        <span class="marge"><span class="numero">1</span><span class="signe"></span><span class="marque"></span></span>
+        <span class="expression"># Devis cuisine</span>
+        <span class="nom"></span><span class="resultat"></span>
+      </li>
+      <li class="ligne ligne-source">
+        <span class="marge"><span class="numero">2</span><span class="signe signe-exact">=</span><span class="marque">◆</span></span>
+        <span class="expression">plan = 1&#8239;250,00 <span class="commentaire"># plan de travail</span></span>
+        <span class="nom">plan</span><span class="resultat">1&#8239;250             </span>
+      </li>
+      <li class="ligne ligne-source">
+        <span class="marge"><span class="numero">3</span><span class="signe signe-exact">=</span><span class="marque">◆</span></span>
+        <span class="expression">meubles = 3&#8239;480</span>
+        <span class="nom">meubles</span><span class="resultat">3&#8239;480             </span>
+      </li>
+      <li class="ligne ligne-source">
+        <span class="marge"><span class="numero">4</span><span class="signe signe-exact">=</span><span class="marque">◆</span></span>
+        <span class="expression">pose = 35 * 12,5</span>
+        <span class="nom">pose</span><span class="resultat">437,5           </span>
+      </li>
+      <li class="ligne ligne-active">
+        <span class="marge"><span class="numero">5</span><span class="signe signe-exact">=</span><span class="marque"></span></span>
+        <span class="expression champ-focus">total = plan + meubles + pose</span>
+        <span class="nom">total</span><span class="resultat">5&#8239;167,5           </span>
+        <div class="detail">
+          <p class="detail-ligne"><span class="detail-intitule">Développement</span><span class="detail-valeur">1&#8239;250 + 3&#8239;480 + 437,5</span></p>
+          <p class="detail-ligne"><span class="detail-intitule">Résultat</span><span class="detail-valeur"><span class="detail-signe">=</span> 5&#8239;167,5</span></p>
+          <p class="detail-ligne"><span class="detail-intitule">Liens</span><span class="detail-texte">Sources : lignes 2, 3 et 4 · Utilisée par 1 ligne</span></p>
+        </div>
+      </li>
+      <li class="ligne">
+        <span class="marge"><span class="numero">6</span><span class="signe signe-exact">=</span><span class="marque"></span></span>
+        <span class="expression">taux = 0,2</span>
+        <span class="nom">taux</span><span class="resultat">0,2           </span>
+      </li>
+      <li class="ligne survol">
+        <span class="marge"><span class="numero">7</span><span class="signe signe-exact">=</span><span class="marque"></span></span>
+        <span class="expression">total * (1 + taux) <span class="commentaire"># TTC</span></span>
+        <span class="nom"></span><span class="resultat">6&#8239;201             </span>
+      </li>
+      <li class="ligne">
+        <span class="marge"><span class="numero">8</span><span class="signe signe-exact">=</span><span class="marque"></span></span>
+        <span class="expression">ans / 12 <span class="commentaire"># mensualité sur un an</span></span>
+        <span class="nom"></span><span class="resultat">516,75          </span>
+      </li>
+      <li class="ligne">
+        <span class="marge"><span class="numero">9</span><span class="signe signe-approche">≈</span><span class="marque"></span></span>
+        <span class="expression">racine(2) <span class="commentaire"># diagonale d'un carreau de 1</span></span>
+        <span class="nom"></span><span class="resultat resultat-approche">1,41421356237…</span>
+      </li>
+      <li class="ligne ligne-erreur">
+        <span class="marge"><span class="numero">10</span><span class="signe signe-erreur">!</span><span class="marque"></span></span>
+        <span class="expression">total - <span class="partie-fautive">remise</span></span>
+        <span class="nom"></span><span class="resultat"></span>
+        <p class="message-erreur">Variable inconnue « remise ».</p>
+      </li>
+      <li class="ligne ligne-vide">
+        <span class="marge"><span class="numero">11</span><span class="signe"></span><span class="marque"></span></span>
+        <span class="expression"></span>
+        <span class="nom"></span><span class="resultat"></span>
+      </li>
+    </ol>
+
+    <div class="barre-etat">
+      <span class="etat-message">Ctrl+K : palette de commandes</span>
+      <span>Enregistré</span>
+      <span>11 lignes</span>
+      <span class="etat-resume">7 exactes, 1 approchée, 1 en erreur</span>
+    </div>
+  </div>
+
+  <div class="planche-etats">
+    <figure class="carte">
+      <figcaption>Aperçu pendant la frappe</figcaption>
+      <div class="ligne ligne-active ligne-apercu">
+        <span class="marge"><span class="numero">11</span><span class="signe"></span><span class="marque"></span></span>
+        <span class="expression champ-focus">total / 12<span class="curseur"></span></span>
+        <span class="nom"></span><span class="resultat apercu">430,625</span>
+      </div>
+    </figure>
+    <figure class="carte">
+      <figcaption>Palette de commandes · Ctrl+K</figcaption>
+      <div class="palette">
+        <div class="palette-recherche champ-focus">thème</div>
+        <ul class="palette-liste">
+          <li>Thème : Clair</li>
+          <li class="choisi">Thème : Sombre</li>
+          <li>Thème : Système</li>
+        </ul>
+      </div>
+    </figure>
+    <figure class="carte">
+      <figcaption>Carnet vide</figcaption>
+      <div class="vide">
+        <p class="vide-filigrane">Une expression par ligne, par exemple : prix = 12,5</p>
+        <p class="vide-invite">Commencer par un exemple :</p>
+        <div class="exemples">
+          <span class="exemple">Devis cuisine</span>
+          <span class="exemple">Racine carrée</span>
+          <span class="exemple">Références entre lignes</span>
+        </div>
+      </div>
+    </figure>
+  </div>
+</section>
+
+</main>
+</body>
+</html>
