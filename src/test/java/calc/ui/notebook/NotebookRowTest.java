@@ -100,4 +100,25 @@ class NotebookRowTest {
         NotebookRow failing = row("x = 1 / 0", Status.ERROR, "", "x", "Erreur : division").withSource(true);
         assertEquals("Erreur : division, source de la ligne active", failing.accessibleDescription());
     }
+
+    @Test
+    void aPreviewIsSaidFirstAndAlignedOnItsOwnComma() {
+        NotebookRow validated = row("a * 10", Status.EXACT, "20", "", "Résultat : 20, exact");
+        assertEquals("", validated.preview(), "a line has no preview unless the presenter gives it one");
+        assertFalse(validated.hasPreview());
+        assertSame(validated, validated.withPreview(""), "the same preview gives the same line");
+
+        NotebookRow previewed = validated.withPreview("37,5");
+        assertTrue(previewed.hasPreview());
+        assertEquals("37,5", previewed.preview());
+        assertEquals("20", previewed.result(), "a preview is never the result");
+        assertEquals("Aperçu : 37,5, non validé", previewed.accessibleDescription());
+        assertEquals("37", previewed.previewIntegerPart());
+        assertEquals("20", previewed.resultIntegerPart());
+        assertEquals("1 234", validated.withPreview("1 234").previewIntegerPart(), "no comma: the whole preview");
+        assertEquals(validated, previewed.withPreview(""), "dropping the preview gives the line back");
+        assertTrue(previewed.withSource(true).hasPreview(), "marking a source keeps the preview");
+        assertEquals(Sign.EXACT, validated.sign());
+        assertEquals(Sign.NONE, previewed.sign(), "no sign while the line is not validated (DESIGN.md, state « aperçu »)");
+    }
 }

@@ -17,9 +17,11 @@ import java.util.Objects;
  * @param description the line in one sentence, for instance {@code Résultat : 37,5, exact}; the window gives a screen reader
  *                    {@link #accessibleDescription()}, which spells the exactness out
  * @param source      whether the line is a source of the active line: its margin shows {@link #SOURCE_MARK}
+ * @param preview     on the active line only, the result it would have with the text being typed, in the display mode in
+ *                    force; empty when there is none. It is never a result: nothing is validated, reused or saved
  */
 public record NotebookRow(int number, String text, Status status, String result, String detail, String errorMessage,
-                          int errorStart, int errorEnd, String definedName, String description, boolean source) {
+                          int errorStart, int errorEnd, String definedName, String description, boolean source, String preview) {
     /** The mark of the margin of a source of the active line. */
     public static final String SOURCE_MARK = "◆";
 
@@ -79,6 +81,7 @@ public record NotebookRow(int number, String text, Status status, String result,
         Objects.requireNonNull(errorMessage, "errorMessage");
         Objects.requireNonNull(definedName, "definedName");
         Objects.requireNonNull(description, "description");
+        Objects.requireNonNull(preview, "preview");
     }
 
     /** A line that is not a source of the active line. */
@@ -87,11 +90,29 @@ public record NotebookRow(int number, String text, Status status, String result,
         this(number, text, status, result, detail, errorMessage, errorStart, errorEnd, definedName, description, false);
     }
 
+    /** A line without a preview. */
+    public NotebookRow(int number, String text, Status status, String result, String detail, String errorMessage,
+                       int errorStart, int errorEnd, String definedName, String description, boolean source) {
+        this(number, text, status, result, detail, errorMessage, errorStart, errorEnd, definedName, description, source, "");
+    }
+
     /** The same line, a source of the active line or not. */
     public NotebookRow withSource(boolean isSource) {
         return isSource == source ? this
                 : new NotebookRow(number, text, status, result, detail, errorMessage, errorStart, errorEnd, definedName, description,
-                        isSource);
+                        isSource, preview);
+    }
+
+    /** The same line with {@code shown} as its preview (empty for none). */
+    public NotebookRow withPreview(String shown) {
+        return shown.equals(preview) ? this
+                : new NotebookRow(number, text, status, result, detail, errorMessage, errorStart, errorEnd, definedName, description,
+                        source, shown);
+    }
+
+    /** Whether the line shows a preview of the text being typed. */
+    public boolean hasPreview() {
+        return !preview.isEmpty();
     }
 
     /** « ◆ » for a source of the active line, nothing otherwise. */
@@ -125,8 +146,14 @@ public record NotebookRow(int number, String text, Status status, String result,
         };
     }
 
-    /** The sign of the margin, from the status. */
+    /**
+     * The sign of the margin, from the status; none while the line shows a preview (docs/design/DESIGN.md): the value shown is
+     * not validated, and the sign of the validated one would speak of another value.
+     */
     public Sign sign() {
+        if (hasPreview()) {
+            return Sign.NONE;
+        }
         return switch (status) {
             case EXACT -> Sign.EXACT;
             case APPROXIMATE -> Sign.APPROXIMATE;
@@ -138,9 +165,13 @@ public record NotebookRow(int number, String text, Status status, String result,
     /**
      * What a screen reader says after the name of the line. For a value it spells the exactness the sign of the margin shows
      * ({@code Résultat : 5 167,5, valeur exacte, définit la variable total}); otherwise it is the {@link #description}. A source of
-     * the active line adds « , source de la ligne active ».
+     * the active line adds « , source de la ligne active ». A preview is said first, as what the result zone shows:
+     * {@code Aperçu : 5, non validé}.
      */
     public String accessibleDescription() {
+        if (hasPreview()) {
+            return "Aperçu : " + preview + ", non validé";
+        }
         String sourceOfActive = source ? ", source de la ligne active" : "";
         if (!hasValue()) {
             return description + sourceOfActive;
@@ -154,8 +185,17 @@ public record NotebookRow(int number, String text, Status status, String result,
      * when it has no comma (an integer, a fraction, a sentence).
      */
     public String resultIntegerPart() {
-        int comma = result.indexOf(',');
-        return comma < 0 ? result : result.substring(0, comma);
+        return integerPart(result);
+    }
+
+    /** The preview up to its first decimal comma, excluded, as {@link #resultIntegerPart()} for the result. */
+    public String previewIntegerPart() {
+        return integerPart(preview);
+    }
+
+    private static String integerPart(String shown) {
+        int comma = shown.indexOf(',');
+        return comma < 0 ? shown : shown.substring(0, comma);
     }
 
     /** The result from its first decimal comma, included: the part drawn right of the column of the commas. Empty without one. */

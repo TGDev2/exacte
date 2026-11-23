@@ -40,9 +40,9 @@ final class NotebookDriver {
         field = settled.activeDraft();
     }
 
-    /** Until the calculation under way has ended and the event thread has taken in all it produced. */
+    /** Until the calculation and the preview under way have ended and the event thread has taken in all they produced. */
     void awaitIdle() {
-        await(presenter::isCalculating);
+        await(() -> presenter.isCalculating() || presenter.isPreviewing());
     }
 
     /** The same for every window of the test. */
@@ -99,6 +99,16 @@ final class NotebookDriver {
     /** Types {@code text} into the active field, replacing what it holds (nothing is validated). */
     NotebookDriver type(String text) {
         field = text;
+        return this;
+    }
+
+    /**
+     * Types {@code text} into the active field as the keyboard does: the presenter hears it at once (nothing is validated), and
+     * what is read here is the state once its preview has arrived.
+     */
+    NotebookDriver typing(String text) {
+        field = text;
+        show(() -> presenter.onDraftChanged(text));
         return this;
     }
 

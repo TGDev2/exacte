@@ -86,6 +86,11 @@ final class NotebookPalette {
         return role("text.muted");
     }
 
+    /** The preview of the line being typed, in the place of its result: muted, since nothing is validated. */
+    Color previewForeground() {
+        return role("text.muted");
+    }
+
     Color placeholder() {
         return role("text.muted");
     }

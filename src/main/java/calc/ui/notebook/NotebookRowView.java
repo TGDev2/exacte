@@ -298,14 +298,21 @@ final class NotebookRowView extends JPanel {
 
         nameLabel.setText(row.definedName());
 
-        resultLabel.show(row.result(), row.resultIntegerPart());
-        resultLabel.setForeground(switch (row.status()) {
-            case APPROXIMATE -> palette.approximateSign();
-            case PENDING -> palette.pendingForeground();
-            default -> palette.textForeground();
-        });
-        String tooltip = row.detail().isEmpty() ? row.result() : row.result() + " — " + row.detail();
-        resultLabel.setToolTipText(row.result().isEmpty() ? null : tooltip);
+        if (row.hasPreview()) {
+            // The result the text being typed would have, in the place of the result, until it is validated or dropped.
+            resultLabel.show(row.preview(), row.previewIntegerPart());
+            resultLabel.setForeground(palette.previewForeground());
+            resultLabel.setToolTipText("Aperçu : " + row.preview() + " — Entrée valide la ligne, Échap l'abandonne");
+        } else {
+            resultLabel.show(row.result(), row.resultIntegerPart());
+            resultLabel.setForeground(switch (row.status()) {
+                case APPROXIMATE -> palette.approximateSign();
+                case PENDING -> palette.pendingForeground();
+                default -> palette.textForeground();
+            });
+            String tooltip = row.detail().isEmpty() ? row.result() : row.result() + " — " + row.detail();
+            resultLabel.setToolTipText(row.result().isEmpty() ? null : tooltip);
+        }
         resultLabel.getAccessibleContext().setAccessibleName("Résultat de la " + row.name().toLowerCase(Locale.ROOT));
         resultLabel.getAccessibleContext().setAccessibleDescription(row.accessibleDescription());
 

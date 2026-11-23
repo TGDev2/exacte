@@ -44,6 +44,81 @@ class NotebookPresenterTest {
         store.close();
     }
 
+    // ------------------------------------------------------------------------------------------------ the preview
+
+    @Test
+    void typingShowsThePreviewOfTheActiveLineOnlyAndValidatesNothing() {
+        d.line("a = 2").line("a * 10").up();
+        d.typing("a * 7");
+
+        assertEquals("14", d.row(2).preview(), "the result the typed text would have");
+        assertEquals("20", d.row(2).result(), "the validated result stays the result");
+        assertEquals("", d.row(1).preview(), "only the active line has a preview");
+        assertEquals("", d.row(3).preview());
+        assertEquals(List.of("a = 2", "a * 10"), savedTexts(), "nothing is saved");
+
+        d.typing("a * 10");
+        assertEquals("", d.row(2).preview(), "the validated text has no preview: its result is shown");
+    }
+
+    @Test
+    void aBlankTextACommentOrATextInErrorHasNoPreview() {
+        d.line("a = 2");
+        for (String text : List.of("   ", "# titre", "2 +", "b * 2")) {
+            d.typing(text);
+            assertEquals("", d.row(2).preview(), "« " + text + " »");
+            assertEquals("", d.row(2).errorMessage(), "« " + text + " » is not in error until it is validated");
+            assertEquals(StatusTone.INFO, d.view.statusTone(), "« " + text + " »");
+        }
+        d.typing("a + 1");
+        assertEquals("3", d.row(2).preview());
+    }
+
+    @Test
+    void theDisplayModeInForceFormatsThePreviewAndEnterGivesTheSameText() {
+        d.line("a = 1").mode(DisplayMode.DECIMAL);
+        d.typing("a / 3");
+        String decimal = d.row(2).preview();
+        assertFalse(decimal.isEmpty());
+
+        d.mode(DisplayMode.FRACTION);
+        assertEquals("a / 3", d.field(), "a change of mode keeps the text typed");
+        String fraction = d.row(2).preview();
+        assertFalse(fraction.equals(decimal), "the preview follows the mode: " + decimal + " / " + fraction);
+        d.enter();
+        assertEquals(fraction, d.row(2).result(), "Enter gives the result the preview showed");
+        assertEquals("", d.row(2).preview());
+    }
+
+    @Test
+    void undoTakesThePreviewOutWithTheDraftAndRedoBringsBothBack() {
+        d.line("a = 2").line("a * 10").up().up();
+        d.typing("a = 3");
+        assertEquals("3", d.row(1).preview());
+
+        d.undo();
+        assertEquals("a = 2", d.field());
+        assertEquals("", d.row(1).preview());
+        assertFalse(d.row(2).hasPreview());
+
+        d.redo();
+        assertEquals("a = 3", d.field(), "the draft comes back, still a draft");
+        assertEquals("3", d.row(1).preview());
+        assertEquals("20", d.row(2).result(), "the line below keeps the validated value");
+    }
+
+    @Test
+    void anIntentionThatValidatesTheDraftReplacesThePreviewByTheResult() {
+        d.line("a = 2").line("a * 10").up();
+        d.typing("a * 4");
+        assertEquals("8", d.row(2).preview());
+
+        d.up();
+        assertEquals(List.of("2", "8", ""), d.results(), "moving away validates the line");
+        assertEquals(List.of("", "", ""), d.view.rows().stream().map(NotebookRow::preview).toList());
+        assertEquals(List.of("a = 2", "a * 4"), savedTexts());
+    }
+
     @Test
     void theActiveLineCarriesItsDetailAndMarksItsSources() {
         d.line("a = 2").line("b = 3").line("a * b + a").line("1 / 3");

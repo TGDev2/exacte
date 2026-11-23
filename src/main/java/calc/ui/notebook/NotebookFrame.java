@@ -47,6 +47,8 @@ import javax.swing.JTextArea;
 import javax.swing.JViewport;
 import javax.swing.Scrollable;
 import javax.swing.SwingUtilities;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 
 /**
  * The main window: the notebook, one {@link NotebookRowView} per line plus the new line at the end. A view only: it shows
@@ -595,9 +597,32 @@ public final class NotebookFrame extends JFrame {
                 }
             }
         });
+        row.field.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent event) {
+                draftChanged(row);
+            }
+
+            @Override
+            public void removeUpdate(DocumentEvent event) {
+                draftChanged(row);
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent event) {
+            }
+        });
         bindKeys(row);
         rows.add(row);
         rowsPanel.add(row);
+    }
+
+    // The user typed in the active line: the presenter keeps the text and asks for its preview. Like a calculation, the answer
+    // leaves the field, its caret and the scroll bar alone: nothing here may write into the document that is notifying.
+    private void draftChanged(NotebookRowView row) {
+        if (!applying && shown != null && row.index == shown.activeIndex()) {
+            applyCalculation(presenter.onDraftChanged(row.field.getText()));
+        }
     }
 
     private void scrollToActive() {
