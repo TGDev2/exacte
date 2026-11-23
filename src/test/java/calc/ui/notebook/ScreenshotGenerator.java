@@ -1,8 +1,12 @@
 package calc.ui.notebook;
 
+import calc.format.DisplayMode;
+import calc.notebook.Notebook;
 import calc.persistence.LoadedNotebook;
 import calc.persistence.NotebookStore;
 import calc.ui.DisplayModeStore;
+import calc.ui.design.Theme;
+import calc.ui.theme.ThemeManager;
 import java.awt.Graphics2D;
 import java.awt.Insets;
 import java.awt.RenderingHints;
@@ -20,7 +24,6 @@ import java.util.stream.Stream;
 import javax.imageio.ImageIO;
 import javax.swing.JRootPane;
 import javax.swing.SwingUtilities;
-import javax.swing.UIManager;
 
 /**
  * Paints {@link NotebookFrame} off screen, for the pictures of the documentation: the window is built as {@code Main} builds it,
@@ -28,8 +31,8 @@ import javax.swing.UIManager;
  * {@code printAll} into an image, then disposed.
  *
  * <p>It lives in the test source set, in the package of the window, to reach what the tests reach ({@code isCalculating()},
- * {@code row(i)}, {@code statusLabel()}), and is run by {@code gradlew screenshots}. The rendering depends on the fonts of the
- * system: two runs on the same machine give the same pixels.
+ * {@code row(i)}, {@code statusLabel()}), and is run by {@code gradlew screenshots}. The window has the light theme and the
+ * embedded fonts of the application: two runs on the same machine give the same pixels.
  */
 public final class ScreenshotGenerator {
 
@@ -85,22 +88,27 @@ public final class ScreenshotGenerator {
         if (SwingUtilities.isEventDispatchThread()) {
             throw new IllegalStateException("render waits for the event thread: call it from another thread");
         }
-        UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+        // As Main: the embedded fonts and the light theme, on the event thread before the window is built (ADR 0017).
+        onEventThread(() -> {
+            ThemeManager.installFonts();
+            ThemeManager.apply(Theme.LIGHT);
+        });
         Path data = Files.createTempDirectory("calc-screenshots");
         NotebookStore store = NotebookStore.open(data);
         AtomicReference<NotebookFrame> holder = new AtomicReference<>();
         try {
+            // The notebook is opened in one piece, as at a start: one calculation, not one per line entered.
+            if (!lines.isEmpty()) {
+                store.saveCurrent(Notebook.of(lines), DisplayMode.AUTO);
+            }
             LoadedNotebook loaded = store.load();
             onEventThread(() -> {
                 NotebookPresenter presenter = NotebookPresenter.open(store, loaded, DisplayModeStore.noop(),
                         NotebookDialogs.cancelling(), NotebookPresenter.newRecalculationExecutor());
-                for (String line : lines) {
-                    presenter.onEnter(line);
-                }
-                // The same path as the arrows: a number out of range leaves the blank line at the end active.
-                if (activeLine >= 1 && activeLine <= lines.size()) {
-                    presenter.onActivate(activeLine - 1, "");
-                }
+                // The same path as a click, the field left handing over its own text; a number out of range activates the
+                // blank line at the end.
+                boolean inRange = activeLine >= 1 && activeLine <= lines.size();
+                presenter.onActivate(inRange ? activeLine - 1 : lines.size(), presenter.currentView().activeDraft());
                 // The JDK lists a window as visible while its constructor runs, and Window.getWindows() takes the lock of
                 // Window.class: holding it keeps that moment from being seen, so that no window is ever observed visible.
                 NotebookFrame frame;
