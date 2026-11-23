@@ -89,6 +89,32 @@ public final class ValueFormatter {
         return plain.length() <= MAX_SHORT_DECIMAL_LENGTH ? plain : exactScientific(centre);
     }
 
+    /**
+     * The bounds of the interval of {@code value}, each rounded outwards to at most {@link #SIGNIFICANT_DIGITS} significant
+     * digits: the lower one towards minus infinity, the upper one towards plus infinity, so that the true value always lies
+     * between them. They are written with a decimal comma, in positional notation from 10⁻⁶ to 10¹⁵ excluded (as the Auto
+     * mode), otherwise as « m × 10ⁿ »; a bound that is 0 reads {@code 0}. For an exact value both bounds are the value, rounded.
+     */
+    public static GuaranteedBounds guaranteedBounds(CertifiedValue value) {
+        Objects.requireNonNull(value, "value");
+        return new GuaranteedBounds(outwards(value.lower(), RoundingMode.FLOOR), outwards(value.upper(), RoundingMode.CEILING));
+    }
+
+    private static String outwards(Rational bound, RoundingMode direction) {
+        if (bound.signum() == 0) {
+            return "0";
+        }
+        BigDecimal rounded = new BigDecimal(bound.numerator())
+                .divide(new BigDecimal(bound.denominator()), SIGNIFICANT_DIGITS - 1 - exponent(bound), direction)
+                .stripTrailingZeros();
+        // A carry (9,99… rounded up) adds a power of ten: the exponent is read from the rounded value.
+        int exponent = rounded.precision() - rounded.scale() - 1;
+        if (exponent >= AUTO_SMALLEST_EXPONENT && exponent <= AUTO_LARGEST_EXPONENT) {
+            return plain(rounded);
+        }
+        return plain(rounded.movePointLeft(exponent)) + TIMES_TEN + superscript(exponent);
+    }
+
     private static String canonicalExact(Rational value) {
         String fraction = value.toString();
         Optional<BigDecimal> decimal = value.toExactDecimal();
