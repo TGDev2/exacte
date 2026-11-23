@@ -1,5 +1,6 @@
 package calc.ui.notebook;
 
+import calc.detail.LineDetailText;
 import calc.document.DocumentException;
 import calc.document.DocumentService;
 import calc.export.NotebookExporter;
@@ -15,6 +16,7 @@ import calc.notebook.LineResult;
 import calc.notebook.Notebook;
 import calc.notebook.NotebookCommand;
 import calc.notebook.NotebookException;
+import calc.notebook.Source;
 import calc.persistence.LoadedNotebook;
 import calc.persistence.NotebookStore;
 import calc.persistence.StorageLimits;
@@ -990,13 +992,37 @@ public final class NotebookPresenter {
         }
         // The new line at the end: always there, it only becomes a line of the notebook when it is validated with a text.
         rows.add(new NotebookRow(rows.size() + 1, "", NotebookRow.Status.EMPTY, "", "", "", -1, -1, "", "Ligne vide"));
+        List<LineDetailText.Sentence> detail = justifyActiveLine(rows);
         Message status = status();
         boolean showHelp = notebook.isEmpty() && draft.isEmpty();
         boolean close = closeRequested;
         closeRequested = false;
         return new NotebookViewModel(rows, activeIndex(), draft, focus, document.canUndo(), document.canRedo() || isDraftRestorable(), mode,
                 status.text(), status.tone(), showHelp ? WATERMARK : "", title(), !document.isReadOnlyFile(), close,
-                theme, effectiveTheme(theme, systemTheme), systemTheme.available());
+                theme, effectiveTheme(theme, systemTheme), systemTheme.available(), detail);
+    }
+
+    /**
+     * Marks the rows that are sources of the active line and returns its detail, once every line is calculated: the lines
+     * that use it are only known then. Only the rows whose mark changes differ from the previous view model, so the window
+     * only redraws those.
+     */
+    private List<LineDetailText.Sentence> justifyActiveLine(List<NotebookRow> rows) {
+        Notebook notebook = document.notebook();
+        int active = activeIndex();
+        if (active >= notebook.size() || !recalculation.isComplete() || recalculation.knownCount() != notebook.size()) {
+            return List.of();
+        }
+        EvaluatedNotebook evaluated = new EvaluatedNotebook(notebook, recalculation.known());
+        LineResult line = evaluated.result(active + 1);
+        if (!line.id().equals(activeId)) {
+            return List.of();
+        }
+        for (Source source : line.sources()) {
+            int index = evaluated.result(source.target()).number() - 1;
+            rows.set(index, rows.get(index).withSource(true));
+        }
+        return LineDetailText.sentences(evaluated, line.id(), mode);
     }
 
     // The count of a calculation under way comes first, followed by what cannot wait for its end: see urgentError. Then that

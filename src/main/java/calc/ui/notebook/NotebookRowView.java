@@ -112,7 +112,8 @@ final class NotebookRowView extends JPanel {
         GridBagConstraints c = new GridBagConstraints();
         c.gridx = 0;
         c.gridy = 0;
-        c.gridheight = 2;
+        // Down the line, its message and the detail of the active line (holdDetail).
+        c.gridheight = 3;
         c.anchor = GridBagConstraints.NORTH;
         c.fill = GridBagConstraints.VERTICAL;
         add(margin, c);
@@ -169,6 +170,26 @@ final class NotebookRowView extends JPanel {
             part.addMouseListener(pointer);
         }
         colour();
+    }
+
+    /**
+     * Puts the detail of the active line under this row's line and message, from the start of the expression. The one
+     * detail of the window moves from row to row: adding it here takes it out of the row it was in.
+     */
+    void holdDetail(LineDetailView detail) {
+        if (detail.getParent() == this) {
+            return;
+        }
+        GridBagConstraints c = new GridBagConstraints();
+        c.gridx = 1;
+        c.gridy = 2;
+        c.gridwidth = 3;
+        c.weightx = 1;
+        c.fill = GridBagConstraints.HORIZONTAL;
+        c.anchor = GridBagConstraints.WEST;
+        c.insets = new Insets(0, scaled("space.4") + field.getInsets().left, 0, scaled("space.4"));
+        add(detail, c);
+        revalidate();
     }
 
     private static int scaled(String token) {
@@ -267,6 +288,7 @@ final class NotebookRowView extends JPanel {
             case NONE -> palette.numberForeground();
         });
         exactnessSign.getAccessibleContext().setAccessibleName(sign.spoken());
+        sourceMark.setText(row.sourceMark());
 
         Kind kind = row.kind();
         field.getAccessibleContext().setAccessibleName(row.name());

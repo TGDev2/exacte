@@ -70,6 +70,8 @@ public final class NotebookFrame extends JFrame {
     private final transient NotebookShortcuts shortcuts;
     private final transient List<NotebookRowView> rows = new ArrayList<>();
     private final RowsPanel rowsPanel = new RowsPanel();
+    // The one detail of the window, under the active line.
+    private final LineDetailView lineDetail = new LineDetailView();
     private final JScrollPane scrollPane;
     private final JLabel statusLabel = new JLabel(" ");
     private final DisplayModeSelector modeSelector = new DisplayModeSelector();
@@ -462,6 +464,7 @@ public final class NotebookFrame extends JFrame {
                 }
             }
             showWindowState(viewModel);
+            showDetail(viewModel);
         } finally {
             applying = false;
         }
@@ -475,6 +478,7 @@ public final class NotebookFrame extends JFrame {
             boolean moved = shown == null || shown.activeIndex() != viewModel.activeIndex();
             showRows(viewModel);
             showWindowState(viewModel);
+            showDetail(viewModel);
             // The caret only moves when another line is active or the text of the active field was replaced.
             focusMoved = moved || !before.equals(rows.get(viewModel.activeIndex()).field.getText());
         } finally {
@@ -506,6 +510,15 @@ public final class NotebookFrame extends JFrame {
             boolean active = i == viewModel.activeIndex();
             rows.get(i).show(row, active, active ? viewModel.activeDraft() : row.text(), active ? viewModel.watermark() : "");
         }
+    }
+
+    // The detail of the active line goes under it; it only redraws the rows it leaves and reaches.
+    private void showDetail(NotebookViewModel viewModel) {
+        int active = viewModel.activeIndex();
+        if (active < rows.size()) {
+            rows.get(active).holdDetail(lineDetail);
+        }
+        lineDetail.show(viewModel.activeDetail());
     }
 
     private void removeRowsFrom(int count) {

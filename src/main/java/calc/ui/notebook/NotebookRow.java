@@ -16,9 +16,13 @@ import java.util.Objects;
  * @param definedName the variable that the line defines, empty if it defines none
  * @param description the line in one sentence, for instance {@code Résultat : 37,5, exact}; the window gives a screen reader
  *                    {@link #accessibleDescription()}, which spells the exactness out
+ * @param source      whether the line is a source of the active line: its margin shows {@link #SOURCE_MARK}
  */
 public record NotebookRow(int number, String text, Status status, String result, String detail, String errorMessage,
-                          int errorStart, int errorEnd, String definedName, String description) {
+                          int errorStart, int errorEnd, String definedName, String description, boolean source) {
+    /** The mark of the margin of a source of the active line. */
+    public static final String SOURCE_MARK = "◆";
+
     /** What a line is. */
     public enum Status {
         EMPTY,
@@ -77,6 +81,24 @@ public record NotebookRow(int number, String text, Status status, String result,
         Objects.requireNonNull(description, "description");
     }
 
+    /** A line that is not a source of the active line. */
+    public NotebookRow(int number, String text, Status status, String result, String detail, String errorMessage,
+                       int errorStart, int errorEnd, String definedName, String description) {
+        this(number, text, status, result, detail, errorMessage, errorStart, errorEnd, definedName, description, false);
+    }
+
+    /** The same line, a source of the active line or not. */
+    public NotebookRow withSource(boolean isSource) {
+        return isSource == source ? this
+                : new NotebookRow(number, text, status, result, detail, errorMessage, errorStart, errorEnd, definedName, description,
+                        isSource);
+    }
+
+    /** « ◆ » for a source of the active line, nothing otherwise. */
+    public String sourceMark() {
+        return source ? SOURCE_MARK : "";
+    }
+
     /** The accessible name of the line: « Ligne 3 ». */
     public String name() {
         return "Ligne " + number;
@@ -115,13 +137,16 @@ public record NotebookRow(int number, String text, Status status, String result,
 
     /**
      * What a screen reader says after the name of the line. For a value it spells the exactness the sign of the margin shows
-     * ({@code Résultat : 5 167,5, valeur exacte, définit la variable total}); otherwise it is the {@link #description}.
+     * ({@code Résultat : 5 167,5, valeur exacte, définit la variable total}); otherwise it is the {@link #description}. A source of
+     * the active line adds « , source de la ligne active ».
      */
     public String accessibleDescription() {
+        String sourceOfActive = source ? ", source de la ligne active" : "";
         if (!hasValue()) {
-            return description;
+            return description + sourceOfActive;
         }
-        return "Résultat : " + result + ", " + sign().spoken() + (definesVariable() ? ", définit la variable " + definedName : "");
+        return "Résultat : " + result + ", " + sign().spoken() + (definesVariable() ? ", définit la variable " + definedName : "")
+                + sourceOfActive;
     }
 
     /**

@@ -1,6 +1,9 @@
 package calc.ui.notebook;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import calc.ui.notebook.NotebookRow.Kind;
 import calc.ui.notebook.NotebookRow.Sign;
@@ -78,5 +81,23 @@ class NotebookRowTest {
         NotebookRow none = row("", Status.EMPTY, "", "", "Ligne vide");
         assertEquals("", none.resultIntegerPart());
         assertEquals("", none.resultDecimalPart());
+    }
+
+    @Test
+    void aSourceOfTheActiveLineShowsTheMarkAndSaysIt() {
+        NotebookRow plain = row("plan = 1250", Status.EXACT, "1 250", "plan", "Résultat : 1 250, exact, définit la variable plan");
+        assertFalse(plain.source());
+        assertEquals("", plain.sourceMark());
+        assertSame(plain, plain.withSource(false), "nothing changes, the same row");
+
+        NotebookRow source = plain.withSource(true);
+        assertTrue(source.source());
+        assertEquals("◆", source.sourceMark());
+        assertEquals("Résultat : 1 250, valeur exacte, définit la variable plan, source de la ligne active", source.accessibleDescription());
+        assertEquals(plain.description(), source.description(), "the sentence of the line itself does not change");
+        assertEquals(plain, source.withSource(false));
+
+        NotebookRow failing = row("x = 1 / 0", Status.ERROR, "", "x", "Erreur : division").withSource(true);
+        assertEquals("Erreur : division, source de la ligne active", failing.accessibleDescription());
     }
 }

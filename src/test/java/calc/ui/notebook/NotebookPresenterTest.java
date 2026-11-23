@@ -44,6 +44,30 @@ class NotebookPresenterTest {
         store.close();
     }
 
+    @Test
+    void theActiveLineCarriesItsDetailAndMarksItsSources() {
+        d.line("a = 2").line("b = 3").line("a * b + a").line("1 / 3");
+        d.click(2);
+        assertEquals(List.of(true, true, false, false, false), d.view.rows().stream().map(NotebookRow::source).toList());
+        assertEquals(List.of("= 2 * 3 + 2", "= 8", "Sources : lignes 1 et 2", "Utilisée par aucune ligne"), detail(d.view));
+
+        d.click(0);
+        assertEquals(List.of(false, false, false, false, false), d.view.rows().stream().map(NotebookRow::source).toList());
+        assertEquals(List.of("= 2", "Utilisée par 1 ligne"), detail(d.view));
+
+        // The result of the detail follows the display mode.
+        d.click(3).mode(DisplayMode.FRACTION);
+        assertEquals(List.of("= 1/3", "Utilisée par aucune ligne"), detail(d.view));
+
+        // The new line at the end has no detail.
+        d.click(4);
+        assertEquals(List.of(), d.view.activeDetail());
+    }
+
+    private static List<String> detail(NotebookViewModel view) {
+        return view.activeDetail().stream().map(calc.detail.LineDetailText.Sentence::text).toList();
+    }
+
     /** A mode store that remembers in memory what was saved. */
     private static final class RecordingModeStore implements DisplayModeStore {
         DisplayMode stored = DisplayMode.AUTO;

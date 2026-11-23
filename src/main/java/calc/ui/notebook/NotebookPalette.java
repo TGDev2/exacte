@@ -61,6 +61,16 @@ final class NotebookPalette {
         return role("text.secondary");
     }
 
+    /** The box of the detail of the active line. */
+    Color detailBackground() {
+        return role("surface.raised");
+    }
+
+    /** The sentences of the detail of the active line. */
+    Color detailForeground() {
+        return role("text.secondary");
+    }
+
     /** What is typed, a title, an exact result. */
     Color textForeground() {
         return role("text.primary");
