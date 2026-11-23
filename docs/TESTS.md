@@ -520,7 +520,7 @@ un test a échoué ou a été ignoré. Les identifiants sont stables ; ajouter u
 | G18 | L'ancien historique est migré sans perte (sauvegarde identique octet pour octet, migration idempotente) | `LegacyMigrationTest`, `NotebookMigrationTest`, `LegacyTsvReaderFuzzProperties`, `LegacyTsvReaderTest` |
 | G19 | Les documents (nouveau, ouvrir, enregistrer, enregistrer sous, modifié, confirmations) ne perdent aucune modification | `DocumentServiceTest`, `NotebookFilesTest`, `NotebookFrameFilesTest` |
 | G20 | Les exports Markdown et CSV sont fidèles aux fichiers de référence et ne peuvent pas déclencher une formule de tableur ni injecter de balise | `NotebookExporterTest`, `NotebookExportProperties` |
-| G21 | Tout se fait au clavier, avec le modificateur de menu de chaque système, sans conflit de touche | `NotebookFrameTest`, `NotebookFrameFilesTest`, `NotebookShortcutConflictTest`, `ModeShortcutConflictTest` |
+| G21 | Tout se fait au clavier, avec le modificateur de menu de chaque système, sans conflit de touche | `NotebookFrameTest`, `NotebookFrameFilesTest`, `NotebookShortcutConflictTest`, `ModeShortcutConflictTest`, `FlatLafFoundationAcceptanceTest` (thèmes clair et sombre de FlatLaf) |
 | G22 | Chaque ligne est accessible (nom, description, ordre de focus) et chaque couleur de texte atteint un contraste de 4,5:1 | `NotebookFrameTest`, `NotebookPaletteContrastTest`, `PaletteContrastTest` |
 | G23 | L'interface reste réactive : 500 lignes se recalculent et se peignent en moins de 100 ms | `NotebookPerformanceTest`, `NotebookResponsivenessTest`, `NotebookFrameResponsivenessTest` |
 | G24 | Les textes visibles sont accentués | `VisibleTextsTest` |

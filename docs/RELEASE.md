@@ -186,8 +186,9 @@ périmètre de cette livraison. Conséquence au premier lancement d'un fichier t
   (deux releases construites à des semaines d'écart peuvent embarquer deux versions de Java 21), et les archives `.tar.gz` enregistrent
   les dates des fichiers. Deux constructions Windows faites sur le poste de développement sont sorties identiques, ce qui ne prouve rien
   pour les autres systèmes ni pour d'autres jours.
-- **Le SBOM ne liste que le classpath d'exécution.** Calc n'a aucune bibliothèque tierce à l'exécution : le SBOM contient donc le
-  composant `calc` et aucun autre. Le runtime Java embarqué dans chaque archive n'y figure pas.
+- **Le SBOM ne liste que le classpath d'exécution.** Les seules bibliothèques tierces à l'exécution sont FlatLaf et ses polices Inter
+  et JetBrains Mono ([ADR 0017](adr/0017-flatlaf-et-polices-embarquees.md)) : le SBOM contient le composant `calc` et ces trois
+  composants, et leurs licences sont dans `app/licences` de chaque archive. Le runtime Java embarqué dans chaque archive n'y figure pas.
 - **Architectures** : Windows x64, macOS arm64 (puce Apple), Linux x64. Pas de Mac Intel, pas de Linux arm64.
 - **Ce qui a tourné, et ce qui reste non vérifié.** Le workflow `release.yml` a tourné en essai à blanc (run `42377140242`, pré-version `test-v1.0.0-1`, preuve dans `docs/essais/release-1.0.0-essai-final.json`) : les trois archives, le SBOM, le rapport et `SHA256SUMS.txt` ont été publiés et contrôlés par `tools/release/verify-release.sh`, et l'application Windows est restée vivante 5 secondes sans contrôle de la fenêtre. Sous macOS et Linux, l'application empaquetée n'a connu qu'un test de fumée en CI (le processus reste vivant 8 secondes) : aucun usage réel n'y est vérifié. La release `v1.0.0` elle-même n'est pas encore publiée.
 - **Tag** : une publication part d'un tag poussé par le mainteneur ; le workflow n'en crée aucun. Le détail de ce que la recette a et n'a pas vu est dans [RECETTE.md](RECETTE.md).
