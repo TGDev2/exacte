@@ -47,6 +47,33 @@ même message que `(1/16) ^ 4096`. La couleur seule ne porte jamais l'informatio
 et un lecteur d'écran entend « valeur exacte » ou « valeur approchée » dans la description de la ligne. Les résultats sont
 alignés sur la virgule : les unités de toutes les lignes tombent dans la même colonne.
 
+## Le détail de la ligne active
+
+Sous la ligne où se trouve le curseur, le carnet explique comment sa valeur a été obtenue et à quoi elle sert. Pour la ligne
+`total = plan + meubles + pose` du devis de cuisine :
+
+```text
+= 1250 + 3480 + 437,5
+= 5167,5
+Sources : lignes 2, 3 et 4
+Utilisée par 1 ligne
+```
+
+- **Le développement** (`= 1250 + 3480 + 437,5`) : la ligne où chaque variable, `$n` ou `ans` de valeur exacte est remplacé
+  par sa valeur, sur un seul niveau. Il n'apparaît que si la ligne utilise d'autres lignes. Une valeur approchée garde son
+  écriture.
+- **Le résultat**, tel que la ligne l'affiche dans le mode en cours : précédé de « = » s'il est exact ; une valeur approchée
+  commence déjà par « ≈ » (ou se lit `|x| ≤ …`).
+- **Les sources** : les lignes dont elle se sert. Elles sont aussi marquées **◆** dans la marge, et un lecteur d'écran
+  entend « source de la ligne active » dans leur description.
+- **Les utilisations** : « Utilisée par 1 ligne », « Utilisée par 3 lignes » ou « Utilisée par aucune ligne ».
+- Pour une valeur approchée, **« Valeur garantie entre … et … »** : les bornes de l'intervalle calculé, arrondies vers
+  l'extérieur à 12 chiffres significatifs ; la vraie valeur est certainement entre les deux (`√2` : entre 1,41421356237 et
+  1,41421356238).
+
+Un titre, un commentaire, une ligne vide ou une ligne en erreur n'ont pas de détail. Le détail suit les modifications : il
+apparaît dès que le calcul en arrière-plan est terminé.
+
 ## Modes d'affichage et thème
 
 Le menu **Affichage**, et le contrôle segmenté en haut de la fenêtre (quatre boutons côte à côte, celui du mode en vigueur
