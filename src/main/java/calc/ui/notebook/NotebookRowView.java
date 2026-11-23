@@ -9,7 +9,6 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Font;
-import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
@@ -19,13 +18,15 @@ import java.awt.Point;
 import java.awt.Toolkit;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.font.FontRenderContext;
+import java.awt.font.GlyphVector;
+import java.awt.font.LineMetrics;
 import java.util.Locale;
 import java.util.Map;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
-import javax.swing.plaf.basic.BasicGraphicsUtils;
 
 /**
  * One row of the notebook (docs/design/DESIGN.md « Ligne du carnet »): a margin of fixed width with the number, the sign of
@@ -373,6 +374,7 @@ final class NotebookRowView extends JPanel {
      */
     static final class AlignedResult extends JLabel {
         private static final long serialVersionUID = 1L;
+        private static final FontRenderContext UNSCALED = new FontRenderContext(null, true, false);
         private String integerPart = "";
 
         AlignedResult() {
@@ -390,15 +392,20 @@ final class NotebookRowView extends JPanel {
          * depends on the width of the label and on its font.
          */
         int anchor() {
-            int room = DECIMAL_CHARACTERS * getFontMetrics(getFont()).charWidth('0');
-            return Math.max(getInsets().left, getWidth() - getInsets().right - room);
+            double room = DECIMAL_CHARACTERS * advance(getFont().createGlyphVector(UNSCALED, "0"));
+            return (int) Math.max(getInsets().left, Math.round(getWidth() - getInsets().right - room));
+        }
+
+        // How far a laid out text goes: the position after its last glyph.
+        private static double advance(GlyphVector glyphs) {
+            return glyphs.getGlyphPosition(glyphs.getNumGlyphs()).getX();
         }
 
         /**
-         * Draws the result, measured and drawn by the same Graphics with the text hints of the desktop. The metrics of the
-         * label, those of another Graphics and Swing's drawString (which stretches a printed text to its width on screen) round
-         * the advances differently, depending on the screen and on the look and feels set before: a result measured by one and
-         * drawn by another left the column by up to 3 px.
+         * Draws the result. Every width comes from glyphs laid out by the font itself in the context of the Graphics, and those
+         * glyphs are the ones drawn. A FontMetrics would not do: Java keeps the metrics of a font by its name, style and size,
+         * so that metrics asked before the fonts were installed (a window opened earlier) stay those of the fallback font, and
+         * a result measured with them ended up to 1 px per character right of the column.
          */
         @Override
         protected void paintComponent(Graphics graphics) {
@@ -411,24 +418,36 @@ final class NotebookRowView extends JPanel {
                 if (Toolkit.getDefaultToolkit().getDesktopProperty("awt.font.desktophints") instanceof Map<?, ?> hints) {
                     g.addRenderingHints(hints);
                 }
-                g.setFont(getFont());
+                Font font = getFont();
+                g.setFont(font);
                 g.setColor(getForeground());
-                FontMetrics metrics = g.getFontMetrics();
+                FontRenderContext context = g.getFontRenderContext();
                 Insets insets = getInsets();
-                int left = insets.left;
-                int right = getWidth() - insets.right;
-                int x = anchor() - metrics.stringWidth(integerPart);
-                int width = metrics.stringWidth(text);
-                if (x + width > right) {
-                    x = right - width;
+                double left = insets.left;
+                double right = getWidth() - insets.right;
+                GlyphVector glyphs = font.createGlyphVector(context, text);
+                double x = anchor() - advance(font.createGlyphVector(context, integerPart));
+                if (x + advance(glyphs) > right) {
+                    x = right - advance(glyphs);
                 }
                 String shown = text;
                 if (x < left) {
+                    // Too wide for the whole room: cut at the end, with « … » (the tooltip keeps it whole).
                     x = left;
-                    shown = BasicGraphicsUtils.getClippedString(this, metrics, text, right - left);
+                    while (!shown.isEmpty() && advance(glyphs = font.createGlyphVector(context, shown + "…")) > right - left) {
+                        shown = shown.substring(0, shown.length() - 1);
+                    }
+                    shown += "…";
                 }
-                int y = insets.top + (getHeight() - insets.top - insets.bottom - metrics.getHeight()) / 2 + metrics.getAscent();
-                g.drawString(shown, x, y);
+                LineMetrics line = font.getLineMetrics(shown, context);
+                float y = insets.top + (getHeight() - insets.top - insets.bottom - line.getAscent() - line.getDescent()) / 2
+                        + line.getAscent();
+                if (font.canDisplayUpTo(shown) < 0) {
+                    g.drawGlyphVector(glyphs, (float) x, y);
+                } else {
+                    // A character the font lacks: only the Graphics finds it in another font.
+                    g.drawString(shown, (float) x, y);
+                }
             } finally {
                 g.dispose();
             }
