@@ -156,6 +156,31 @@ public final class NotebookEvaluator {
         }
     }
 
+    /**
+     * The label of a variable, {@code ans} or {@code $n} as written in {@code text}: the name of a variable, the token
+     * itself for the others. The span of a leaf written between parentheses covers them and the blanks inside
+     * ({@code ( $1 )}), which are not part of the label: {@code (ans)} and {@code ans} name the same source.
+     */
+    static String label(String text, Node leaf) {
+        if (leaf instanceof Node.Variable variable) {
+            return variable.name();
+        }
+        int start = leaf.span().start();
+        int end = leaf.span().end();
+        // The token itself holds no parenthesis and no blank.
+        while (aroundToken(text.charAt(start))) {
+            start++;
+        }
+        while (aroundToken(text.charAt(end - 1))) {
+            end--;
+        }
+        return text.substring(start, end);
+    }
+
+    private static boolean aroundToken(char c) {
+        return c == '(' || c == ')' || BLANKS.indexOf(c) >= 0;
+    }
+
     /** What the lines evaluated so far make visible to the next one. */
     private static final class Scope {
         private final List<LineResult> results;
@@ -222,12 +247,12 @@ public final class NotebookEvaluator {
                     }
                     case Node.Ans ans -> {
                         if (scope.lastValue >= 0) {
-                            source = new Source(Source.Kind.ANS, written(text, ans), scope.results.get(scope.lastValue).id());
+                            source = new Source(Source.Kind.ANS, label(text, ans), scope.results.get(scope.lastValue).id());
                         }
                     }
                     case Node.LineRef reference -> {
                         if (reference.line() < number && hasValueOrError(scope.results.get(reference.line() - 1))) {
-                            source = new Source(Source.Kind.LINE_REFERENCE, written(text, reference),
+                            source = new Source(Source.Kind.LINE_REFERENCE, label(text, reference),
                                     scope.results.get(reference.line() - 1).id());
                         }
                     }
@@ -247,10 +272,6 @@ public final class NotebookEvaluator {
                 }
             }
             return sources;
-        }
-
-        private static String written(String text, Node node) {
-            return text.substring(node.span().start(), node.span().end());
         }
 
         // An expression or an assignment, whether it has a value or an error: what $n can designate.

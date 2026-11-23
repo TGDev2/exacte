@@ -55,7 +55,7 @@ public final class LineExpansion {
     }
 
     private static Node valueOf(Node leaf, Source.Kind kind, LineResult line, EvaluatedNotebook notebook) {
-        String label = line.text().substring(leaf.span().start(), leaf.span().end());
+        String label = NotebookEvaluator.label(line.text(), leaf);
         for (Source source : line.sources()) {
             if (source.kind() == kind && source.label().equals(label)) {
                 CertifiedValue value = notebook.result(source.target()).value();

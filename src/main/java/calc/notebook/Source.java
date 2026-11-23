@@ -8,7 +8,8 @@ import java.util.Objects;
  * closest line above that has a value for {@code ans} (docs/adr/0008-semantique-carnet.md, section 2).
  *
  * @param kind   what the line names
- * @param label  the text as written in the line: the variable name, {@code $3}, {@code ans}
+ * @param label  the token as written in the line, without the parentheses around it: the variable name, {@code $3},
+ *               {@code ans}
  * @param target the line that gives the value
  */
 public record Source(Kind kind, String label, LineId target) {

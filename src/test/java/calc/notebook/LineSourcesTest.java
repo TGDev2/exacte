@@ -89,6 +89,20 @@ class LineSourcesTest {
     }
 
     @Test
+    void aNameBetweenParenthesesIsTheSameSourceAndExpandsToItsValue() {
+        EvaluatedNotebook notebook = evaluated("a = 4", "(a) * 2", "√(a)", "( ans ) + ($1) - (( ANS\t))", "$1 * ( $1 )");
+
+        assertEquals(List.of(new Source(Source.Kind.VARIABLE, "a", id(notebook, 1))), notebook.result(2).sources());
+        assertEquals(Optional.of("4 * 2"), LineExpansion.expand(notebook, id(notebook, 2)));
+        assertEquals(Optional.of("√4"), LineExpansion.expand(notebook, id(notebook, 3)));
+        assertEquals(List.of(new Source(Source.Kind.ANS, "ans", id(notebook, 3)), reference("$1", id(notebook, 1)),
+                new Source(Source.Kind.ANS, "ANS", id(notebook, 3))), notebook.result(4).sources());
+        assertEquals(Optional.of("2 + 4 - 2"), LineExpansion.expand(notebook, id(notebook, 4)));
+        assertEquals(List.of(reference("$1", id(notebook, 1))), notebook.result(5).sources());
+        assertEquals(Optional.of("4 * 4"), LineExpansion.expand(notebook, id(notebook, 5)));
+    }
+
+    @Test
     void aLineThatNamesALineTwiceUsesItOnce() {
         EvaluatedNotebook notebook = evaluated("2", "$1 + ans * $1", "x = ans + $1 + ans");
 
