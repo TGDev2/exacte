@@ -10,7 +10,9 @@ import calc.expression.ParsedLine;
 import calc.expression.Resolution;
 import calc.expression.Resolver;
 import calc.number.CertifiedValue;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -112,10 +114,11 @@ public final class NotebookEvaluator {
         } catch (ExpressionException refused) {
             String name = attemptedAssignment(line.text()).orElse(null);
             ParsedLine.Kind kind = name == null ? ParsedLine.Kind.EXPRESSION : ParsedLine.Kind.ASSIGNMENT;
-            return new LineResult(number, line.id(), line.text(), kind, null, LineError.of(refused), name, List.of());
+            return new LineResult(number, line.id(), line.text(), kind, null, LineError.of(refused), name, List.of(),
+                    List.of());
         }
         if (parsed.node() == null) {
-            return new LineResult(number, line.id(), line.text(), parsed.kind(), null, null, null, List.of());
+            return new LineResult(number, line.id(), line.text(), parsed.kind(), null, null, null, List.of(), List.of());
         }
         Set<LineId> references = new LinkedHashSet<>();
         for (int reference : parsed.lineReferences()) {
@@ -125,12 +128,14 @@ public final class NotebookEvaluator {
         }
         String name = parsed.assignedName().orElse(null);
         LineResolver resolver = scope.resolverFor(number);
+        List<Source> sources = resolver.sources(parsed, line.text());
         try {
             CertifiedValue value = Evaluator.evaluate(parsed.node(), resolver);
-            return new LineResult(number, line.id(), line.text(), parsed.kind(), value, null, name, List.copyOf(references));
+            return new LineResult(number, line.id(), line.text(), parsed.kind(), value, null, name, List.copyOf(references),
+                    sources);
         } catch (ExpressionException refused) {
             return new LineResult(number, line.id(), line.text(), parsed.kind(), null, resolver.explain(refused), name,
-                    List.copyOf(references));
+                    List.copyOf(references), sources);
         }
     }
 
@@ -190,6 +195,67 @@ public final class NotebookEvaluator {
         LineResolver(Scope scope, int number) {
             this.scope = scope;
             this.number = number;
+        }
+
+        /**
+         * The sources of the line: each variable, {@code ans} and {@code $n} of {@code parsed} that designates a line above,
+         * as this resolver would resolve it, in the order of the text and without repetition. They are read from the tree,
+         * not from the evaluation, which stops at the first failure: a line in error still lists every line it names. A
+         * name whose line is in error is a source too.
+         */
+        List<Source> sources(ParsedLine parsed, String text) {
+            if (parsed.variables().isEmpty() && parsed.lineReferences().isEmpty() && !parsed.usesAns()) {
+                return List.of();
+            }
+            List<Source> sources = new ArrayList<>();
+            Deque<Node> nodes = new ArrayDeque<>();
+            nodes.push(parsed.node());
+            // The left operand is taken before the right one, so the leaves come in the order of the text.
+            while (!nodes.isEmpty()) {
+                Source source = null;
+                switch (nodes.pop()) {
+                    case Node.Variable variable -> {
+                        Integer index = scope.definitions.get(variable.name());
+                        if (index != null) {
+                            source = new Source(Source.Kind.VARIABLE, variable.name(), scope.results.get(index).id());
+                        }
+                    }
+                    case Node.Ans ans -> {
+                        if (scope.lastValue >= 0) {
+                            source = new Source(Source.Kind.ANS, written(text, ans), scope.results.get(scope.lastValue).id());
+                        }
+                    }
+                    case Node.LineRef reference -> {
+                        if (reference.line() < number && hasValueOrError(scope.results.get(reference.line() - 1))) {
+                            source = new Source(Source.Kind.LINE_REFERENCE, written(text, reference),
+                                    scope.results.get(reference.line() - 1).id());
+                        }
+                    }
+                    case Node.Unary unary -> nodes.push(unary.operand());
+                    case Node.Binary binary -> {
+                        nodes.push(binary.right());
+                        nodes.push(binary.left());
+                    }
+                    case Node.Sqrt sqrt -> nodes.push(sqrt.operand());
+                    case Node.Assignment assignment -> nodes.push(assignment.value());
+                    case Node.NumberLiteral literal -> {
+                        // A number names no line.
+                    }
+                }
+                if (source != null && !sources.contains(source)) {
+                    sources.add(source);
+                }
+            }
+            return sources;
+        }
+
+        private static String written(String text, Node node) {
+            return text.substring(node.span().start(), node.span().end());
+        }
+
+        // An expression or an assignment, whether it has a value or an error: what $n can designate.
+        private static boolean hasValueOrError(LineResult target) {
+            return target.kind() == ParsedLine.Kind.EXPRESSION || target.kind() == ParsedLine.Kind.ASSIGNMENT;
         }
 
         @Override

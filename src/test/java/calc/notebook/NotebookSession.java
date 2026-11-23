@@ -170,6 +170,17 @@ final class NotebookSession {
                     Arrays.asList(read.text(), read.kind(), read.value(), read.error(), read.definedName()),
                     "reloaded from its text");
         }
+        // Every source designates a line above, and usedBy is the inverse of the sources, in the order of the notebook.
+        for (LineResult result : evaluated.results()) {
+            for (Source source : result.sources()) {
+                assertTrue(notebook.numberOf(source.target()).orElseThrow() < result.number(), () -> source + " is not above " + result);
+            }
+            List<LineId> users = evaluated.results().stream()
+                    .filter(user -> user.sources().stream().anyMatch(source -> source.target().equals(result.id())))
+                    .map(LineResult::id)
+                    .toList();
+            assertEquals(users, evaluated.usedBy(result.id()), () -> "the lines that use " + result);
+        }
 
         for (LineResult result : evaluated.results()) {
             List<String> tokens = tokens(result.text());
