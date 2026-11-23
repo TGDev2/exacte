@@ -313,11 +313,11 @@ class NotebookFrameTest {
         typeLine("prix * 3");
 
         NotebookRowView definition = frame.row(0);
-        assertEquals(NotebookPalette.VARIABLE_BACKGROUND, definition.numberLabel.getBackground());
+        assertEquals(NotebookPalette.active().variableBackground(), definition.numberLabel.getBackground());
         assertEquals("Définit la variable « prix »", definition.numberLabel.getToolTipText());
         assertEquals("Résultat : 12,5, exact, définit la variable prix",
                 definition.field.getAccessibleContext().getAccessibleDescription());
-        assertFalse(NotebookPalette.VARIABLE_BACKGROUND.equals(frame.row(1).numberLabel.getBackground()));
+        assertFalse(NotebookPalette.active().variableBackground().equals(frame.row(1).numberLabel.getBackground()));
         assertNull(frame.row(1).numberLabel.getToolTipText());
     }
 
@@ -423,7 +423,7 @@ class NotebookFrameTest {
 
         assertEquals("4", frame.row(0).resultLabel.getText());
         assertTrue(frame.statusLabel().getText().startsWith("Enregistrement automatique impossible"), frame.statusLabel().getText());
-        assertEquals(calc.ui.widget.Palette.ERROR, frame.statusLabel().getForeground());
+        assertEquals(calc.ui.widget.Palette.active().error(), frame.statusLabel().getForeground());
     }
 
     @Test

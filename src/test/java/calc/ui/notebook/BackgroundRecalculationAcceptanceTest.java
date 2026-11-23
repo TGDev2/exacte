@@ -1386,10 +1386,13 @@ class BackgroundRecalculationAcceptanceTest {
         private final List<String> evaluated = Collections.synchronizedList(new ArrayList<>());
         private final List<String> onTheEventThread = Collections.synchronizedList(new ArrayList<>());
         private final Map<String, Gate> gates = new ConcurrentHashMap<>();
+        // Every gate ever set, reached or not: a line still blocked when the test ends is let go at once, not after the patience.
+        private final List<Gate> allGates = Collections.synchronizedList(new ArrayList<>());
         private volatile boolean closing;
 
         Gate gateAt(String text) {
             Gate gate = new Gate();
+            allGates.add(gate);
             gates.put(text, gate);
             return gate;
         }
@@ -1423,7 +1426,9 @@ class BackgroundRecalculationAcceptanceTest {
 
         void releaseEverything() {
             closing = true;
-            gates.values().forEach(Gate::release);
+            synchronized (allGates) {
+                allGates.forEach(Gate::release);
+            }
         }
     }
 

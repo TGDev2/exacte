@@ -25,11 +25,11 @@ public final class ExactnessBadge extends JLabel {
     /** Shows the badge of a result. {@code detail} is the tooltip, empty for none. */
     public void showExactness(boolean exact, String detail) {
         String text = exact ? EXACT_TEXT : APPROXIMATE_TEXT;
-        Color foreground = exact ? Palette.EXACT_FOREGROUND : Palette.APPROXIMATE_FOREGROUND;
+        Color foreground = exact ? Palette.active().exactForeground() : Palette.active().approximateForeground();
         setText(text);
         setOpaque(true);
         setForeground(foreground);
-        setBackground(exact ? Palette.EXACT_BACKGROUND : Palette.APPROXIMATE_BACKGROUND);
+        setBackground(exact ? Palette.active().exactBackground() : Palette.active().approximateBackground());
         setBorder(border(foreground));
         setToolTipText(detail.isEmpty() ? null : detail);
         setVisible(true);

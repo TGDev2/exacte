@@ -17,6 +17,7 @@ tests le vérifient (`NotebookDependenciesTest`, `ServicesDependenciesTest` : vo
 | `calc.document` | `DocumentService` : nouveau, ouvrir, enregistrer, enregistrer sous, indicateur « modifié », version future en lecture seule. Les chemins sont des paramètres, aucun dialogue | l'interface |
 | `calc.export` | `NotebookExporter` : exports Markdown et CSV | l'interface |
 | `calc.ui` | `DisplayModeStore` (mode d'affichage mémorisé), phrases d'exactitude | — |
+| `calc.ui.design` | Jetons de design (ADR 0016) : `DesignTokens` lit `tokens.properties`, la seule source des couleurs par rôle et par thème (`Theme` : clair, sombre), des polices, des tailles et des paires de contraste | tout le reste de l'application |
 | `calc.ui.widget` | Composants Swing réutilisables : sélecteur de mode, badge d'exactitude, palette et contrastes | la fenêtre |
 | `calc.ui.notebook` | La fenêtre principale : `NotebookPresenter` (toute la logique d'interaction, testable sans Swing), `NotebookViewModel` (état immuable remis à la vue), `NotebookFrame` et `NotebookRowView` (Swing, rien d'autre que l'affichage), `NotebookDialogs` (interface des boîtes de dialogue, remplacée par un faux dans les tests) | — |
 | `calc` | `Main` : branche le magasin du carnet, le mode d'affichage et la fenêtre | — |
@@ -112,5 +113,5 @@ classes des tests.
 
 L'index est dans [adr/README.md](adr/README.md). Les plus utiles pour lire le code : 0003 (représentation numérique),
 0004 (règles d'affichage), 0007 (grammaire), 0008 (sémantique du carnet), 0009 (format v3, documents, exports), 0010
-(éditeur), 0011 (fichiers dans l'interface), 0012 (packaging et releases), 0015 (la version web). Les mesures de fiabilité et leur stratégie sont
+(éditeur), 0011 (fichiers dans l'interface), 0012 (packaging et releases), 0015 (la version web), 0016 (jetons de design). Les mesures de fiabilité et leur stratégie sont
 dans [TESTS.md](TESTS.md) ; l'intégration continue dans [CI.md](CI.md).

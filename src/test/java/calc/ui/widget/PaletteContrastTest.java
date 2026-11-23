@@ -3,14 +3,17 @@ package calc.ui.widget;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import calc.ui.design.DesignTokens;
+import calc.ui.design.Theme;
 import java.awt.Color;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class PaletteContrastTest {
-    // The panel backgrounds of the system look and feels: white, the Windows grey and a Nimbus-like grey.
-    private static final Map<String, Color> PANELS = Map.of(
+    // The panel backgrounds of the system look and feels, on which the light theme still draws its status bar: white, the
+    // Windows grey and a Nimbus-like grey.
+    private static final Map<String, Color> SYSTEM_PANELS = Map.of(
             "white", Color.WHITE,
             "grey 240", new Color(240, 240, 240),
             "grey 214/217/223", new Color(214, 217, 223));
@@ -22,19 +25,36 @@ class PaletteContrastTest {
     }
 
     @Test
-    void everyPaletteTextReachesTheMinimumRatioOnItsBackground() {
+    void theActivePaletteIsTheLightOne() {
+        assertEquals(Theme.LIGHT, Palette.activeTheme());
+        assertEquals(Theme.LIGHT, Palette.active().theme());
+        DesignTokens tokens = DesignTokens.load();
+        assertEquals(tokens.color(Theme.LIGHT, "error.text"), Palette.active().error());
+        assertEquals(tokens.color(Theme.DARK, "error.text"), Palette.of(Theme.DARK).error());
+    }
+
+    @Test
+    void everyPaletteTextReachesTheMinimumRatioOnItsBackgroundInBothThemes() {
         Map<String, Double> ratios = new LinkedHashMap<>();
-        ratios.put("exact badge", Contrast.ratio(Palette.EXACT_FOREGROUND, Palette.EXACT_BACKGROUND));
-        ratios.put("approximate badge", Contrast.ratio(Palette.APPROXIMATE_FOREGROUND, Palette.APPROXIMATE_BACKGROUND));
-        Map<String, Color> statuses = Map.of("success", Palette.SUCCESS, "error", Palette.ERROR, "info", Palette.INFO);
-        for (Map.Entry<String, Color> status : statuses.entrySet()) {
-            for (Map.Entry<String, Color> panel : PANELS.entrySet()) {
-                ratios.put(status.getKey() + " on " + panel.getKey(), Contrast.ratio(status.getValue(), panel.getValue()));
+        for (Theme theme : Theme.values()) {
+            Palette palette = Palette.of(theme);
+            Map<String, Color> backgrounds = new LinkedHashMap<>();
+            backgrounds.put("sheet", DesignTokens.load().color(theme, "surface.base"));
+            backgrounds.put("raised panel", DesignTokens.load().color(theme, "surface.raised"));
+            if (theme == Theme.LIGHT) {
+                backgrounds.putAll(SYSTEM_PANELS);
             }
-        }
-        for (Map.Entry<String, Color> panel : PANELS.entrySet()) {
-            ratios.put("exact mark on " + panel.getKey(), Contrast.ratio(Palette.EXACT_FOREGROUND, panel.getValue()));
-            ratios.put("approximate mark on " + panel.getKey(), Contrast.ratio(Palette.APPROXIMATE_FOREGROUND, panel.getValue()));
+            String name = theme.name().toLowerCase(java.util.Locale.ROOT) + ": ";
+            ratios.put(name + "exact badge", Contrast.ratio(palette.exactForeground(), palette.exactBackground()));
+            ratios.put(name + "approximate badge", Contrast.ratio(palette.approximateForeground(), palette.approximateBackground()));
+            Map<String, Color> foregrounds = new LinkedHashMap<>();
+            foregrounds.put("success", palette.success());
+            foregrounds.put("error", palette.error());
+            foregrounds.put("info", palette.info());
+            foregrounds.put("exact mark", palette.exactForeground());
+            foregrounds.put("approximate mark", palette.approximateForeground());
+            foregrounds.forEach((foreground, colour) -> backgrounds.forEach((background, under) ->
+                    ratios.put(name + foreground + " on " + background, Contrast.ratio(colour, under))));
         }
         ratios.forEach((name, ratio) -> System.out.printf("contrast %s = %.2f%n", name, ratio));
         ratios.forEach((name, ratio) -> assertTrue(
