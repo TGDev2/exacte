@@ -1,13 +1,22 @@
 package calc.ui.notebook;
 
+import calc.ui.design.DesignTokens;
+import com.formdev.flatlaf.util.UIScale;
+import java.awt.BasicStroke;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.Insets;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.Shape;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
+import java.awt.geom.RoundRectangle2D;
 import javax.swing.JTextField;
+import javax.swing.border.AbstractBorder;
 import javax.swing.text.AbstractDocument;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
@@ -28,6 +37,20 @@ final class LineField extends JTextField {
     private String placeholder = "";
 
     LineField() {
+        // The field lies on the surface of its row (active, under the pointer, in error): only the focus draws an outline.
+        setOpaque(false);
+        setBorder(new FocusOutline());
+        addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusGained(FocusEvent event) {
+                repaint();
+            }
+
+            @Override
+            public void focusLost(FocusEvent event) {
+                repaint();
+            }
+        });
         ((AbstractDocument) getDocument()).setDocumentFilter(new LengthFilter(NotebookPresenter.MAX_LINE_LENGTH + 1));
         // A change of the text moves the faulty part: the mark is only right for the text the evaluator saw.
         getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
@@ -118,6 +141,44 @@ final class LineField extends JTextField {
                 }
             }
             super.replace(bypass, offset, length, accepted, attributes);
+        }
+    }
+
+    /**
+     * Nothing around a field without the focus; around the field that has it, a 2 px outline of border.focus with the small
+     * radius of the tokens, so that the keyboard focus stays visible on every surface of a row (contrast.ui.focus*).
+     */
+    private static final class FocusOutline extends AbstractBorder {
+        private static final long serialVersionUID = 1L;
+        private static final int WIDTH = 2;
+
+        @Override
+        public void paintBorder(Component component, Graphics graphics, int x, int y, int width, int height) {
+            if (!component.hasFocus()) {
+                return;
+            }
+            Graphics2D g = (Graphics2D) graphics.create();
+            try {
+                g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g.setColor(NotebookPalette.active().focusBorder());
+                g.setStroke(new BasicStroke(WIDTH));
+                float arc = 2f * DesignTokens.load().size("radius.small");
+                g.draw(new RoundRectangle2D.Float(x + WIDTH / 2f, y + WIDTH / 2f, width - WIDTH, height - WIDTH, arc, arc));
+            } finally {
+                g.dispose();
+            }
+        }
+
+        @Override
+        public Insets getBorderInsets(Component component, Insets insets) {
+            int horizontal = UIScale.scale(DesignTokens.load().size("space.2"));
+            insets.set(WIDTH + 1, horizontal, WIDTH + 1, horizontal);
+            return insets;
+        }
+
+        @Override
+        public Insets getBorderInsets(Component component) {
+            return getBorderInsets(component, new Insets(0, 0, 0, 0));
         }
     }
 

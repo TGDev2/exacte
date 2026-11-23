@@ -6,10 +6,10 @@ import com.formdev.flatlaf.FlatLaf;
 import java.awt.Color;
 
 /**
- * The colours of the status messages and of the exactness marks, read from the design tokens of one theme (ADR 0016). The
- * colour only completes a text (« Exact », « ≈ Approché », the status sentence), it never carries the information alone.
- * Every foreground reaches {@link Contrast#MINIMUM_TEXT_RATIO} on its background in both themes; the status colours of the
- * light theme are also checked against the usual panel backgrounds of the system look and feels, see PaletteContrastTest.
+ * The colours of the status messages and of the exactness signs, read from the design tokens of one theme (ADR 0016). The
+ * colour only completes a text (« = », « ≈ », the status sentence), it never carries the information alone. Every foreground
+ * reaches {@link Contrast#MINIMUM_TEXT_RATIO} on its background in both themes; the status colours of the light theme are
+ * also checked against the usual panel backgrounds of the system look and feels, see PaletteContrastTest.
  */
 public final class Palette {
     private final Theme theme;
@@ -51,20 +51,14 @@ public final class Palette {
         return role("text.secondary");
     }
 
-    public Color exactForeground() {
+    /** The sign « = » of an exact value. */
+    public Color exactSign() {
         return role("exact.sign");
     }
 
-    public Color exactBackground() {
-        return role("exact.surface");
-    }
-
-    public Color approximateForeground() {
+    /** The sign « ≈ » of an approximate value, and its result. */
+    public Color approximateSign() {
         return role("approximate.sign");
-    }
-
-    public Color approximateBackground() {
-        return role("approximate.surface");
     }
 
     private Color role(String role) {

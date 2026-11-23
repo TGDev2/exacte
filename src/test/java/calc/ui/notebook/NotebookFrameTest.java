@@ -13,7 +13,6 @@ import calc.persistence.NotebookCodec;
 import calc.persistence.NotebookStore;
 import calc.ui.DisplayModeStore;
 import calc.ui.notebook.NotebookShortcuts.Command;
-import calc.ui.widget.ExactnessBadge;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.FocusTraversalPolicy;
@@ -47,7 +46,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * The notebook window with a real Swing hierarchy (a display is needed): the keyboard path with the menu modifier of the
- * system, the badge and tooltip, the errors in words, the accessible names, the focus order and the menus.
+ * system, the exactness sign and the tooltip, the errors in words, the accessible names, the focus order and the menus.
  */
 @Tag("ui")
 @DisplayName("Fenêtre du carnet (nécessite un affichage)")
@@ -207,17 +206,23 @@ class NotebookFrameTest {
     // Each hide or show of a component makes AWT ask the system which window is under the mouse (0,2 ms when it is not over this
     // window), so one hide and one show per row made Enter five times slower as soon as the mouse left the window.
     @Test
-    @DisplayName("un recalcul ne masque aucun badge : chaque ligne reste en place jusqu'à son nouveau résultat")
-    void aRecalculationNeverHidesTheBadgeOfARowThatKeepsAValue() throws Exception {
+    @DisplayName("un recalcul ne masque aucune partie d'une ligne : chaque ligne reste en place jusqu'à son nouveau résultat")
+    void aRecalculationNeverHidesAPartOfARowThatKeepsAValue() throws Exception {
         typeLine("a = 2");
         typeLine("a * 3");
         AtomicInteger hidden = new AtomicInteger();
-        runOnEdt(() -> frame.row(1).badge.addComponentListener(new ComponentAdapter() {
-            @Override
-            public void componentHidden(ComponentEvent event) {
-                hidden.incrementAndGet();
+        NotebookRowView second = frame.row(1);
+        runOnEdt(() -> {
+            for (java.awt.Component part : List.of(second.exactnessSign, second.sourceMark, second.nameLabel, second.resultLabel,
+                    second.errorLabel, second.numberLabel)) {
+                part.addComponentListener(new ComponentAdapter() {
+                    @Override
+                    public void componentHidden(ComponentEvent event) {
+                        hidden.incrementAndGet();
+                    }
+                });
             }
-        }));
+        });
 
         press(KeyEvent.VK_UP, 0);
         press(KeyEvent.VK_UP, 0);
@@ -225,11 +230,10 @@ class NotebookFrameTest {
         runOnEdt(() -> { }); // the events of a hide are delivered after the calculation
 
         assertEquals(List.of("10", "30", ""), results());
-        assertEquals(0, hidden.get(), "the badge of line 2 was hidden during the recalculation");
-        assertTrue(frame.row(1).badge.isVisible());
-        assertEquals(ExactnessBadge.EXACT_TEXT, frame.row(1).badge.getText());
+        assertEquals(0, hidden.get(), "a part of line 2 was hidden during the recalculation");
+        assertEquals("=", frame.row(1).exactnessSign.getText());
 
-        // A kept badge takes room from the result: the sentence shown while a line is calculated still fits.
+        // The sentence shown while a line is calculated fits in the column of the results.
         runOnEdt(() -> frame.setVisible(true));
         runOnEdt(() -> frame.getContentPane().validate());
         JLabel result = frame.row(1).resultLabel;
@@ -238,26 +242,25 @@ class NotebookFrameTest {
     }
 
     @Test
-    @DisplayName("badge et info-bulle d'exactitude sur √2, exact sur un décimal")
-    void theBadgeAndItsTooltipTellExactFromApproximate() throws Exception {
+    @DisplayName("signe et info-bulle d'exactitude sur √2, « = » sur un décimal, « ! » sur une erreur")
+    void theSignAndTheTooltipTellExactFromApproximate() throws Exception {
         typeLine("√2");
         typeLine("12,5 * 3");
         typeLine("1 / 0");
 
         NotebookRowView root = frame.row(0);
-        assertTrue(root.badge.isVisible());
-        assertEquals(ExactnessBadge.APPROXIMATE_TEXT, root.badge.getText());
+        assertEquals("≈", root.exactnessSign.getText());
         assertTrue(root.resultLabel.getText().startsWith("≈ 1,41421356237"), root.resultLabel.getText());
-        assertTrue(root.badge.getToolTipText().startsWith("Erreur maximale : "), root.badge.getToolTipText());
         assertTrue(root.resultLabel.getToolTipText().contains("Erreur maximale"), root.resultLabel.getToolTipText());
-        assertEquals(javax.swing.SwingConstants.RIGHT, root.resultLabel.getHorizontalAlignment(), "the result is on the right");
+        assertTrue(root.field.getAccessibleContext().getAccessibleDescription().contains("valeur approchée"),
+                root.field.getAccessibleContext().getAccessibleDescription());
 
         NotebookRowView exact = frame.row(1);
-        assertTrue(exact.badge.isVisible());
-        assertEquals(ExactnessBadge.EXACT_TEXT, exact.badge.getText());
+        assertEquals("=", exact.exactnessSign.getText());
         assertEquals("37,5", exact.resultLabel.getText());
 
-        assertFalse(frame.row(2).badge.isVisible(), "a line in error has no exactness badge");
+        assertEquals("!", frame.row(2).exactnessSign.getText(), "a line in error has the sign of an error");
+        assertEquals("", frame.row(3).exactnessSign.getText(), "the new line has no sign");
     }
 
     @Test
@@ -272,7 +275,7 @@ class NotebookFrameTest {
         assertEquals(widthBefore, frame.getWidth(), "a long result must not widen the window");
         assertNotNull(frame.row(0).resultLabel.getToolTipText());
         assertEquals("0,25", frame.row(1).resultLabel.getText());
-        assertNull(frame.row(1).badge.getToolTipText(), "exact and complete: nothing to add in the tooltip");
+        assertEquals("0,25", frame.row(1).resultLabel.getToolTipText(), "exact and complete: nothing to add in the tooltip");
     }
 
     @Test
@@ -300,25 +303,25 @@ class NotebookFrameTest {
         assertEquals("Erreur : " + message, row.errorLabel.getText());
         assertEquals("", row.resultLabel.getText());
         assertTrue(row.field.hasErrorMark(), "the faulty part is underlined");
-        assertFalse(frame.row(1).errorLabel.isVisible(), "the new line shows no error");
+        assertEquals("", frame.row(1).errorLabel.getText(), "the new line shows no error");
+        assertTrue(frame.row(1).errorLabel.isVisible(), "an empty message is emptied, never hidden");
 
         runOnEdt(() -> row.field.setText("1 / 2"));
         assertFalse(row.field.hasErrorMark(), "the mark goes away as soon as the text changes");
     }
 
     @Test
-    @DisplayName("les lignes qui définissent une variable sont repérées (infobulle, couleur, nom accessible)")
-    void aVariableDefinitionIsHighlighted() throws Exception {
+    @DisplayName("les lignes qui définissent une variable affichent son nom, en clair et dans la description accessible")
+    void aVariableDefinitionShowsItsName() throws Exception {
         typeLine("prix = 12,5");
         typeLine("prix * 3");
 
         NotebookRowView definition = frame.row(0);
-        assertEquals(NotebookPalette.active().variableBackground(), definition.numberLabel.getBackground());
-        assertEquals("Définit la variable « prix »", definition.numberLabel.getToolTipText());
-        assertEquals("Résultat : 12,5, exact, définit la variable prix",
+        assertEquals("prix", definition.nameLabel.getText());
+        assertEquals("Résultat : 12,5, valeur exacte, définit la variable prix",
                 definition.field.getAccessibleContext().getAccessibleDescription());
-        assertFalse(NotebookPalette.active().variableBackground().equals(frame.row(1).numberLabel.getBackground()));
-        assertNull(frame.row(1).numberLabel.getToolTipText());
+        assertEquals("", frame.row(1).nameLabel.getText());
+        assertEquals("Résultat : 37,5, valeur exacte", frame.row(1).field.getAccessibleContext().getAccessibleDescription());
     }
 
     @Test
@@ -347,8 +350,8 @@ class NotebookFrameTest {
         for (int i = 0; i < 4; i++) {
             assertEquals("Ligne " + (i + 1), field(i).getAccessibleContext().getAccessibleName());
         }
-        assertEquals("Résultat : 37,5, exact", field(2).getAccessibleContext().getAccessibleDescription());
-        assertEquals("Résultat : 6, exact", field(1).getAccessibleContext().getAccessibleDescription());
+        assertEquals("Résultat : 37,5, valeur exacte", field(2).getAccessibleContext().getAccessibleDescription());
+        assertEquals("Résultat : 6, valeur exacte", field(1).getAccessibleContext().getAccessibleDescription());
         assertEquals("Ligne vide", field(3).getAccessibleContext().getAccessibleDescription());
 
         typeLine("1 / 0");

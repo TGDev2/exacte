@@ -1,48 +1,62 @@
 package calc.ui.notebook;
 
 import calc.ui.design.DesignTokens;
+import calc.ui.notebook.NotebookRow.Kind;
+import calc.ui.notebook.NotebookRow.Sign;
 import calc.ui.notebook.NotebookRow.Status;
-import calc.ui.widget.ExactnessBadge;
-import calc.ui.widget.Palette;
-import java.awt.BorderLayout;
+import com.formdev.flatlaf.util.UIScale;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.FontMetrics;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+import java.awt.Point;
+import java.awt.Toolkit;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import javax.swing.BorderFactory;
+import java.awt.font.FontRenderContext;
+import java.util.Locale;
+import java.util.Map;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingConstants;
-import javax.swing.UIManager;
+import javax.swing.SwingUtilities;
+import javax.swing.plaf.basic.BasicGraphicsUtils;
 
 /**
- * One row of the notebook: number, field, the result aligned on the right with the exactness badge of the display
- * components, and below the field the message of a line in error, in words. It only draws the {@link NotebookRow} it is
- * given; it holds no logic.
+ * One row of the notebook (docs/design/DESIGN.md « Ligne du carnet »): a margin of fixed width with the number, the sign of
+ * the exactness and the mark of a source; the expression; the name of an assignment; the result, aligned on the column of
+ * the decimal commas shared by every row; below the line, the message of a line in error. It only draws the
+ * {@link NotebookRow} it is given; it holds no logic. Nothing in it is ever hidden or shown line by line (each hide or show
+ * makes AWT ask the system which window is under the mouse): an empty state empties a text.
  */
 final class NotebookRowView extends JPanel {
     private static final long serialVersionUID = 1L;
     private static final int RESULT_WIDTH = 330;
-    private static final int BADGE_WIDTH = 96;
+    /** Room right of the column of the commas: the comma and up to 14 characters (decimals, « … », « × 10ⁿ »). */
+    private static final int DECIMAL_CHARACTERS = 15;
 
     final int index;
     final LineField field = new LineField();
     final JLabel numberLabel = new JLabel("", SwingConstants.RIGHT);
-    final JLabel resultLabel = new JLabel("", SwingConstants.RIGHT);
+    final JLabel exactnessSign = new JLabel("", SwingConstants.CENTER);
+    final JLabel sourceMark = new JLabel("", SwingConstants.CENTER);
+    final JLabel nameLabel = new JLabel("", SwingConstants.RIGHT);
+    final AlignedResult resultLabel = new AlignedResult();
     final JLabel errorLabel = new JLabel("");
-    final ExactnessBadge badge = new ExactnessBadge();
 
-    private final Font plainFont;
-    private final Font italicFont;
-    private final Font boldNumberFont;
-    private final Font plainNumberFont;
+    private final Margin margin;
+    private final Font expressionFont;
+    private final Font commentFont;
+    private final Font titleFont;
     private transient NotebookRow shownRow;
     private boolean shownActive;
+    private boolean hovered;
 
     NotebookRowView(int index) {
         super(new GridBagLayout());
@@ -50,111 +64,164 @@ final class NotebookRowView extends JPanel {
         setName("row");
         setOpaque(true);
 
-        // What the user types and the results are in the monospaced face of the tokens (JetBrains Mono, ADR 0017), one
-        // point above the fields of the look and feel; the number and the message are in its default face (Inter).
-        Font base = UIManager.getFont("TextField.font");
-        if (base == null) {
-            base = new Font(Font.DIALOG, Font.PLAIN, 13);
-        }
-        float size = base.getSize2D() + 1f;
-        plainFont = new Font(DesignTokens.load().fontFamily("mono"), Font.PLAIN, Math.round(size));
-        italicFont = plainFont.deriveFont(Font.ITALIC);
-        plainNumberFont = base.deriveFont(Font.PLAIN, size - 1f);
-        boldNumberFont = plainNumberFont.deriveFont(Font.BOLD);
+        // Two voices (DESIGN.md, Typographie): JetBrains Mono for what is typed and what the notebook answers, Inter for the
+        // rest; the sizes of the tokens follow the scale of the system fonts.
+        DesignTokens tokens = DesignTokens.load();
+        String mono = tokens.fontFamily("mono");
+        String ui = tokens.fontFamily("ui");
+        expressionFont = new Font(mono, Font.PLAIN, scaled("font.size.body"));
+        commentFont = new Font(ui, Font.PLAIN, scaled("font.size.body"));
+        titleFont = new Font(ui, Font.BOLD, scaled("font.size.title"));
+        Font caption = new Font(ui, Font.PLAIN, scaled("font.size.caption"));
+        Font result = new Font(mono, Font.PLAIN, scaled("font.size.result"));
+
+        int line = scaled("space.8");
+        int space1 = scaled("space.1");
+        int space2 = scaled("space.2");
+        int space4 = scaled("space.4");
 
         field.setName("lineField");
-        field.setFont(plainFont);
+        field.setFont(expressionFont);
+        field.setPreferredSize(new Dimension(field.getPreferredSize().width, line));
+        field.setMinimumSize(new Dimension(field.getMinimumSize().width, line));
 
         numberLabel.setName("numberLabel");
-        numberLabel.setOpaque(true);
-        numberLabel.setFont(plainNumberFont);
-        FontMetrics metrics = numberLabel.getFontMetrics(boldNumberFont);
-        numberLabel.setPreferredSize(new Dimension(metrics.stringWidth("5000") + 16, 24));
-        numberLabel.setBorder(BorderFactory.createEmptyBorder(0, 4, 0, 8));
+        numberLabel.setFont(caption);
         numberLabel.getAccessibleContext().setAccessibleName("Numéro");
+        exactnessSign.setName("exactnessSign");
+        exactnessSign.setFont(result);
+        sourceMark.setName("sourceMark");
+        sourceMark.setFont(caption);
+        sourceMark.getAccessibleContext().setAccessibleName("Source de la ligne active");
+        int numberWidth = numberLabel.getFontMetrics(caption.deriveFont(Font.BOLD)).stringWidth("5000");
+        int signWidth = exactnessSign.getFontMetrics(result).charWidth('≈') + space1;
+        margin = new Margin(numberWidth, signWidth, space1, space2, line);
 
+        nameLabel.setName("nameLabel");
+        nameLabel.setFont(caption);
         resultLabel.setName("resultLabel");
-        resultLabel.setFont(plainFont);
-        badge.setName("exactnessBadge");
-        badge.setPreferredSize(new Dimension(BADGE_WIDTH, badge.getPreferredSize().height));
-
+        resultLabel.setFont(result);
+        resultLabel.setPreferredSize(new Dimension(RESULT_WIDTH, line));
+        resultLabel.setMinimumSize(new Dimension(RESULT_WIDTH / 2, line));
         errorLabel.setName("errorLabel");
-        errorLabel.setFont(plainNumberFont);
-        errorLabel.setVisible(false);
-
-        JPanel result = new JPanel(new BorderLayout(8, 0));
-        result.setOpaque(false);
-        result.setPreferredSize(new Dimension(RESULT_WIDTH, 28));
-        result.setMinimumSize(new Dimension(RESULT_WIDTH / 2, 28));
-        result.add(resultLabel, BorderLayout.CENTER);
-        result.add(badge, BorderLayout.EAST);
+        errorLabel.setFont(caption);
 
         GridBagConstraints c = new GridBagConstraints();
-        c.gridy = 0;
-        c.anchor = GridBagConstraints.CENTER;
-        c.insets = new Insets(3, 0, 1, 0);
         c.gridx = 0;
+        c.gridy = 0;
+        c.gridheight = 2;
+        c.anchor = GridBagConstraints.NORTH;
         c.fill = GridBagConstraints.VERTICAL;
-        add(numberLabel, c);
+        add(margin, c);
+        c.gridheight = 1;
+        c.fill = GridBagConstraints.NONE;
+        c.anchor = GridBagConstraints.CENTER;
         c.gridx = 1;
         c.weightx = 1;
         c.fill = GridBagConstraints.HORIZONTAL;
-        c.insets = new Insets(3, 4, 1, 8);
+        c.insets = new Insets(space1, space4, space1, space2);
         add(field, c);
         c.gridx = 2;
         c.weightx = 0;
         c.fill = GridBagConstraints.NONE;
-        c.insets = new Insets(3, 0, 1, 4);
-        add(result, c);
+        c.insets = new Insets(space1, 0, space1, space2);
+        add(nameLabel, c);
+        c.gridx = 3;
+        c.insets = new Insets(space1, 0, space1, space4);
+        add(resultLabel, c);
+        // The message lies under the line, from the start of the expression.
         c.gridx = 1;
         c.gridy = 1;
-        c.gridwidth = 2;
+        c.gridwidth = 3;
         c.weightx = 1;
         c.fill = GridBagConstraints.HORIZONTAL;
-        c.insets = new Insets(0, 6, 3, 8);
+        c.insets = new Insets(0, space4 + field.getInsets().left, 0, space4);
         add(errorLabel, c);
 
-        // A click anywhere on the row, outside the field, puts the caret in its field.
-        MouseAdapter focusField = new MouseAdapter() {
+        // The pointer: the surface of the row under it, and a click outside the field puts the caret in the field. Every part
+        // hears it, since a part with listeners of its own (a tooltip, the field) takes the events of the mouse from the row.
+        MouseAdapter pointer = new MouseAdapter() {
+            @Override
+            public void mouseEntered(MouseEvent event) {
+                hover(true);
+            }
+
+            @Override
+            public void mouseExited(MouseEvent event) {
+                Point point = SwingUtilities.convertPoint(event.getComponent(), event.getPoint(), NotebookRowView.this);
+                if (!contains(point)) {
+                    hover(false);
+                }
+            }
+
             @Override
             public void mousePressed(MouseEvent event) {
-                field.requestFocusInWindow();
+                if (event.getComponent() != field) {
+                    field.requestFocusInWindow();
+                }
             }
         };
-        addMouseListener(focusField);
-        numberLabel.addMouseListener(focusField);
-        resultLabel.addMouseListener(focusField);
-        errorLabel.addMouseListener(focusField);
+        for (Component part : new Component[] {this, margin, numberLabel, exactnessSign, sourceMark, field, nameLabel,
+                resultLabel, errorLabel}) {
+            part.addMouseListener(pointer);
+        }
         colour();
+    }
+
+    private static int scaled(String token) {
+        return UIScale.scale(DesignTokens.load().size(token));
     }
 
     /** A change of theme: the row takes the colours of the new theme, for the line it shows. */
     @Override
     public void updateUI() {
         super.updateUI();
-        // Called by the constructor of JPanel before the fields exist.
+        // Called by the constructor of JPanel before the parts exist.
         if (field != null) {
             colour();
             if (shownRow != null) {
                 showRow(shownRow);
-                restyle(shownActive, shownRow);
+                restyle();
             }
         }
     }
 
     // The colours that do not depend on the line, from the theme in force.
     private void colour() {
-        field.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(NotebookPalette.active().border()), BorderFactory.createEmptyBorder(3, 6, 3, 6)));
-        numberLabel.setForeground(NotebookPalette.active().numberForeground());
-        resultLabel.setForeground(NotebookPalette.active().resultForeground());
-        errorLabel.setForeground(Palette.active().error());
-        setBackground(NotebookPalette.active().rowBackground());
+        NotebookPalette palette = NotebookPalette.active();
+        nameLabel.setForeground(palette.nameForeground());
+        sourceMark.setForeground(palette.sourceMark());
+        errorLabel.setForeground(palette.errorText());
+        restyle();
+    }
+
+    /** A height on the grid of 4 px, the message of an error included. */
+    @Override
+    public Dimension getPreferredSize() {
+        Dimension size = super.getPreferredSize();
+        int grid = UIScale.scale(DesignTokens.load().size("space.1"));
+        return new Dimension(size.width, (size.height + grid - 1) / grid * grid);
     }
 
     @Override
     public Dimension getMaximumSize() {
         return new Dimension(Integer.MAX_VALUE, getPreferredSize().height);
+    }
+
+    // The rule between the rows.
+    @Override
+    protected void paintComponent(Graphics graphics) {
+        super.paintComponent(graphics);
+        graphics.setColor(NotebookPalette.active().border());
+        graphics.fillRect(0, getHeight() - 1, getWidth(), 1);
+    }
+
+    /**
+     * The abscissa, in the coordinates of the panel of the rows, of the column of the decimal commas: the comma of the result,
+     * or the end of its integer part when it has none. It is the same for every row.
+     */
+    int decimalAnchorX() {
+        return getX() + resultLabel.getX() + resultLabel.anchor();
     }
 
     /**
@@ -163,14 +230,15 @@ final class NotebookRowView extends JPanel {
      */
     void show(NotebookRow row, boolean active, String text, String watermark) {
         boolean rowChanged = !row.equals(shownRow);
+        boolean activeChanged = active != shownActive;
+        shownRow = row;
+        shownActive = active;
         if (rowChanged) {
             showRow(row);
         }
-        if (rowChanged || active != shownActive) {
-            restyle(active, row);
+        if (rowChanged || activeChanged) {
+            restyle();
         }
-        shownRow = row;
-        shownActive = active;
         boolean textChanged = !field.getText().equals(text);
         if (textChanged) {
             field.setText(text);
@@ -184,45 +252,194 @@ final class NotebookRowView extends JPanel {
     }
 
     private void showRow(NotebookRow row) {
+        NotebookPalette palette = NotebookPalette.active();
         numberLabel.setText(String.valueOf(row.number()));
-        field.getAccessibleContext().setAccessibleName(row.name());
-        field.getAccessibleContext().setAccessibleDescription(row.description());
-        field.setFont(row.status() == Status.COMMENT ? italicFont : plainFont);
 
-        resultLabel.setText(row.result());
+        Sign sign = row.sign();
+        exactnessSign.setText(sign.text());
+        exactnessSign.setForeground(switch (sign) {
+            case EXACT -> palette.exactSign();
+            case APPROXIMATE -> palette.approximateSign();
+            case ERROR -> palette.errorText();
+            case NONE -> palette.numberForeground();
+        });
+        exactnessSign.getAccessibleContext().setAccessibleName(sign.spoken());
+
+        Kind kind = row.kind();
+        field.getAccessibleContext().setAccessibleName(row.name());
+        field.getAccessibleContext().setAccessibleDescription(row.accessibleDescription());
+        field.setFont(kind == Kind.TITLE ? titleFont : kind == Kind.COMMENT ? commentFont : expressionFont);
+        field.setForeground(kind == Kind.COMMENT ? palette.commentForeground() : palette.textForeground());
+
+        nameLabel.setText(row.definedName());
+
+        resultLabel.show(row.result(), row.resultIntegerPart());
+        resultLabel.setForeground(switch (row.status()) {
+            case APPROXIMATE -> palette.approximateSign();
+            case PENDING -> palette.pendingForeground();
+            default -> palette.textForeground();
+        });
         String tooltip = row.detail().isEmpty() ? row.result() : row.result() + " — " + row.detail();
         resultLabel.setToolTipText(row.result().isEmpty() ? null : tooltip);
-        resultLabel.getAccessibleContext().setAccessibleName("Résultat de la " + row.name().toLowerCase(java.util.Locale.ROOT));
-        resultLabel.getAccessibleContext().setAccessibleDescription(row.description());
-        if (row.hasValue()) {
-            badge.showExactness(row.status() == Status.EXACT, row.detail());
-        } else if (row.status() == Status.PENDING) {
-            badge.blankBadge();
-        } else {
-            badge.clearBadge();
-        }
+        resultLabel.getAccessibleContext().setAccessibleName("Résultat de la " + row.name().toLowerCase(Locale.ROOT));
+        resultLabel.getAccessibleContext().setAccessibleDescription(row.accessibleDescription());
 
         boolean error = row.status() == Status.ERROR;
-        errorLabel.setVisible(error);
         // A line left by an interruption is not wrong, it is not calculated: its sentence says so by itself.
         boolean interrupted = NotebookPresenter.INTERRUPTED_LINE.equals(row.errorMessage());
         errorLabel.setText(!error ? "" : interrupted ? row.errorMessage() : "Erreur : " + row.errorMessage());
         errorLabel.setToolTipText(error ? row.errorMessage() : null);
-        errorLabel.getAccessibleContext().setAccessibleName("Erreur de la " + row.name().toLowerCase(java.util.Locale.ROOT));
-
-        numberLabel.setToolTipText(row.definesVariable() ? "Définit la variable « " + row.definedName() + " »" : null);
+        errorLabel.getAccessibleContext().setAccessibleName("Erreur de la " + row.name().toLowerCase(Locale.ROOT));
+        margin.rule(error ? palette.errorUnderline() : palette.border());
     }
 
-    private void restyle(boolean active, NotebookRow row) {
-        Color background = active ? NotebookPalette.active().activeRowBackground() : NotebookPalette.active().rowBackground();
-        setBackground(background);
-        numberLabel.setFont(active ? boldNumberFont : plainNumberFont);
-        if (row.definesVariable()) {
-            numberLabel.setBackground(NotebookPalette.active().variableBackground());
-            numberLabel.setForeground(NotebookPalette.active().variableForeground());
-        } else {
-            numberLabel.setBackground(background);
-            numberLabel.setForeground(NotebookPalette.active().numberForeground());
+    private void hover(boolean on) {
+        if (hovered != on) {
+            hovered = on;
+            restyle();
+        }
+    }
+
+    // The surface of the row and the number: active, then under the pointer, then in error, else the sheet.
+    private void restyle() {
+        NotebookPalette palette = NotebookPalette.active();
+        boolean error = shownRow != null && shownRow.status() == Status.ERROR;
+        setBackground(shownActive ? palette.activeRowBackground()
+                : hovered ? palette.hoverRowBackground()
+                : error ? palette.errorRowBackground()
+                : palette.rowBackground());
+        numberLabel.setForeground(shownActive ? palette.activeNumberForeground() : palette.numberForeground());
+    }
+
+    /** The margin: number, sign and source mark on the line of the field, and its vertical rule down the whole row. */
+    private final class Margin extends JPanel {
+        private static final long serialVersionUID = 1L;
+        private final int numberWidth;
+        private final int signWidth;
+        private final int gap;
+        private final int padding;
+        private final int line;
+        private Color rule;
+
+        Margin(int numberWidth, int signWidth, int gap, int padding, int line) {
+            super(null);
+            this.numberWidth = numberWidth;
+            this.signWidth = signWidth;
+            this.gap = gap;
+            this.padding = padding;
+            this.line = line + 2 * gap;
+            setOpaque(false);
+            add(numberLabel);
+            add(exactnessSign);
+            add(sourceMark);
+            Dimension size = new Dimension(padding + numberWidth + gap + signWidth + gap + signWidth + padding, this.line);
+            setPreferredSize(size);
+            setMinimumSize(size);
+        }
+
+        void rule(Color colour) {
+            if (!colour.equals(rule)) {
+                rule = colour;
+                repaint();
+            }
+        }
+
+        @Override
+        public void doLayout() {
+            int x = padding;
+            numberLabel.setBounds(x, 0, numberWidth, line);
+            x += numberWidth + gap;
+            exactnessSign.setBounds(x, 0, signWidth, line);
+            x += signWidth + gap;
+            sourceMark.setBounds(x, 0, signWidth, line);
+        }
+
+        @Override
+        protected void paintComponent(Graphics graphics) {
+            super.paintComponent(graphics);
+            if (rule != null) {
+                graphics.setColor(rule);
+                graphics.fillRect(getWidth() - 1, 0, 1, getHeight());
+            }
+        }
+    }
+
+    /**
+     * The result, its integer part right-aligned on the column of the commas and the rest after it, so that the units of
+     * every row fall in the same column. The text is the one formatted by ValueFormatter, never formatted again: only cut on
+     * its first comma. A text too wide for the room is moved left, then cut with « … » (the tooltip keeps it whole).
+     */
+    static final class AlignedResult extends JLabel {
+        private static final long serialVersionUID = 1L;
+        private String integerPart = "";
+
+        AlignedResult() {
+            super("", SwingConstants.RIGHT);
+        }
+
+        void show(String text, String integer) {
+            integerPart = integer;
+            setText(text);
+            repaint();
+        }
+
+        /** The abscissa of the column of the commas, in the coordinates of this label. */
+        int anchor() {
+            double room = DECIMAL_CHARACTERS * width("0");
+            return (int) Math.max(getInsets().left, Math.round(getWidth() - getInsets().right - room));
+        }
+
+        // The width of a text where the text is laid out: in the font render context of this label, whatever the Graphics.
+        private double width(String text) {
+            return getFont().getStringBounds(text, context()).getWidth();
+        }
+
+        private FontRenderContext context() {
+            return getFontMetrics(getFont()).getFontRenderContext();
+        }
+
+        /**
+         * Draws the result. The column, the widths and the place of every glyph come from one font render context, that of
+         * this label: a Graphics measures with its own hints and transform, and Swing's drawString stretches a printed text to
+         * its width on screen, so that a result measured by one and drawn by another left the column by a few pixels.
+         */
+        @Override
+        protected void paintComponent(Graphics graphics) {
+            String text = getText();
+            if (text == null || text.isEmpty()) {
+                return;
+            }
+            Graphics2D g = (Graphics2D) graphics.create();
+            try {
+                if (Toolkit.getDefaultToolkit().getDesktopProperty("awt.font.desktophints") instanceof Map<?, ?> hints) {
+                    g.addRenderingHints(hints);
+                }
+                g.setFont(getFont());
+                g.setColor(getForeground());
+                FontMetrics metrics = getFontMetrics(getFont());
+                Insets insets = getInsets();
+                double left = insets.left;
+                double right = getWidth() - insets.right;
+                double x = anchor() - width(integerPart);
+                double width = width(text);
+                if (x + width > right) {
+                    x = right - width;
+                }
+                String shown = text;
+                if (x < left) {
+                    x = left;
+                    shown = BasicGraphicsUtils.getClippedString(this, metrics, text, (int) (right - left));
+                }
+                float y = insets.top + (getHeight() - insets.top - insets.bottom - metrics.getHeight()) / 2f + metrics.getAscent();
+                if (getFont().canDisplayUpTo(shown) < 0) {
+                    g.drawGlyphVector(getFont().createGlyphVector(context(), shown), (float) x, y);
+                } else {
+                    // A character the font lacks: only the Graphics finds it in another font.
+                    g.drawString(shown, (float) x, y);
+                }
+            } finally {
+                g.dispose();
+            }
         }
     }
 }
