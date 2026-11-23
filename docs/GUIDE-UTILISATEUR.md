@@ -16,6 +16,11 @@ répétée ici) ; elle est aussi résumée dans le menu **Aide > Syntaxe des exp
 - Annuler et rétablir portent sur les lignes **validées**. `Échap` abandonne définitivement la saisie en cours dans la ligne.
   Annuler la retire d'abord, et Rétablir la remet, sans la valider, tant que rien d'autre n'a changé : une nouvelle saisie, une
   commande validée ou annulée, une autre ligne ou un autre document la font oublier.
+- Pendant la frappe, la zone du résultat montre un **aperçu** en gris, sans signe dans la marge : le résultat qu'aurait la
+  ligne avec le texte tapé, calculé en arrière-plan avec les lignes du dessus (variables, `$n`, `ans`). Rien n'est validé ni
+  enregistré, et les autres lignes ne changent pas : `Entrée` valide la ligne et son résultat remplace l'aperçu, `Échap` rend
+  le texte validé et efface l'aperçu. Un texte incomplet ou en erreur (`2 +`) n'a pas d'aperçu ; son erreur n'apparaît qu'une
+  fois la ligne validée. Pendant le calcul du carnet, l'aperçu attend la frappe suivante.
 - Le calcul se fait en arrière-plan : la fenêtre répond toujours, même sur un très gros carnet. Une ligne pas encore calculée
   affiche « Calcul en cours… » et la barre d'état compte « Calcul en cours : n / N lignes ». Toute nouvelle commande remplace le
   calcul en cours. Les lignes d'un très gros carnet apparaissent par tranches, en 2 à 3 secondes pour 5000 lignes.
