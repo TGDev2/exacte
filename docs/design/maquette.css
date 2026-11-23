@@ -292,10 +292,11 @@ code {
 
 /* ------------------------------------------------------------------------------------------- detail of the active line */
 
+/* The sentences of calc.detail.LineDetailText, one per line and nothing else: the formulas in the mono face. */
 .detail {
   grid-column: 2 / -1;
-  margin: var(--space-1) 0 var(--space-3) var(--space-2);
-  padding: var(--space-2) var(--space-3);
+  margin: var(--space-1) 0 var(--space-2) var(--space-2);
+  padding: var(--space-3);
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-medium);
   background: var(--color-surface-raised);
@@ -303,16 +304,9 @@ code {
 }
 
 .detail-ligne {
-  display: grid;
-  grid-template-columns: calc(var(--space-8) * 3) minmax(0, 1fr);
-  gap: var(--space-2);
-  align-items: baseline;
   margin: 0;
-  line-height: calc(var(--space-4) + var(--space-2));
-}
-
-.detail-intitule {
   color: var(--color-text-secondary);
+  line-height: calc(var(--space-4) + var(--space-2));
 }
 
 .detail-valeur {
@@ -321,16 +315,8 @@ code {
   font-variant-numeric: tabular-nums;
 }
 
-.detail-signe {
-  padding: 0 var(--space-1);
-  border-radius: var(--radius-small);
-  background: var(--color-exact-surface);
-  color: var(--color-exact-sign);
-  font-weight: 600;
-}
-
 .detail-texte {
-  color: var(--color-text-primary);
+  font-family: var(--font-ui);
 }
 
 /* ------------------------------------------------------------------------------------------------------- status bar */

@@ -112,9 +112,9 @@ s'appellent `--color-<rôle avec tirets>` (`text.primary` devient `--color-text-
 | `text.muted` | numéros de ligne, commentaires, filigranes, aperçu pendant la frappe |
 | `accent` | segment choisi du sélecteur de mode, entrée choisie de la palette, liens |
 | `exact.sign` | signe « = » d'une valeur exacte |
-| `exact.surface` | fond du signe « = » dans le détail de la ligne active |
+| `exact.surface` | fond d'une pastille « = » (réservé : le détail de la ligne active écrit ses phrases sans pastille) |
 | `approximate.sign` | signe « ≈ » et résultat d'une valeur approchée |
-| `approximate.surface` | fond du signe « ≈ » dans le détail, fond de la mention « Valeur garantie entre L et U » |
+| `approximate.surface` | fond d'une pastille « ≈ » (réservé : la mention « Valeur garantie entre L et U » du détail est écrite sans fond) |
 | `source.mark` | marque « ◆ » des sources de la ligne active |
 | `source.surface` | fond de la marge d'une ligne source de la ligne active |
 | `error.text` | signe « ! » et message d'erreur |
@@ -158,18 +158,22 @@ couleur `error.text` ; par exemple, pour `total - remise` : Variable inconnue «
 
 ### Détail de la ligne active
 
-Un seul composant, `lineDetail`, se place sous la ligne active, sur `surface.raised`, avec un filet `border.subtle`. Son
-texte vient de `calc.detail.LineDetailText`, le même sur le bureau et sur le web :
+Un seul composant, `lineDetail`, se place sous la ligne active, à partir du début de l'expression, dans un cadre
+`surface.raised` au filet `border.subtle`, coins `radius.medium`, marge intérieure `space.3`. Ses lignes sont exactement les
+phrases de `calc.detail.LineDetailText`, les mêmes sur le bureau et sur le web, une par ligne et sans intitulé :
 
-- le **développement** : le membre de droite où chaque source exacte est remplacée par sa valeur, sur un niveau
-  (`1 250 + 3 480 + 437,5`) ;
-- le **résultat**, tel qu'il est affiché, précédé de son signe (`= 5 167,5`) ;
+- le **développement** : « = » puis le membre de droite où chaque source exacte est remplacée par sa valeur, sur un niveau
+  (`= 1250 + 3480 + 437,5`) ;
+- le **résultat**, tel qu'il est affiché : « = » puis la valeur exacte (`= 5167,5`), ou la valeur approchée telle quelle,
+  qui porte déjà « ≈ » ou se lit « |x| ≤ b » ;
 - les **sources** : « Sources : lignes 2, 3 et 4 » ;
 - l'usage : « Utilisée par 1 ligne », « Utilisée par N lignes » ou « Utilisée par aucune ligne » ;
 - pour une valeur approchée : « Valeur garantie entre L et U », bornes arrondies vers l'extérieur.
 
-Les intitulés sont en Inter `text.secondary`, les valeurs en JetBrains Mono. Les sources de la ligne active portent
-« ◆ » dans leur marge, ce qui relie le détail aux lignes qu'il cite.
+Le développement et le résultat sont en JetBrains Mono `font.size.body`, les autres phrases en Inter `font.size.caption`,
+toutes en `text.secondary` (paire de contraste `contrast.text.secondary-raised`). Un titre, un commentaire, une ligne vide
+ou une ligne en erreur n'ont pas de détail : le composant est alors vide et ne prend aucune hauteur. Les sources de la
+ligne active portent « ◆ » dans leur marge, ce qui relie le détail aux lignes qu'il cite.
 
 ### Contrôle segmenté des modes
 
