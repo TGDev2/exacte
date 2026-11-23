@@ -34,8 +34,8 @@ public final class NotebookHelp {
                   prix * 3   # TTC     un commentaire peut suivre une expression
 
                 Nombres : la virgule ou le point marquent les décimales (12,5 ou 12.5), 1,5e3 vaut 1500. Les calculs sont
-                exacts : seule une racine carrée qui ne tombe pas juste donne une valeur approchée (badge « ≈ Approché »,
-                avec l'erreur maximale en info-bulle).
+                exacts : seule une racine carrée qui ne tombe pas juste donne une valeur approchée (signe « ≈ » dans la
+                marge au lieu de « = », avec l'erreur maximale en info-bulle du résultat).
 
                 Opérateurs : + - * / (ou × ÷), ^ pour la puissance, √ ou sqrt( ) ou racine( ) pour la racine carrée,
                 parenthèses. La puissance passe avant la multiplication, qui passe avant l'addition.

@@ -188,7 +188,7 @@ Build Gradle, JUnit 5, tests par propriétés et de robustesse, tests d'interfac
 - [ ] Parcours complet au clavier sur Windows (Tab, flèches, Entrée, Ctrl+Z/Y, menus, dialogues de fichiers réels).
 - [ ] Essai de l'application sur macOS et Linux (raccourcis, dialogues natifs).
 - [ ] Ouverture d'un CSV exporté dans Excel : séparateur, accents, et cellules ` =1+1`, `＝1+1`, `1,=1+1` (risque R1).
-- [ ] Lisibilité des badges exact et approché, en clair et selon le thème du système.
+- [ ] Lisibilité des signes « = » et « ≈ » de la marge (qui remplacent les badges exact et approché), en clair et en sombre.
 - [ ] Téléchargement de la release v1.0.0 publiée et vérification des SHA-256 avec SHA256SUMS, lecture du SBOM.
 - [ ] Sur un vrai Mac, retirer la quarantaine avec `xattr -dr com.apple.quarantine Calc.app` puis ouvrir l'application.
 - [ ] Lire Aide > À propos de Calc dans l'application empaquetée : la version affichée est 1.0.0.

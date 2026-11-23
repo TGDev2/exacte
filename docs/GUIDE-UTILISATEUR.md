@@ -30,8 +30,11 @@ exactement `1`. Seule une racine carrée qui ne tombe pas juste est approchée.
 
 | Ce que vous voyez | Ce que cela veut dire |
 |---|---|
-| badge **Exact** | la valeur est exacte (une fraction). Le texte peut être arrondi pour l'affichage, la valeur gardée ne l'est pas |
-| badge **≈ Approché** | la valeur est une approximation (racine non exacte) ; la vraie valeur est certainement dans l'intervalle calculé |
+| signe **=** dans la marge | la valeur est exacte (une fraction). Le texte peut être arrondi pour l'affichage, la valeur gardée ne l'est pas |
+| signe **≈** dans la marge | la valeur est une approximation (racine non exacte) ; la vraie valeur est certainement dans l'intervalle calculé |
+| signe **!** dans la marge | la ligne est en erreur, voir le message sous la ligne |
+| nom à gauche du résultat (`total`) | la ligne définit cette variable (`total = plan + meubles + pose`) |
+| ligne qui commence par `#` | un titre de section, en gras ; son texte reste tel quel dans la ligne |
 | **≈** devant un nombre | même chose : seuls les chiffres garantis sont affichés (`√2 ≈ 1,41421356237…`) |
 | **\|x\| ≤ …** | le signe de la valeur n'a pas pu être établi : elle vaut peut-être 0, et elle est au plus … en valeur absolue (`√2 - √2` donne `\|x\| ≤ 4,2 × 10⁻²⁵`) |
 | **…** après les chiffres | des chiffres existent mais ne sont pas affichés (`1 / 3 = 0,333333333333…`) |
@@ -40,7 +43,9 @@ exactement `1`. Seule une racine carrée qui ne tombe pas juste est approchée.
 | message sous la ligne, partie soulignée | la ligne est en erreur ; le message dit pourquoi et le soulignement montre où |
 
 Un nombre non nul n'est jamais affiché `0` : une valeur trop petite pour être encadrée sans toucher 0 est refusée, avec le
-même message que `(1/16) ^ 4096`. Le badge est toujours accompagné d'un texte : la couleur seule ne porte pas l'information.
+même message que `(1/16) ^ 4096`. La couleur seule ne porte jamais l'information : le signe de la marge est un caractère,
+et un lecteur d'écran entend « valeur exacte » ou « valeur approchée » dans la description de la ligne. Les résultats sont
+alignés sur la virgule : les unités de toutes les lignes tombent dans la même colonne.
 
 ## Modes d'affichage et thème
 

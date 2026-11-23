@@ -19,7 +19,7 @@ tests le vérifient (`NotebookDependenciesTest`, `ServicesDependenciesTest` : vo
 | `calc.ui` | `DisplayModeStore` et `ThemeStore` (mode d'affichage et thème choisi, `ThemeChoice`, mémorisés), phrases d'exactitude | — |
 | `calc.ui.design` | Jetons de design (ADR 0016) : `DesignTokens` lit `tokens.properties`, la seule source des couleurs par rôle et par thème (`Theme` : clair, sombre), des polices, des tailles et des paires de contraste | tout le reste de l'application |
 | `calc.ui.theme` | Apparence (ADR 0017) : `ThemeManager` installe les polices embarquées Inter et JetBrains Mono et applique `CalcLightLaf` ou `CalcDarkLaf`, thèmes FlatLaf lus dans les `.properties` générés des jetons ; `SystemThemeDetector` lit le thème du système (Windows seulement, `WindowsSystemThemeDetector`) | la fenêtre |
-| `calc.ui.widget` | Composants Swing réutilisables : contrôle segmenté des modes, badge d'exactitude, palette (thème actif lu dans l'apparence installée) et contrastes | la fenêtre |
+| `calc.ui.widget` | Composants Swing réutilisables : contrôle segmenté des modes, palette (thème actif lu dans l'apparence installée) et contrastes | la fenêtre |
 | `calc.ui.notebook` | La fenêtre principale : `NotebookPresenter` (toute la logique d'interaction, testable sans Swing), `NotebookViewModel` (état immuable remis à la vue), `NotebookFrame` et `NotebookRowView` (Swing, rien d'autre que l'affichage), `NotebookDialogs` (interface des boîtes de dialogue, remplacée par un faux dans les tests) | — |
 | `calc` | `Main` : installe le thème, branche le magasin du carnet, le mode d'affichage et la fenêtre | — |
 | `calc.web` (sous-projet `web/`) | La version web : `WebNotebook` (le carnet tel que JavaScript le pilote, instantanés JSON), `WebExports` (seul point d'entrée de TeaVM), `calc.web.compat` (compléments du JDK), `calc.web.tools` (rapport de conformité mis en page, sur la machine de construction seulement) | Swing, la persistance, les documents |
@@ -60,8 +60,9 @@ Ce qui se passe quand l'utilisateur valide `prix * 3` :
    (chaque source de valeur exacte remplacée par sa valeur, écrite par `CanonicalPrinter`).
 4. **Formatage** : `ValueFormatter` transforme chaque valeur en texte selon le mode d'affichage. Changer de mode reformate
    sans rien recalculer.
-5. **Affichage** : le présentateur remet un `NotebookViewModel` immuable à `NotebookFrame`, qui l'affiche (texte, badge
-   « Exact » ou « ≈ Approché », message d'erreur et partie fautive soulignée).
+5. **Affichage** : le présentateur remet un `NotebookViewModel` immuable à `NotebookFrame`, qui l'affiche ligne par ligne
+   dans `NotebookRowView` : signe « = », « ≈ » ou « ! » dans la marge, nom de l'affectation, résultat aligné sur la colonne
+   des virgules, message d'erreur sous la ligne et partie fautive soulignée (docs/design/DESIGN.md, « Ligne du carnet »).
 6. **Persistance** : `DocumentService` écrit le carnet (`NotebookCodec`, écriture atomique) après chaque commande qui
    change quelque chose, si le document est le carnet sans titre. Le fichier ne contient que les textes des lignes et le
    mode d'affichage : **aucun résultat n'est enregistré**, les résultats sont recalculés à l'ouverture.

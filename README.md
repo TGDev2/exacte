@@ -18,7 +18,8 @@ document renvoie à un test, à une mesure ou à une limite écrite.
 - **Des calculs exacts** : `+ - * /`, `^` (exposant entier), `√`, parenthèses. `1 / 3` vaut exactement un tiers et
   `(1 / 3) * 3` redonne exactement `1`. Seule une racine qui ne tombe pas juste est approchée, avec une borne d'erreur.
 - **Un affichage lisible** : modes Auto, Décimal, Fraction et Scientifique, sans recalcul ; « ≈ » pour une valeur approchée,
-  « … » quand des chiffres sont omis ; un badge « Exact » / « ≈ Approché ».
+  « … » quand des chiffres sont omis ; un signe « = » ou « ≈ » dans la marge de chaque ligne et des résultats alignés sur
+  la virgule.
 - **Une saisie française souple** : virgule ou point décimal, notation scientifique (`1,5e-7`), espaces insécables pour
   les milliers.
 - **Des erreurs ciblées** : le message est écrit sous la ligne et la partie fautive est soulignée.
