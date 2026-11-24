@@ -65,6 +65,7 @@ h1 {
 
 .reglage {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
   margin: 0;
@@ -103,7 +104,8 @@ select {
   border-bottom: 1px solid var(--color-border-subtle);
 }
 
-.outils button {
+.outils button,
+.commandes {
   min-width: calc(var(--space-8) + var(--space-3));
   min-height: calc(var(--space-8) + var(--space-3));
   padding: 0 var(--space-3);
@@ -116,7 +118,8 @@ select {
   cursor: pointer;
 }
 
-.outils button:hover:not(:disabled) {
+.outils button:hover:not(:disabled),
+.commandes:hover {
   background: var(--color-surface-hover);
 }
 
@@ -128,9 +131,83 @@ select {
 button:focus-visible,
 select:focus-visible,
 a:focus-visible,
-input.expression:focus-visible {
+input.expression:focus-visible,
+#command-search:focus-visible {
   outline: 2px solid var(--color-border-focus);
   outline-offset: -2px;
+}
+
+/* ---- The command palette: a layer over the sheet, not a modal dialog --------------------------------------------- */
+
+#command-palette {
+  position: fixed;
+  top: var(--space-6);
+  right: var(--space-3);
+  left: var(--space-3);
+  z-index: 10;
+  max-width: 34rem;
+  max-height: calc(100vh - var(--space-8));
+  margin-inline: auto;
+  overflow-y: auto;
+  border: 1px solid var(--color-border-focus);
+  border-radius: var(--radius-medium);
+  background: var(--color-surface-raised);
+  color: var(--color-text-primary);
+}
+
+#command-search {
+  display: block;
+  width: 100%;
+  min-height: calc(var(--space-8) + var(--space-3));
+  margin: 0;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-base);
+  color: var(--color-text-primary);
+  font: inherit;
+}
+
+#command-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.command {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: calc(var(--space-8) + var(--space-3));
+  padding: 0 var(--space-3);
+  cursor: pointer;
+}
+
+.command:hover {
+  background: var(--color-surface-hover);
+}
+
+.command[aria-selected="true"] {
+  background: var(--color-surface-active);
+}
+
+.command[aria-disabled="true"] {
+  color: var(--color-text-muted);
+  cursor: default;
+}
+
+.command-shortcut {
+  flex: none;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-caption);
+}
+
+#command-empty {
+  margin: 0;
+  padding: var(--space-3);
+  color: var(--color-text-secondary);
 }
 
 /* ---- The lines: margin | expression | name | result, then the error and the detail under the line ------------------ */

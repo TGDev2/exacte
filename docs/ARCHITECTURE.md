@@ -97,7 +97,12 @@ Le sous-projet Gradle `web/` compile le même cœur vers JavaScript avec TeaVM, 
    design du bureau (`docs/design/DESIGN.md`) : `index.html` charge `tokens.css` (généré depuis les jetons, ADR 0016) puis
    `style.css`, qui ne lit ses couleurs que par `var(--color-…)` ; chaque ligne a sa marge (numéro, signe « = », « ≈ » ou « ! »,
    marque « ◆ » des sources de la ligne courante), le nom d'une affectation, le résultat à droite, l'erreur dessous, et la ligne
-   courante le détail de son `detail`. Le thème suit `prefers-color-scheme`.
+   courante le détail de son `detail`. Le thème suit `prefers-color-scheme`, sauf choix dans la palette de commandes : `Ctrl+K`
+   (`Cmd+K`) ou le bouton « Commandes » l'ouvre, une couche non modale (`#command-palette`, rôle `dialog`) qui liste, avec la
+   règle de libellé de la palette du bureau, les huit boutons d'action, les modes de `#display-mode`, « Mode suivant » et les
+   trois thèmes. La liste est dérivée de la page à chaque ouverture et la recherche ignore casse et accents. Choisir un thème pose
+   `data-theme` sur la racine (« Système » le retire) et le garde dans `localStorage` sous la clé `calc.web.theme.v1`, hors du
+   carnet, chaque accès protégé par un `try/catch`.
 4. **`calc.web.compat`** complète trois morceaux du JDK que TeaVM n'a pas ou traite autrement (`BigIntegerCompat`, `PatternCompat`,
    `CharacterCompat`). Une extension TeaVM réécrit les appels dans les classes `calc.*` au moment où TeaVM les lit : le bytecode du
    cœur reste celui de javac.
