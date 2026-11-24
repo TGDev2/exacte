@@ -10,7 +10,7 @@ import org.teavm.gradle.api.JSModuleType
 
 plugins {
     java
-    id("org.teavm") version "0.16.0"
+    id("org.teavm") version "0.17.0"
 }
 
 repositories {
