@@ -90,6 +90,8 @@ Le sous-projet Gradle `web/` compile le même cœur vers JavaScript avec TeaVM, 
    (`index.html`, `style.css`, `app.js`) dans `web/build/site`.
 2. **`WebNotebook`** (`calc.web`, Java pur, donc testé sur la JVM dans `check`) enveloppe un `NotebookEditor` : chaque commande renvoie
    un instantané JSON, une chaîne identique sur la JVM et sous JavaScript. La mise en forme passe par `ValueFormatter`.
+   Chaque ligne de l'instantané porte, après ses neuf champs d'affichage, son `name` (celui de l'affectation, ou `null`), ses
+   `sources`, ses `usedBy` (des numéros de ligne) et son `detail` : les phrases de `calc.detail.LineDetailText` dans le mode courant.
 3. **La page** (`app.js`, script classique, sans dépendance) construit le DOM avec `textContent` à partir de l'instantané : elle ne
    calcule ni ne formate rien. Elle garde les textes des lignes et le mode dans `localStorage`, jamais un résultat.
 4. **`calc.web.compat`** complète trois morceaux du JDK que TeaVM n'a pas ou traite autrement (`BigIntegerCompat`, `PatternCompat`,
