@@ -112,6 +112,24 @@ final class NotebookDriver {
         return this;
     }
 
+    /**
+     * Pastes {@code text} into the active field over its selection {@code start} to {@code end}, as Ctrl+V does: the field
+     * hands a text of several lines to the presenter, which already knows what the field holds.
+     */
+    NotebookDriver paste(int start, int end, String text) {
+        return pasteInto(view.activeIndex(), start, end, text);
+    }
+
+    /** The same into the field of the row at {@code index} (from 0), which a drop can reach without the focus. */
+    NotebookDriver pasteInto(int index, int start, int end, String text) {
+        String typed = field;
+        show(() -> {
+            presenter.onDraftChanged(typed);
+            return presenter.onPaste(index, start, end, text);
+        });
+        return this;
+    }
+
     /** The text now in the active field. */
     String field() {
         return field;

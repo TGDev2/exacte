@@ -43,6 +43,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.regex.Pattern;
 
 /**
  * All the interaction logic of the notebook window, without Swing (docs/adr/0010-editeur-carnet.md). It drives a
@@ -76,6 +77,10 @@ public final class NotebookPresenter {
     static final String READ_ONLY_STATUS = "Calc est déjà ouvert ou le carnet est en lecture seule : les modifications ne seront pas enregistrées.";
     private static final String WATERMARK = "Une expression par ligne, par exemple : " + String.join("   ·   ", EXAMPLES);
 
+    // A line break of a pasted text.
+    private static final Pattern LINE_BREAK = Pattern.compile("\\r\\n|\\r|\\n");
+    /** The start of the message of a paste refused as a whole. */
+    static final String PASTE_REFUSED = "Collage refusé : ";
     /** What the column of the results says of a line not calculated yet. */
     static final String PENDING_RESULT = "Calcul en cours…";
     /** Why a line left by an interruption has no result. */
@@ -302,6 +307,78 @@ public final class NotebookPresenter {
         syncDraft(pending);
         requestPreview();
         return snapshot(NotebookFocus.NONE);
+    }
+
+    /**
+     * A paste into the field of the row {@code line} (from 0), over the selection {@code selectionStart} to
+     * {@code selectionEnd} (excluded) of the text it holds. A text with line breaks ({@code \r\n}, {@code \r} or
+     * {@code \n}; a final one adds no line) replaces the line by as many lines, the first after the text before the
+     * selection and the last before the text after it, in one command that a single undo takes back; the last of them
+     * becomes active. It is refused as a whole, the notebook left as it was, when a line would exceed
+     * {@link #MAX_LINE_LENGTH} characters or the notebook {@link Notebook#MAX_LINES} lines. A text without line break goes
+     * into the draft, as typing does. Another row than the active one is first activated, as the mouse does.
+     */
+    public NotebookViewModel onPaste(int line, int selectionStart, int selectionEnd, String text) {
+        Objects.requireNonNull(text, "text");
+        if (line != activeIndex()) {
+            if (line < 0 || line > document.notebook().size()) {
+                return view(NotebookFocus.NONE);
+            }
+            if (!commitDraft()) {
+                return view(NotebookFocus.ACTIVE_LINE);
+            }
+            select(line);
+        }
+        Objects.checkFromToIndex(selectionStart, selectionEnd, draft.length());
+        String before = draft.substring(0, selectionStart);
+        String after = draft.substring(selectionEnd);
+        if (text.indexOf('\n') < 0 && text.indexOf('\r') < 0) {
+            syncDraft(before + text + after);
+            requestPreview();
+            return snapshot(NotebookFocus.NONE);
+        }
+        List<String> texts = pastedLines(before, text, after);
+        for (int index = 0; index < texts.size(); index++) {
+            if (texts.get(index).length() > MAX_LINE_LENGTH) {
+                say(PASTE_REFUSED + "la ligne " + (index + 1) + " dépasserait " + integer(MAX_LINE_LENGTH)
+                        + " caractères. Le carnet n'a pas changé.", StatusTone.ERROR);
+                return view(NotebookFocus.ACTIVE_LINE);
+            }
+        }
+        int size = document.notebook().size() - (activeId == null ? 0 : 1) + texts.size();
+        if (size > Notebook.MAX_LINES) {
+            say(PASTE_REFUSED + "le carnet aurait " + integer(size) + " lignes, il ne peut pas dépasser "
+                    + integer(Notebook.MAX_LINES) + ". Le carnet n'a pas changé.", StatusTone.ERROR);
+            return view(NotebookFocus.ACTIVE_LINE);
+        }
+        if (activeId == null && texts.size() == 1 && texts.get(0).isBlank()) {
+            return view(NotebookFocus.ACTIVE_LINE);
+        }
+        int first = activeIndex();
+        NotebookCommand command = activeId == null
+                ? new NotebookCommand.AppendLines(texts)
+                : new NotebookCommand.ReplaceWithLines(activeId, texts);
+        if (apply(command)) {
+            select(first + texts.size() - 1);
+            say(texts.size() == 1 ? "Ligne collée. Annuler retire le collage."
+                    : texts.size() + " lignes collées. Annuler retire tout le collage.", StatusTone.INFO);
+        }
+        return view(NotebookFocus.ACTIVE_LINE);
+    }
+
+    // The lines a paste gives: the text without its final line break, cut at every other, between what the field held
+    // before and after the selection.
+    private static List<String> pastedLines(String before, String text, String after) {
+        String pasted = text.endsWith("\r\n") ? text.substring(0, text.length() - 2)
+                : text.endsWith("\n") || text.endsWith("\r") ? text.substring(0, text.length() - 1) : text;
+        List<String> lines = new ArrayList<>(List.of(LINE_BREAK.split(pasted, -1)));
+        lines.set(0, before + lines.get(0));
+        lines.set(lines.size() - 1, lines.get(lines.size() - 1) + after);
+        return lines;
+    }
+
+    private static String integer(int value) {
+        return NumberFormat.getIntegerInstance(Locale.FRANCE).format(value);
     }
 
     /** Enter: validates the active line, then moves to the next one, or adds a line at the end unless the last one is blank. */
@@ -843,8 +920,9 @@ public final class NotebookPresenter {
         return view(NotebookFocus.ACTIVE_LINE);
     }
 
-    // Records what the field holds. A line break cannot be part of a line: the field never produces one, a caller might.
-    // A new draft replaces the one undo took out.
+    // Records what the field holds. A line break cannot be part of a line: a paste of several lines goes through onPaste
+    // and the field never produces one, but a caller might, and it becomes a space. A new draft replaces the one undo
+    // took out.
     private void syncDraft(String pending) {
         if (pending != null) {
             draft = pending.replace("\r\n", " ").replace('\n', ' ').replace('\r', ' ');

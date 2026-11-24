@@ -613,6 +613,7 @@ public final class NotebookFrame extends JFrame {
             }
         });
         bindKeys(row);
+        row.field.setMultiLinePaste((start, end, text) -> apply(presenter.onPaste(row.index, start, end, text)));
         rows.add(row);
         rowsPanel.add(row);
     }
