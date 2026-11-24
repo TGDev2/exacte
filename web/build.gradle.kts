@@ -39,7 +39,7 @@ dependencies {
     // The extension that completes the class library of TeaVM runs inside the compiler, never in the browser.
     compileOnly("org.teavm:teavm-core:0.16.0")
 
-    "webTestImplementation"(platform("org.junit:junit-bom:5.14.4"))
+    "webTestImplementation"(platform("org.junit:junit-bom:6.1.3"))
     "webTestImplementation"("org.junit.jupiter:junit-jupiter")
     "webTestImplementation"("net.jqwik:jqwik:1.10.2")
     "webTestRuntimeOnly"("org.junit.platform:junit-platform-launcher")

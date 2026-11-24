@@ -32,7 +32,7 @@ dependencies {
     implementation("com.formdev:flatlaf:3.8")
     implementation("com.formdev:flatlaf-fonts-inter:4.1")
     implementation("com.formdev:flatlaf-fonts-jetbrains-mono:2.304")
-    testImplementation(platform("org.junit:junit-bom:5.14.4"))
+    testImplementation(platform("org.junit:junit-bom:6.1.3"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     // Property-based testing engine for the JUnit Platform. 1.10.2 is built against JUnit Platform 1.14.4,
     // the one managed by the junit-bom above.
