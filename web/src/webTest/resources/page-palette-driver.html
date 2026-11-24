@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Page pilote de la palette de commandes</title>
+</head>
+<body>
+<iframe id="page" title="Page sous test" style="height: 800px; border: 0"></iframe>
+<pre id="result"></pre>
+<script>
+'use strict';
+// Plays a scenario in an iframe of index.html and writes what it observed, as JSON, in <pre id="result">: the palette
+// (is it shown, its role, the label of its field, its entries and the selected one), the focus, the lines, the mode, the
+// theme of the root, the storage and the keys the page took from the browser.
+//
+//   ?scenario={"width":1024,"steps":[...]}
+//
+// Steps (the first one has to be a "load"):
+//   {"load":"normal"}      opens index.html; "methods" opens it with Storage.prototype.getItem and setItem that throw, "property"
+//                          with window.localStorage that throws when it is read (both through srcdoc and a <base href>)
+//   {"reload":true}        reloads the iframe, the way the reload button of the browser does
+//   {"store":value}        puts the notebook {version, mode, lines} under calc.web.notebook.v1 (before a "load" or a "reload")
+//   {"focus":3}            focuses the field of line 3
+//   {"blur":true}          takes the focus off whatever holds it (the keyboard then goes to the body)
+//   {"type":"text"}        types in #command-search, the way a visitor does (an input event); fails when #command-search
+//                          is not the element that holds the focus, so that a missing palette never types in a line
+//   {"enter":"text"}       focuses the field of the last line, types the text and presses Enter
+//   {"key":"k","ctrl":true,"shift":false,"meta":false,"alt":false}  keydown then keyup on the focused element
+//   {"click":"Annuler"}    focuses then clicks the button with this text, as a tap does
+//   {"mode":"Fraction"}    picks the option of #display-mode with this label
+//   {"snapshot":"name"}    keeps the state of the page
+//
+// Only fixed selectors are used. The palette: #command-palette, the field #command-search, and the entries
+// #command-palette [role="option"], each one with a .command-label and, when it has a shortcut, a .command-shortcut; the selected
+// entry has aria-selected="true". The page: [data-line="<number>"] with input.expression, .result, .sign, .detail, .error,
+// #display-mode, [data-action], #message, [role="status"], [role="alert"], button, [data-theme] on the root.
+// A field is shown when its box has a width and a height and checkVisibility() is true: never from innerText, which is
+// always empty for an <input>.
+
+const KEY = 'calc.web.notebook.v1';
+const WATCHDOG_MS = 19000;
+const STEP_MS = 30;
+const LOAD_MS = 60;
+const SETTLE_MS = 120;
+
+const observed = {
+  error: null, snapshots: {}, keys: [], pageErrors: [], addedElements: [], resources: [], confirms: 0, loads: 0,
+};
+let finished = false;
+
+function finish() {
+  if (finished) {
+    return;
+  }
+  finished = true;
+  // Pure ASCII, without any character HTML would escape: the test reads the text of the dump as it is.
+  document.getElementById('result').textContent = JSON.stringify(observed).replace(/[^\x20-\x7e]|[<>&]/g,
+      (unit) => '\\u' + unit.charCodeAt(0).toString(16).padStart(4, '0'));
+}
+
+function pause(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function textOf(element) {
+  return element === null ? '' : element.textContent.replace(/\s+/g, ' ').trim();
+}
+
+function boxOf(element) {
+  const rect = element.getBoundingClientRect();
+  return {left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom, width: rect.width, height: rect.height};
+}
+
+// Never innerText: a form control has none.
+function isShown(element) {
+  if (element === null || !element.checkVisibility({checkOpacity: true, checkVisibilityCSS: true})) {
+    return false;
+  }
+  const rect = element.getBoundingClientRect();
+  return rect.width > 0 && rect.height > 0;
+}
+
+function frameOf() {
+  return document.getElementById('page');
+}
+
+function docOf() {
+  return frameOf().contentDocument;
+}
+
+function rowOf(row) {
+  const part = (selector) => row.querySelector(selector);
+  const input = part('input.expression');
+  return {
+    line: Number(row.getAttribute('data-line')),
+    value: input === null ? null : input.value,
+    result: textOf(part('.result')),
+    sign: textOf(part('.sign')),
+    error: textOf(part('.error')),
+  };
+}
+
+function fieldOfLine(number) {
+  const row = docOf().querySelector('[data-line="' + number + '"]');
+  const input = row === null ? null : row.querySelector('input.expression');
+  if (input === null) {
+    throw new Error('la ligne ' + number + ' n\'a pas de input.expression');
+  }
+  return input;
+}
+
+function lastLineNumber() {
+  const lines = docOf().querySelectorAll('[data-line]');
+  if (lines.length === 0) {
+    throw new Error('la page ne montre aucune ligne [data-line]');
+  }
+  return Number(lines[lines.length - 1].getAttribute('data-line'));
+}
+
+// The text of the label of a field, however the page gives it: a <label>, aria-label or aria-labelledby.
+function labelsOf(input) {
+  const texts = [];
+  Array.from(input.labels || [], (label) => texts.push(textOf(label)));
+  if (input.hasAttribute('aria-label')) {
+    texts.push(input.getAttribute('aria-label').trim());
+  }
+  if (input.hasAttribute('aria-labelledby')) {
+    input.getAttribute('aria-labelledby').split(/\s+/).forEach((id) => {
+      const target = docOf().getElementById(id);
+      if (target !== null) {
+        texts.push(textOf(target));
+      }
+    });
+  }
+  return texts.filter((text) => text !== '');
+}
+
+function paletteState() {
+  const doc = docOf();
+  const palette = doc.getElementById('command-palette');
+  const search = doc.getElementById('command-search');
+  const entries = palette === null ? [] : Array.from(palette.querySelectorAll('[role="option"]'), (entry) => {
+    const label = entry.querySelector('.command-label');
+    const shortcut = entry.querySelector('.command-shortcut');
+    return {
+      label: label === null ? null : textOf(label),
+      shortcut: shortcut === null ? null : textOf(shortcut),
+      selected: entry.getAttribute('aria-selected') === 'true',
+      shown: isShown(entry),
+    };
+  });
+  return {
+    exists: palette !== null,
+    shown: isShown(palette),
+    role: palette === null ? null : palette.getAttribute('role'),
+    ariaModal: palette === null ? null : palette.getAttribute('aria-modal'),
+    text: textOf(palette),
+    box: palette === null ? null : boxOf(palette),
+    search: search === null ? null : {
+      tag: search.tagName,
+      shown: isShown(search),
+      value: search.value,
+      labels: labelsOf(search),
+      inPalette: palette !== null && palette.contains(search),
+    },
+    entries: entries,
+    inside: palette !== null && doc.activeElement !== null && palette.contains(doc.activeElement),
+  };
+}
+
+function readState() {
+  const doc = docOf();
+  const win = frameOf().contentWindow;
+  const select = doc.getElementById('display-mode');
+  const active = doc.activeElement;
+  const lineOfActive = active !== null && active.matches('input.expression') ? active.closest('[data-line]') : null;
+  const root = doc.documentElement;
+  const rootStyle = win.getComputedStyle(root);
+  let storageKeys = null;
+  let notebook = null;
+  try {
+    storageKeys = Object.keys(localStorage).sort();
+    notebook = localStorage.getItem(KEY);
+  } catch (failure) {
+    storageKeys = null;
+  }
+  return {
+    rows: Array.from(doc.querySelectorAll('[data-line]'), rowOf),
+    messages: Array.from(doc.querySelectorAll('#message, [role="status"], [role="alert"]')).filter(isShown).map(textOf),
+    mode: select === null ? null : select.value,
+    modeOptions: select === null ? [] : Array.from(select.options, (option) => textOf(option)),
+    activeLine: lineOfActive === null ? -1 : Number(lineOfActive.getAttribute('data-line')),
+    activeId: active === null ? null : active.id,
+    palette: paletteState(),
+    buttons: Array.from(doc.querySelectorAll('button'), (button) => {
+      const box = boxOf(button);
+      return {
+        text: textOf(button), action: button.getAttribute('data-action'), disabled: button.disabled, shown: isShown(button),
+        width: box.width, height: box.height, right: box.right, left: box.left,
+      };
+    }),
+    actionLabels: Array.from(doc.querySelectorAll('[data-action]'), (button) => textOf(button)),
+    hasTheme: root.hasAttribute('data-theme'),
+    theme: root.getAttribute('data-theme'),
+    surfaceBase: rootStyle.getPropertyValue('--color-surface-base').trim(),
+    storageKeys: storageKeys,
+    notebook: notebook,
+    layout: {
+      innerWidth: win.innerWidth,
+      scrollWidth: root.scrollWidth,
+      clientWidth: root.clientWidth,
+    },
+  };
+}
+
+function watchThePage() {
+  const win = frameOf().contentWindow;
+  win.alert = () => {};
+  win.prompt = win.alert;
+  // A page that asks before replacing the notebook is answered "yes": the scenarios do not depend on the question.
+  win.confirm = () => {
+    observed.confirms += 1;
+    return true;
+  };
+  win.addEventListener('error', (event) => observed.pageErrors.push(String(event.message)));
+  win.addEventListener('unhandledrejection', (event) => observed.pageErrors.push(String(event.reason)));
+  new win.MutationObserver((records) => {
+    for (const record of records) {
+      for (const node of record.addedNodes) {
+        if (node.nodeType === 1) {
+          const dangerous = [node].concat(Array.from(node.querySelectorAll('*'))).filter((element) =>
+            ['IMG', 'SCRIPT', 'IFRAME', 'OBJECT', 'EMBED', 'SVG'].includes(element.tagName.toUpperCase()));
+          observed.addedElements.push(...dangerous.map((element) => element.tagName));
+        }
+      }
+    }
+  }).observe(docOf().documentElement, {childList: true, subtree: true});
+}
+
+async function afterLoad() {
+  await pause(LOAD_MS);
+  frameOf().contentWindow.focus();
+  watchThePage();
+  observed.loads += 1;
+}
+
+function waitForLoad(start) {
+  return new Promise((resolve) => {
+    frameOf().addEventListener('load', resolve, {once: true});
+    start();
+  });
+}
+
+// Replaces what the page reads from the storage, before any script of the page runs.
+const BREAKING = {
+  methods: 'Storage.prototype.getItem = function () { throw new Error("getItem refuse"); };'
+    + 'Storage.prototype.setItem = function () { throw new Error("setItem refuse"); };',
+  property: 'Object.defineProperty(window, "localStorage", {configurable: true, get() {'
+    + ' throw new DOMException("acces refuse", "SecurityError"); }});',
+};
+
+async function load(kind) {
+  const frame = frameOf();
+  if (kind === 'normal') {
+    frame.removeAttribute('srcdoc');
+    await waitForLoad(() => {
+      frame.src = 'index.html';
+    });
+  } else if (kind in BREAKING) {
+    const answer = await fetch('index.html', {cache: 'no-store'});
+    if (!answer.ok) {
+      throw new Error('index.html : HTTP ' + answer.status);
+    }
+    const source = await answer.text();
+    const injected = '<head><base href="' + location.origin + '/"><script>' + BREAKING[kind] + '<\/script>';
+    if (!source.includes('<head>')) {
+      throw new Error('index.html n\'a pas de <head> a completer');
+    }
+    await waitForLoad(() => {
+      frame.srcdoc = source.replace('<head>', injected);
+    });
+  } else {
+    throw new Error('load inconnu : ' + kind);
+  }
+  await afterLoad();
+}
+
+async function reload() {
+  await waitForLoad(() => frameOf().contentWindow.location.reload());
+  await afterLoad();
+}
+
+function focusLine(number) {
+  fieldOfLine(number).focus();
+}
+
+function typeInSearch(text) {
+  const doc = docOf();
+  const search = doc.getElementById('command-search');
+  if (search === null) {
+    throw new Error('type : la page n\'a pas de #command-search');
+  }
+  if (doc.activeElement !== search) {
+    throw new Error('type : #command-search n\'a pas le focus (il est a ' + (doc.activeElement === null ? 'rien'
+        : doc.activeElement.tagName + '#' + doc.activeElement.id) + ')');
+  }
+  search.value = text;
+  search.dispatchEvent(new (frameOf().contentWindow.Event)('input', {bubbles: true}));
+}
+
+// What a browser does: keydown goes to the focused element (the body when nothing holds the focus), the keyup to whatever
+// holds the focus by then.
+function press(step) {
+  const win = frameOf().contentWindow;
+  const doc = docOf();
+  const init = (key) => ({
+    key: key, code: key.length === 1 ? 'Key' + key.toUpperCase() : key, bubbles: true, cancelable: true,
+    ctrlKey: !!step.ctrl, shiftKey: !!step.shift, metaKey: !!step.meta, altKey: !!step.alt,
+  });
+  const target = () => (doc.activeElement && doc.activeElement.isConnected ? doc.activeElement : doc.body);
+  const down = new win.KeyboardEvent('keydown', init(step.key));
+  target().dispatchEvent(down);
+  observed.keys.push({
+    name: [step.ctrl ? 'ctrl' : null, step.meta ? 'meta' : null, step.shift ? 'shift' : null, step.alt ? 'alt' : null, step.key]
+        .filter((part) => part !== null).join('+'),
+    prevented: down.defaultPrevented,
+  });
+  target().dispatchEvent(new win.KeyboardEvent('keyup', init(step.key)));
+}
+
+function buttonNamed(label) {
+  const found = Array.from(docOf().querySelectorAll('button')).filter((button) => textOf(button) === label);
+  if (found.length !== 1) {
+    throw new Error(found.length + ' bouton(s) avec le texte ' + label);
+  }
+  return found[0];
+}
+
+function click(label) {
+  const button = buttonNamed(label);
+  // A tap puts the focus on the button, which makes the field lose it: the page has to remember its line.
+  button.focus();
+  button.click();
+}
+
+function chooseMode(label) {
+  const win = frameOf().contentWindow;
+  const select = docOf().getElementById('display-mode');
+  if (select === null) {
+    throw new Error('la page n\'a pas de #display-mode');
+  }
+  const option = Array.from(select.options).find((candidate) => textOf(candidate) === label);
+  if (option === undefined) {
+    throw new Error('#display-mode ne propose pas ' + label);
+  }
+  select.value = option.value;
+  select.dispatchEvent(new win.Event('input', {bubbles: true}));
+  select.dispatchEvent(new win.Event('change', {bubbles: true}));
+}
+
+function enter(text) {
+  focusLine(lastLineNumber());
+  const input = docOf().activeElement;
+  input.value = text;
+  input.dispatchEvent(new (frameOf().contentWindow.Event)('input', {bubbles: true}));
+  press({key: 'Enter'});
+  // The key of this step is a way to type, not a shortcut under test.
+  observed.keys.pop();
+}
+
+async function play(step) {
+  if ('load' in step) {
+    await load(step.load);
+  } else if ('reload' in step) {
+    await reload();
+  } else if ('store' in step) {
+    localStorage.setItem(KEY, JSON.stringify(step.store));
+  } else if ('focus' in step) {
+    focusLine(step.focus);
+  } else if ('blur' in step) {
+    docOf().activeElement.blur();
+  } else if ('type' in step) {
+    typeInSearch(step.type);
+  } else if ('enter' in step) {
+    enter(step.enter);
+  } else if ('key' in step) {
+    press(step);
+  } else if ('click' in step) {
+    click(step.click);
+  } else if ('mode' in step) {
+    chooseMode(step.mode);
+  } else if ('snapshot' in step) {
+    await pause(SETTLE_MS);
+    observed.snapshots[step.snapshot] = readState();
+    return;
+  } else {
+    throw new Error('étape inconnue : ' + JSON.stringify(step));
+  }
+  await pause(STEP_MS);
+}
+
+async function run() {
+  const scenario = JSON.parse(new URLSearchParams(location.search).get('scenario'));
+  frameOf().style.width = (scenario.width || 1024) + 'px';
+  localStorage.clear();
+  for (const step of scenario.steps) {
+    await play(step);
+  }
+  await pause(SETTLE_MS);
+  observed.resources = frameOf().contentWindow.performance.getEntriesByType('resource').map((entry) => entry.name)
+      .map((name) => (name.startsWith(location.origin + '/') ? name.substring(location.origin.length) : name));
+}
+
+setTimeout(() => {
+  observed.error = observed.error || 'pas de constat au bout de ' + WATCHDOG_MS + ' ms';
+  finish();
+}, WATCHDOG_MS);
+
+run().catch((failure) => {
+  observed.error = String(failure);
+}).finally(finish);
+</script>
+</body>
+</html>
