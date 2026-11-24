@@ -36,6 +36,6 @@ La direction des couleurs est celle d'une feuille qui calcule, d'après le cahie
 - Changer une couleur, c'est modifier `tokens.properties` puis lancer `gradlew generateDesignTokens` ; `check` échoue tant que les fichiers générés ne sont pas à jour.
 - Les contrastes sont prouvés pour chaque paire déclarée, dans les deux thèmes ; une nouvelle couleur de texte doit apparaître dans au moins une paire `contrast.text.*`.
 - Les thèmes FlatLaf existent comme texte avant que FlatLaf ne soit une dépendance ; leur chargement viendra avec FlatLaf (ADR 0017).
-- `web/site/tokens.css` est copié par `:web:site` mais pas encore lié par `index.html` : la page l'adoptera avec sa refonte.
+- `web/site/tokens.css` est copié par `:web:site` et lié par `index.html` avant `style.css`, qui ne lit ses couleurs que par `var(--color-…)` : la page suit le thème du système par `prefers-color-scheme`.
 - Le thème actif est fixé au clair dans `Palette` ; le choix du thème par l'utilisateur reste à faire.
 - Les captures de `docs/images/avant` montrent l'interface d'avant ces couleurs ; elles ne sont pas régénérées.

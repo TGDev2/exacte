@@ -87,13 +87,17 @@ Le sous-projet Gradle `web/` compile le même cœur vers JavaScript avec TeaVM, 
 1. **Java → TeaVM → page.** `calc.web.WebExports` est le seul point d'entrée : TeaVM ne compile que ce qui en est atteignable
    (`calc.number`, `calc.format`, `calc.expression`, `calc.notebook`, `calc.web`), jamais Swing, la persistance ni les écritures de
    fichier. La tâche `:web:generateJavaScript` écrit `web/build/generated/teavm/js/calc.js`, et `:web:site` l'assemble avec `web/site`
-   (`index.html`, `style.css`, `app.js`) dans `web/build/site`.
+   (`index.html`, `tokens.css`, `style.css`, `app.js`) dans `web/build/site`.
 2. **`WebNotebook`** (`calc.web`, Java pur, donc testé sur la JVM dans `check`) enveloppe un `NotebookEditor` : chaque commande renvoie
    un instantané JSON, une chaîne identique sur la JVM et sous JavaScript. La mise en forme passe par `ValueFormatter`.
    Chaque ligne de l'instantané porte, après ses neuf champs d'affichage, son `name` (celui de l'affectation, ou `null`), ses
    `sources`, ses `usedBy` (des numéros de ligne) et son `detail` : les phrases de `calc.detail.LineDetailText` dans le mode courant.
 3. **La page** (`app.js`, script classique, sans dépendance) construit le DOM avec `textContent` à partir de l'instantané : elle ne
-   calcule ni ne formate rien. Elle garde les textes des lignes et le mode dans `localStorage`, jamais un résultat.
+   calcule ni ne formate rien. Elle garde les textes des lignes et le mode dans `localStorage`, jamais un résultat. Elle a le
+   design du bureau (`docs/design/DESIGN.md`) : `index.html` charge `tokens.css` (généré depuis les jetons, ADR 0016) puis
+   `style.css`, qui ne lit ses couleurs que par `var(--color-…)` ; chaque ligne a sa marge (numéro, signe « = », « ≈ » ou « ! »,
+   marque « ◆ » des sources de la ligne courante), le nom d'une affectation, le résultat à droite, l'erreur dessous, et la ligne
+   courante le détail de son `detail`. Le thème suit `prefers-color-scheme`.
 4. **`calc.web.compat`** complète trois morceaux du JDK que TeaVM n'a pas ou traite autrement (`BigIntegerCompat`, `PatternCompat`,
    `CharacterCompat`). Une extension TeaVM réécrit les appels dans les classes `calc.*` au moment où TeaVM les lit : le bytecode du
    cœur reste celui de javac.
