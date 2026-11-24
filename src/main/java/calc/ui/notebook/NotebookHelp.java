@@ -21,6 +21,24 @@ public final class NotebookHelp {
             new Example("1 / 3", "0,333333333333…"),
             new Example("√2", "≈ 1,41421356237…"));
 
+    /** An example of the syntax window: a title and the lines that its button inserts below the current line. */
+    public record Insertable(String title, List<String> lines) {
+        public Insertable {
+            lines = List.copyOf(lines);
+        }
+    }
+
+    /**
+     * The examples the syntax window lists, each with a button that inserts its lines. Each one stands alone: it uses no
+     * {@code $n} (which would designate a line of the notebook it lands in), and none is in error (checked by the tests).
+     */
+    public static final List<Insertable> INSERTABLE = List.of(
+            new Insertable("Opérations et parenthèses", List.of("12,5 * 3", "(1 + 2) × 3", "2^10")),
+            new Insertable("Variables", List.of("prix = 12,5", "prix * 3", "ans / 2")),
+            new Insertable("Valeurs exactes", List.of("0,1 + 0,2", "1 / 3", "ans * 3")),
+            new Insertable("Racine carrée", List.of("√2", "√(9/4)")),
+            new Insertable("Commentaires", List.of("# Devis cuisine", "prix = 12,5   # le prix d'une heure", "prix * 3   # TTC")));
+
     private NotebookHelp() {
     }
 

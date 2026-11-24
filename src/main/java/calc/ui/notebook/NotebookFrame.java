@@ -84,6 +84,8 @@ public final class NotebookFrame extends JFrame {
     private final transient NotebookShortcuts shortcuts;
     private final transient List<NotebookRowView> rows = new ArrayList<>();
     private final RowsPanel rowsPanel = new RowsPanel();
+    // The three examples of the empty notebook: one panel, shown or hidden as a whole, under the rows.
+    private final ExamplesPanel examplesPanel = new ExamplesPanel(this::insertFromPanel);
     // The one detail of the window, under the active line.
     private final LineDetailView lineDetail = new LineDetailView();
     private final JScrollPane scrollPane;
@@ -102,6 +104,9 @@ public final class NotebookFrame extends JFrame {
     private final CommandPaletteView commandPalette;
     // Where the focus was when the palette opened: it goes back there when the palette closes.
     private transient Component focusBeforePalette;
+
+    // The syntax help, a window of its own that stays open while lines are inserted from it.
+    private transient SyntaxHelpDialog syntaxHelp;
 
     private transient NotebookViewModel shown;
     private boolean applying;
@@ -126,7 +131,7 @@ public final class NotebookFrame extends JFrame {
 
         rowsPanel.setName("rowsPanel");
         rowsPanel.getAccessibleContext().setAccessibleName("Lignes du carnet");
-        scrollPane = new JScrollPane(rowsPanel, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        scrollPane = new JScrollPane(new Sheet(rowsPanel, examplesPanel), JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         scrollPane.setName("notebookScroll");
         scrollPane.getVerticalScrollBar().setUnitIncrement(24);
         scrollPane.getViewport().setBackground(NotebookPalette.active().rowBackground());
@@ -404,7 +409,7 @@ public final class NotebookFrame extends JFrame {
         }, Command.COMMAND_PALETTE, COMMAND_PALETTE_ITEM));
         JMenuItem syntax = new JMenuItem("Syntaxe des expressions");
         syntax.setName("syntaxItem");
-        syntax.addActionListener(event -> showHelp("Syntaxe des expressions", NotebookHelp.syntax()));
+        syntax.addActionListener(event -> showSyntaxHelp());
         JMenuItem keys = new JMenuItem("Raccourcis clavier");
         keys.setName("shortcutsItem");
         keys.addActionListener(event -> showHelp("Raccourcis clavier", NotebookHelp.shortcuts(shortcuts)));
@@ -436,6 +441,22 @@ public final class NotebookFrame extends JFrame {
                 perform(command);
             }
         };
+    }
+
+    // Aide > Syntaxe des expressions: the one help window, opened again if it was closed, never modal.
+    private void showSyntaxHelp() {
+        if (syntaxHelp == null || !syntaxHelp.isDisplayable()) {
+            syntaxHelp = new SyntaxHelpDialog(this, lines -> apply(presenter.onInsertExample(lines, pendingText())));
+        }
+        syntaxHelp.setVisible(true);
+        syntaxHelp.toFront();
+    }
+
+    // A button of the empty notebook: the button owns the focus and is about to disappear, so the active line takes the focus
+    // first (Swing would hand it to the next component, a line that would become active), then the example is inserted.
+    private void insertFromPanel(NotebookExamples example) {
+        rows.get(shown.activeIndex()).field.requestFocusInWindow();
+        apply(presenter.onInsertExample(example.lines(), pendingText()));
     }
 
     private void showHelp(String title, String text) {
@@ -788,6 +809,7 @@ public final class NotebookFrame extends JFrame {
         }
         showStatus(viewModel.statusMessage(), viewModel.statusTone());
         showBarTexts(viewModel);
+        examplesPanel.setVisible(viewModel.examplesVisible());
         shown = viewModel;
         growLater();
     }
@@ -885,6 +907,45 @@ public final class NotebookFrame extends JFrame {
 
     DisplayModeSelector modeSelector() {
         return modeSelector;
+    }
+
+    /** What the scroll pane shows: the rows, and under them the examples of the empty notebook (the rows keep their own panel). */
+    private static final class Sheet extends JPanel implements Scrollable {
+        private static final long serialVersionUID = 1L;
+        private final transient RowsPanel rows;
+
+        Sheet(RowsPanel rows, JComponent examples) {
+            super(new BorderLayout());
+            this.rows = rows;
+            setOpaque(false);
+            add(rows, BorderLayout.NORTH);
+            add(examples, BorderLayout.CENTER);
+        }
+
+        @Override
+        public Dimension getPreferredScrollableViewportSize() {
+            return rows.getPreferredScrollableViewportSize();
+        }
+
+        @Override
+        public int getScrollableUnitIncrement(Rectangle visible, int orientation, int direction) {
+            return rows.getScrollableUnitIncrement(visible, orientation, direction);
+        }
+
+        @Override
+        public int getScrollableBlockIncrement(Rectangle visible, int orientation, int direction) {
+            return rows.getScrollableBlockIncrement(visible, orientation, direction);
+        }
+
+        @Override
+        public boolean getScrollableTracksViewportWidth() {
+            return true;
+        }
+
+        @Override
+        public boolean getScrollableTracksViewportHeight() {
+            return false;
+        }
     }
 
     /** The panel of the rows: it follows the width of the window and scrolls vertically. */
