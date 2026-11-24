@@ -9,12 +9,17 @@ import calc.ui.theme.ThemeManager;
 import calc.ui.widget.DisplayModeSelector;
 import calc.ui.widget.DisplayModeText;
 import calc.ui.widget.Palette;
+import com.formdev.flatlaf.util.UIScale;
 import java.awt.BorderLayout;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.KeyboardFocusManager;
 import java.awt.Rectangle;
 import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
@@ -31,11 +36,13 @@ import java.util.concurrent.TimeUnit;
 import javax.swing.AbstractAction;
 import javax.swing.Action;
 import javax.swing.BorderFactory;
+import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.ButtonGroup;
 import javax.swing.JComponent;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JLayeredPane;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
@@ -45,6 +52,7 @@ import javax.swing.JRadioButtonMenuItem;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.JViewport;
+import javax.swing.KeyStroke;
 import javax.swing.Scrollable;
 import javax.swing.SwingUtilities;
 import javax.swing.event.DocumentEvent;
@@ -59,6 +67,10 @@ public final class NotebookFrame extends JFrame {
     private static final long serialVersionUID = 1L;
     private static final String NEXT_MODE_ACTION = "next-display-mode";
     private static final String CANCEL_EDIT_ACTION = "cancel-edit-or-calculation";
+    private static final String COMMAND_PALETTE_ACTION = "command-palette";
+    private static final String COMMAND_PALETTE_ITEM = "commandPaletteItem";
+    // The width of the command palette, before the scale of the screen; a narrow window gets a narrower one.
+    private static final int PALETTE_WIDTH = 560;
     // A notebook with more rows than this is shown over several events, so that the event thread keeps answering: building or
     // refilling 5000 rows at once takes more than a second (docs/adr/0014-calcul-hors-interface.md).
     private static final int ROWS_AT_ONCE = 50;
@@ -75,13 +87,21 @@ public final class NotebookFrame extends JFrame {
     // The one detail of the window, under the active line.
     private final LineDetailView lineDetail = new LineDetailView();
     private final JScrollPane scrollPane;
+    // The status bar: the message, then how the document is saved, how many lines it holds and what they gave.
+    private final JPanel statusBar = new JPanel(new BorderLayout(16, 0));
     private final JLabel statusLabel = new JLabel(" ");
+    private final JLabel saveStateLabel = new JLabel(" ");
+    private final JLabel lineCountLabel = new JLabel(" ");
+    private final JLabel summaryLabel = new JLabel(" ");
     private final DisplayModeSelector modeSelector = new DisplayModeSelector();
     private final transient Map<DisplayMode, JRadioButtonMenuItem> modeItems = new EnumMap<>(DisplayMode.class);
     private final transient Map<ThemeChoice, JRadioButtonMenuItem> themeItems = new EnumMap<>(ThemeChoice.class);
     private final transient Action saveAction;
     private final transient Action undoAction;
     private final transient Action redoAction;
+    private final CommandPaletteView commandPalette;
+    // Where the focus was when the palette opened: it goes back there when the palette closes.
+    private transient Component focusBeforePalette;
 
     private transient NotebookViewModel shown;
     private boolean applying;
@@ -138,14 +158,25 @@ public final class NotebookFrame extends JFrame {
         modePanel.add(modeSelector, BorderLayout.CENTER);
         top.add(modePanel, BorderLayout.WEST);
 
-        statusLabel.setName("statusLabel");
-        frameStatusBar();
+        buildStatusBar();
 
         getContentPane().add(top, BorderLayout.NORTH);
         getContentPane().add(scrollPane, BorderLayout.CENTER);
-        getContentPane().add(statusLabel, BorderLayout.SOUTH);
+        getContentPane().add(statusBar, BorderLayout.SOUTH);
         setJMenuBar(createMenuBar());
         installModeShortcut();
+        commandPalette = new CommandPaletteView(new CommandPaletteView.Listener() {
+            @Override
+            public void run(CommandPalette.Entry entry) {
+                runFromPalette(entry);
+            }
+
+            @Override
+            public void dismiss(boolean giveFocusBack) {
+                closeCommandPalette(giveFocusBack);
+            }
+        });
+        installCommandPalette();
 
         // Closing is the presenter's decision (a line being typed, unsaved changes), never the window's own.
         setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
@@ -310,16 +341,67 @@ public final class NotebookFrame extends JFrame {
         scrollPane.getViewport().setBackground(NotebookPalette.active().rowBackground());
         frameStatusBar();
         showStatus(shown.statusMessage(), shown.statusTone());
+        showBarTexts(shown);
     }
 
+    private void buildStatusBar() {
+        statusLabel.setName("statusLabel");
+        saveStateLabel.setName("saveStateLabel");
+        saveStateLabel.getAccessibleContext().setAccessibleName("État d'enregistrement");
+        lineCountLabel.setName("lineCountLabel");
+        lineCountLabel.getAccessibleContext().setAccessibleName("Nombre de lignes");
+        summaryLabel.setName("summaryLabel");
+        summaryLabel.getAccessibleContext().setAccessibleName("Résumé des résultats");
+        JPanel facts = new JPanel();
+        facts.setOpaque(false);
+        facts.setLayout(new BoxLayout(facts, BoxLayout.X_AXIS));
+        facts.add(saveStateLabel);
+        facts.add(Box.createHorizontalStrut(16));
+        facts.add(lineCountLabel);
+        facts.add(Box.createHorizontalStrut(16));
+        facts.add(summaryLabel);
+        statusBar.setName("statusBar");
+        statusBar.add(statusLabel, BorderLayout.CENTER);
+        statusBar.add(facts, BorderLayout.EAST);
+        frameStatusBar();
+    }
+
+    // The bar on the raised surface under a rule, and the quiet text of its three facts: only the message and a read-only document colour.
     private void frameStatusBar() {
-        statusLabel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createMatteBorder(1, 0, 0, 0, NotebookPalette.active().border()),
+        NotebookPalette palette = NotebookPalette.active();
+        statusBar.setBackground(palette.statusBarBackground());
+        statusBar.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(1, 0, 0, 0, palette.border()),
                 BorderFactory.createEmptyBorder(5, 10, 5, 10)));
+        lineCountLabel.setForeground(palette.detailForeground());
+        summaryLabel.setForeground(palette.detailForeground());
+    }
+
+    // Every text says it in words; the colour of a read-only document only completes « Lecture seule ». The summary is empty while
+    // a calculation runs, and the previous one stays until its end so that the bar does not blink at each line validated.
+    private void showBarTexts(NotebookViewModel viewModel) {
+        saveStateLabel.setText(viewModel.saveState());
+        saveStateLabel.setForeground(viewModel.saveState().equals("Lecture seule") ? Palette.active().error()
+                : NotebookPalette.active().detailForeground());
+        lineCountLabel.setText(viewModel.lineCount());
+        if (!viewModel.summary().isEmpty() || !presenter.isCalculating()) {
+            summaryLabel.setText(viewModel.summary());
+        }
+        for (JLabel label : List.of(saveStateLabel, lineCountLabel, summaryLabel)) {
+            label.getAccessibleContext().setAccessibleDescription(label.getText());
+        }
     }
 
     private List<JMenuItem> help() {
         List<JMenuItem> items = new ArrayList<>();
+        items.add(item(new AbstractAction("Palette de commandes…") {
+            private static final long serialVersionUID = 1L;
+
+            @Override
+            public void actionPerformed(ActionEvent event) {
+                openCommandPalette();
+            }
+        }, Command.COMMAND_PALETTE, COMMAND_PALETTE_ITEM));
         JMenuItem syntax = new JMenuItem("Syntaxe des expressions");
         syntax.setName("syntaxItem");
         syntax.addActionListener(event -> showHelp("Syntaxe des expressions", NotebookHelp.syntax()));
@@ -382,6 +464,16 @@ public final class NotebookFrame extends JFrame {
                 perform(Command.NEXT_MODE);
             }
         });
+        // Ctrl+K from anywhere in the window, the selector of the modes included (a line binds it in its own field as well).
+        getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(shortcuts.stroke(Command.COMMAND_PALETTE), COMMAND_PALETTE_ACTION);
+        getRootPane().getActionMap().put(COMMAND_PALETTE_ACTION, new AbstractAction() {
+            private static final long serialVersionUID = 1L;
+
+            @Override
+            public void actionPerformed(ActionEvent event) {
+                perform(Command.COMMAND_PALETTE);
+            }
+        });
         // A line binds Escape itself. With the focus elsewhere (the selector of the modes), Escape still interrupts a calculation.
         // An open list of the selector keeps the key: its own action is enabled then, and Swing looks no further.
         JComponent content = (JComponent) getContentPane();
@@ -434,7 +526,120 @@ public final class NotebookFrame extends JFrame {
             case OPEN_DOCUMENT -> apply(presenter.onOpen(pendingText()));
             case SAVE -> apply(presenter.onSave(pendingText()));
             case SAVE_AS -> apply(presenter.onSaveAs(pendingText()));
+            case COMMAND_PALETTE -> openCommandPalette();
         }
+    }
+
+    // ------------------------------------------------------------------------------------------------ command palette
+
+    // The palette lies on the layered pane of the window, above its content, hidden until Ctrl+K (never a modal dialog).
+    private void installCommandPalette() {
+        JLayeredPane layers = getLayeredPane();
+        commandPalette.setVisible(false);
+        layers.add(commandPalette, JLayeredPane.MODAL_LAYER);
+        layers.addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentResized(ComponentEvent event) {
+                if (commandPalette.isVisible()) {
+                    placeCommandPalette();
+                }
+            }
+        });
+    }
+
+    private void openCommandPalette() {
+        if (!commandPalette.isVisible()) {
+            focusBeforePalette = KeyboardFocusManager.getCurrentKeyboardFocusManager().getPermanentFocusOwner();
+        }
+        commandPalette.show(new CommandPalette(paletteEntries()));
+        placeCommandPalette();
+        commandPalette.setVisible(true);
+        commandPalette.search().requestFocusInWindow();
+    }
+
+    // Centred, in the upper part of the window, within its margins.
+    private void placeCommandPalette() {
+        JLayeredPane layers = getLayeredPane();
+        int margin = UIScale.scale(DesignTokens.load().size("space.6"));
+        int width = Math.max(0, Math.min(UIScale.scale(PALETTE_WIDTH), layers.getWidth() - 2 * margin));
+        int height = Math.max(0, Math.min(commandPalette.getPreferredSize().height, layers.getHeight() - 2 * margin));
+        int top = Math.max(0, Math.min(layers.getHeight() / 8, layers.getHeight() - height - margin));
+        commandPalette.setBounds((layers.getWidth() - width) / 2, top, width, height);
+        commandPalette.revalidate();
+        commandPalette.repaint();
+    }
+
+    /**
+     * The entries of the palette, derived from the menus as they are now: one per item, in their order, its key and its state;
+     * labelled « Mode … » for a display mode, « Thème : … » for a theme, by the text of the item for everything else.
+     */
+    private List<CommandPalette.Entry> paletteEntries() {
+        List<CommandPalette.Entry> entries = new ArrayList<>();
+        for (JMenuItem item : menuCommands()) {
+            String label = modeItems.containsValue(item) ? CommandPalette.modeLabel(item.getText())
+                    : themeItems.containsValue(item) ? CommandPalette.themeLabel(item.getText())
+                    : item.getText();
+            KeyStroke key = item.getAccelerator();
+            entries.add(new CommandPalette.Entry(item.getName(), label, key == null ? "" : shortcuts.commandText(key), item.isEnabled()));
+        }
+        return entries;
+    }
+
+    // Every item of the menus that runs a command, in order, those of a sub-menu in its place.
+    private List<JMenuItem> menuCommands() {
+        List<JMenuItem> items = new ArrayList<>();
+        JMenuBar bar = getJMenuBar();
+        for (int i = 0; i < bar.getMenuCount(); i++) {
+            addCommands(bar.getMenu(i), items);
+        }
+        return items;
+    }
+
+    private static void addCommands(JMenu menu, List<JMenuItem> items) {
+        for (Component each : menu.getMenuComponents()) {
+            if (each instanceof JMenu sub) {
+                addCommands(sub, items);
+            } else if (each instanceof JMenuItem item) {
+                items.add(item);
+            }
+        }
+    }
+
+    // The entry does what its menu item does, then the palette closes. The item that opens the palette leaves it open.
+    private void runFromPalette(CommandPalette.Entry entry) {
+        if (COMMAND_PALETTE_ITEM.equals(entry.id())) {
+            return;
+        }
+        for (JMenuItem item : menuCommands()) {
+            if (entry.id().equals(item.getName()) && item.isEnabled()) {
+                item.doClick(0);
+                break;
+            }
+        }
+        closeCommandPalette(true);
+    }
+
+    /**
+     * Closes the palette. With {@code giveFocusBack}, the focus goes back to where it was, or to the active line when it was in
+     * a line (a command may have made another line active). The palette hides once its search has lost the focus: hiding the
+     * component that has the focus would let Swing hand it to the next component, a line that would become active.
+     */
+    private void closeCommandPalette(boolean giveFocusBack) {
+        if (!commandPalette.isVisible()) {
+            return;
+        }
+        if (giveFocusBack && commandPalette.search().isFocusOwner() && focusTarget().requestFocusInWindow()) {
+            return;
+        }
+        focusBeforePalette = null;
+        commandPalette.setVisible(false);
+        getLayeredPane().repaint();
+    }
+
+    private Component focusTarget() {
+        Component before = focusBeforePalette;
+        boolean inALine = before == null || rows.stream().anyMatch(row -> row.field == before);
+        return inALine || !before.isShowing() ? rows.get(shown.activeIndex()).field : before;
     }
 
     // ------------------------------------------------------------------------------------------------ view model
@@ -582,6 +787,7 @@ public final class NotebookFrame extends JFrame {
             themeItem.setSelected(true);
         }
         showStatus(viewModel.statusMessage(), viewModel.statusTone());
+        showBarTexts(viewModel);
         shown = viewModel;
         growLater();
     }

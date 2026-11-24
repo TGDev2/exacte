@@ -193,7 +193,7 @@ Build Gradle, JUnit 5, tests par propriétés et de robustesse, tests d'interfac
 - [ ] Sur un vrai Mac, retirer la quarantaine avec `xattr -dr com.apple.quarantine Calc.app` puis ouvrir l'application.
 - [ ] Lire Aide > À propos de Calc dans l'application empaquetée : la version affichée est 1.0.0.
 - [ ] Avertissements SmartScreen (Windows) et Gatekeeper (macOS) au premier lancement.
-- [ ] Ouvrir un carnet de 5000 lignes hostiles : la fenêtre se déplace et les menus s'ouvrent pendant le calcul, la barre d'état compte les lignes.
+- [ ] Ouvrir un carnet de 5000 lignes hostiles : la fenêtre se déplace et les menus s'ouvrent pendant le calcul, la barre d'état compte les lignes (« Calcul en cours : n / N lignes — Échap pour interrompre »).
 - [ ] Pendant ce calcul, appuyer sur Échap : le calcul s'arrête et les lignes restantes disent « Non calculée : calcul interrompu ».
 - [ ] Taper `√2 - √2` dans la fenêtre : le résultat se lit `|x| ≤ …` et ne contient pas `≈ 0`.
 - [ ] Taper `(sqrt(2) / 16) ^ 4096` : la ligne est en erreur avec le même message que `(1/16) ^ 4096`.

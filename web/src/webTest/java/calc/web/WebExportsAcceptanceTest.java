@@ -38,7 +38,11 @@ class WebExportsAcceptanceTest {
     private static final Path CORE_CLASSES = Path.of("build", "classes", "java", "main");
     private static final long NODE_WATCHDOG_MINUTES = 5;
 
-    private static final String NO_ERROR = "\"error\":null,\"errorStart\":-1,\"errorEnd\":-1}";
+    private static final String NO_ERROR = "\"error\":null,\"errorStart\":-1,\"errorEnd\":-1";
+    /** The four fields that end a line without a name, a source or a user. */
+    private static final String ALONE = ",\"name\":null,\"sources\":[],\"usedBy\":[],\"detail\":[";
+    private static final String UNUSED = "\"Utilisée par aucune ligne\"";
+    private static final String ROOT_BOUNDS = "\"Valeur garantie entre 1,41421356237 et 1,41421356238\"";
     private static final String CLEAN = "{\"mode\":\"AUTO\",\"canUndo\":false,\"canRedo\":false,\"message\":null,\"lines\":[";
 
     private static final String RUNNER = """
@@ -80,7 +84,7 @@ class WebExportsAcceptanceTest {
         List<String> answers = assertSameOnBothSides(step("load", "(1/3)*3", "AUTO"), step("snapshot"), step("texts"));
 
         String expected = CLEAN + "{\"number\":1,\"text\":\"(1/3)*3\",\"status\":\"EXACT\",\"result\":\"1\","
-                + "\"exactFraction\":null,\"errorBound\":null," + NO_ERROR + "]}";
+                + "\"exactFraction\":null,\"errorBound\":null," + NO_ERROR + ALONE + "\"= 1\"," + UNUSED + "]}]}";
         assertEquals(expected, answers.get(0));
         assertEquals(expected, answers.get(1));
         assertEquals("(1/3)*3", answers.get(2));
@@ -92,10 +96,12 @@ class WebExportsAcceptanceTest {
         List<String> answers = assertSameOnBothSides(step("load", "√2", "AUTO"), step("setMode", "SCIENTIFIC"));
 
         assertEquals(CLEAN + "{\"number\":1,\"text\":\"√2\",\"status\":\"APPROXIMATE\",\"result\":\"≈ 1,41421356237…\","
-                + "\"exactFraction\":null,\"errorBound\":\"± 2,1 × 10⁻²⁵\"," + NO_ERROR + "]}", answers.get(0));
+                + "\"exactFraction\":null,\"errorBound\":\"± 2,1 × 10⁻²⁵\"," + NO_ERROR + ALONE + "\"≈ 1,41421356237…\"," + UNUSED
+                + "," + ROOT_BOUNDS + "]}]}", answers.get(0));
         assertEquals("{\"mode\":\"SCIENTIFIC\",\"canUndo\":false,\"canRedo\":false,\"message\":null,\"lines\":["
                 + "{\"number\":1,\"text\":\"√2\",\"status\":\"APPROXIMATE\",\"result\":\"≈ 1,41421356237… × 10⁰\","
-                + "\"exactFraction\":null,\"errorBound\":\"± 2,1 × 10⁻²⁵\"," + NO_ERROR + "]}", answers.get(1));
+                + "\"exactFraction\":null,\"errorBound\":\"± 2,1 × 10⁻²⁵\"," + NO_ERROR + ALONE + "\"≈ 1,41421356237… × 10⁰\","
+                + UNUSED + "," + ROOT_BOUNDS + "]}]}", answers.get(1));
     }
 
     @Test
@@ -104,7 +110,8 @@ class WebExportsAcceptanceTest {
                 step("setMode", "FRACTION"), step("setMode", "SCIENTIFIC"), step("setMode", "AUTO"));
 
         assertEquals(CLEAN + "{\"number\":1,\"text\":\"1/3\",\"status\":\"EXACT\",\"result\":\"0,333333333333…\","
-                + "\"exactFraction\":\"1/3\",\"errorBound\":null," + NO_ERROR + "]}", answers.get(0));
+                + "\"exactFraction\":\"1/3\",\"errorBound\":null," + NO_ERROR + ALONE + "\"= 0,333333333333…\"," + UNUSED + "]}]}",
+                answers.get(0));
         assertTrue(answers.get(2).contains("\"result\":\"1/3\",\"exactFraction\":\"1/3\""), answers.get(2));
     }
 
@@ -113,7 +120,7 @@ class WebExportsAcceptanceTest {
         List<String> answers = assertSameOnBothSides(step("load", "2 +", "AUTO"));
 
         assertEquals(CLEAN + "{\"number\":1,\"text\":\"2 +\",\"status\":\"ERROR\",\"result\":null,\"exactFraction\":null,"
-                + "\"errorBound\":null,\"error\":\"Opérande manquant après « + ».\",\"errorStart\":2,\"errorEnd\":3}]}",
+                + "\"errorBound\":null,\"error\":\"Opérande manquant après « + ».\",\"errorStart\":2,\"errorEnd\":3" + ALONE + "]}]}",
                 answers.get(0));
     }
 
@@ -123,7 +130,8 @@ class WebExportsAcceptanceTest {
                 step("undo"), step("texts"), step("redo"), step("texts"));
 
         assertTrue(answers.get(1).endsWith("{\"number\":3,\"text\":\"$2 + 1\",\"status\":\"EXACT\",\"result\":\"11\","
-                + "\"exactFraction\":null,\"errorBound\":null," + NO_ERROR + "]}"), answers.get(1));
+                + "\"exactFraction\":null,\"errorBound\":null," + NO_ERROR + ",\"name\":null,\"sources\":[2],\"usedBy\":[],"
+                + "\"detail\":[\"= 10 + 1\",\"= 11\",\"Sources : ligne 2\"," + UNUSED + "]}]}"), answers.get(1));
         assertEquals("3\n10\n$2 + 1", answers.get(2));
         assertEquals("10\n3\n$1 + 1", answers.get(4));
         assertEquals("3\n10\n$2 + 1", answers.get(6));

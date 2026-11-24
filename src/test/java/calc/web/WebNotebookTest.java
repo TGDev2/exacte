@@ -6,9 +6,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import calc.expression.ExpressionError;
 import calc.expression.ParsedLine;
 import calc.expression.Span;
+import calc.notebook.EvaluatedNotebook;
 import calc.notebook.LineError;
-import calc.notebook.LineId;
 import calc.notebook.LineResult;
+import calc.notebook.Notebook;
+import calc.notebook.NotebookEvaluator;
+import calc.notebook.NotebookException;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -68,17 +71,28 @@ class WebNotebookTest {
         assertEquals("1\n2", notebook.texts());
     }
 
+    private static EvaluatedNotebook evaluatedLine() {
+        try {
+            return NotebookEvaluator.evaluate(Notebook.of(List.of(TEXT)));
+        } catch (NotebookException unexpected) {
+            throw new AssertionError(unexpected);
+        }
+    }
+
     private static List<Integer> faultyPart(Span span) {
         LineError error = new LineError(ExpressionError.UNEXPECTED_CHARACTER, span, "Message.");
-        LineResult result = new LineResult(1, new LineId(1), TEXT, ParsedLine.Kind.EXPRESSION, null, error, null, List.of());
+        EvaluatedNotebook evaluated = evaluatedLine();
+        LineResult result = new LineResult(1, evaluated.result(1).id(), TEXT, ParsedLine.Kind.EXPRESSION, null, error, null,
+                List.of());
         StringBuilder json = new StringBuilder();
-        new WebNotebook().appendLine(json, result);
+        new WebNotebook().appendLine(json, evaluated, result);
 
         String prefix = "{\"number\":1,\"text\":\"2 +\",\"status\":\"ERROR\",\"result\":null,\"exactFraction\":null,\"errorBound\":null,"
                 + "\"error\":\"Message.\",\"errorStart\":";
+        String suffix = ",\"name\":null,\"sources\":[],\"usedBy\":[],\"detail\":[]}";
         String line = json.toString();
-        assertTrue(line.startsWith(prefix) && line.endsWith("}"), line);
-        String[] part = line.substring(prefix.length(), line.length() - 1).split(",\"errorEnd\":");
+        assertTrue(line.startsWith(prefix) && line.endsWith(suffix), line);
+        String[] part = line.substring(prefix.length(), line.length() - suffix.length()).split(",\"errorEnd\":");
         return List.of(Integer.valueOf(part[0]), Integer.valueOf(part[1]));
     }
 }

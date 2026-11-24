@@ -66,6 +66,11 @@ final class NotebookPalette {
         return role("surface.raised");
     }
 
+    /** The status bar: the same raised surface as the detail. */
+    Color statusBarBackground() {
+        return role("surface.raised");
+    }
+
     /** The sentences of the detail of the active line. */
     Color detailForeground() {
         return role("text.secondary");
@@ -123,6 +128,16 @@ final class NotebookPalette {
     /** The rule of the margin, between the rows, and above the status bar. */
     Color border() {
         return role("border.subtle");
+    }
+
+    /** The background of the selected entry of the command palette. */
+    Color selectedEntryBackground() {
+        return role("accent");
+    }
+
+    /** The text of the selected entry of the command palette. */
+    Color selectedEntryText() {
+        return role("selection.text");
     }
 
     /** The outline of the field that has the keyboard focus. */

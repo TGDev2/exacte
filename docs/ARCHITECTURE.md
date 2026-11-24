@@ -21,7 +21,7 @@ tests le vérifient (`NotebookDependenciesTest`, `ServicesDependenciesTest` : vo
 | `calc.ui.design` | Jetons de design (ADR 0016) : `DesignTokens` lit `tokens.properties`, la seule source des couleurs par rôle et par thème (`Theme` : clair, sombre), des polices, des tailles et des paires de contraste | tout le reste de l'application |
 | `calc.ui.theme` | Apparence (ADR 0017) : `ThemeManager` installe les polices embarquées Inter et JetBrains Mono et applique `CalcLightLaf` ou `CalcDarkLaf`, thèmes FlatLaf lus dans les `.properties` générés des jetons ; `SystemThemeDetector` lit le thème du système (Windows seulement, `WindowsSystemThemeDetector`) | la fenêtre |
 | `calc.ui.widget` | Composants Swing réutilisables : contrôle segmenté des modes, palette (thème actif lu dans l'apparence installée) et contrastes | la fenêtre |
-| `calc.ui.notebook` | La fenêtre principale : `NotebookPresenter` (toute la logique d'interaction, testable sans Swing), `NotebookViewModel` (état immuable remis à la vue, détail de la ligne active compris), `NotebookPreview` (l'aperçu de la ligne en cours de frappe, sur son propre fil), `NotebookFrame`, `NotebookRowView` et `LineDetailView` (Swing, rien d'autre que l'affichage), `NotebookDialogs` (interface des boîtes de dialogue, remplacée par un faux dans les tests) | — |
+| `calc.ui.notebook` | La fenêtre principale : `NotebookPresenter` (toute la logique d'interaction, testable sans Swing), `NotebookViewModel` (état immuable remis à la vue, détail de la ligne active compris), `NotebookPreview` (l'aperçu de la ligne en cours de frappe, sur son propre fil), `CommandPalette` (la palette de commandes comme modèle, sans Swing : entrées dérivées des menus, recherche sans casse ni accents), `NotebookFrame`, `NotebookRowView`, `LineDetailView` et `CommandPaletteView` (Swing, rien d'autre que l'affichage ; la palette est une couche du `JLayeredPane`, jamais un dialogue), `NotebookDialogs` (interface des boîtes de dialogue, remplacée par un faux dans les tests) | — |
 | `calc` | `Main` : installe le thème, branche le magasin du carnet, le mode d'affichage et la fenêtre | — |
 | `calc.web` (sous-projet `web/`) | La version web : `WebNotebook` (le carnet tel que JavaScript le pilote, instantanés JSON), `WebExports` (seul point d'entrée de TeaVM), `calc.web.compat` (compléments du JDK), `calc.web.tools` (rapport de conformité mis en page, sur la machine de construction seulement) | Swing, la persistance, les documents |
 
@@ -87,11 +87,17 @@ Le sous-projet Gradle `web/` compile le même cœur vers JavaScript avec TeaVM, 
 1. **Java → TeaVM → page.** `calc.web.WebExports` est le seul point d'entrée : TeaVM ne compile que ce qui en est atteignable
    (`calc.number`, `calc.format`, `calc.expression`, `calc.notebook`, `calc.web`), jamais Swing, la persistance ni les écritures de
    fichier. La tâche `:web:generateJavaScript` écrit `web/build/generated/teavm/js/calc.js`, et `:web:site` l'assemble avec `web/site`
-   (`index.html`, `style.css`, `app.js`) dans `web/build/site`.
+   (`index.html`, `tokens.css`, `style.css`, `app.js`) dans `web/build/site`.
 2. **`WebNotebook`** (`calc.web`, Java pur, donc testé sur la JVM dans `check`) enveloppe un `NotebookEditor` : chaque commande renvoie
    un instantané JSON, une chaîne identique sur la JVM et sous JavaScript. La mise en forme passe par `ValueFormatter`.
+   Chaque ligne de l'instantané porte, après ses neuf champs d'affichage, son `name` (celui de l'affectation, ou `null`), ses
+   `sources`, ses `usedBy` (des numéros de ligne) et son `detail` : les phrases de `calc.detail.LineDetailText` dans le mode courant.
 3. **La page** (`app.js`, script classique, sans dépendance) construit le DOM avec `textContent` à partir de l'instantané : elle ne
-   calcule ni ne formate rien. Elle garde les textes des lignes et le mode dans `localStorage`, jamais un résultat.
+   calcule ni ne formate rien. Elle garde les textes des lignes et le mode dans `localStorage`, jamais un résultat. Elle a le
+   design du bureau (`docs/design/DESIGN.md`) : `index.html` charge `tokens.css` (généré depuis les jetons, ADR 0016) puis
+   `style.css`, qui ne lit ses couleurs que par `var(--color-…)` ; chaque ligne a sa marge (numéro, signe « = », « ≈ » ou « ! »,
+   marque « ◆ » des sources de la ligne courante), le nom d'une affectation, le résultat à droite, l'erreur dessous, et la ligne
+   courante le détail de son `detail`. Le thème suit `prefers-color-scheme`.
 4. **`calc.web.compat`** complète trois morceaux du JDK que TeaVM n'a pas ou traite autrement (`BigIntegerCompat`, `PatternCompat`,
    `CharacterCompat`). Une extension TeaVM réécrit les appels dans les classes `calc.*` au moment où TeaVM les lit : le bytecode du
    cœur reste celui de javac.

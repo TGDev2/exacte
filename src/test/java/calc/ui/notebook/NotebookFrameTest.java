@@ -279,12 +279,13 @@ class NotebookFrameTest {
     }
 
     @Test
-    @DisplayName("parité : Ctrl+M est la seule touche de la fenêtre entière, aucun composant ne la prend")
-    void theOnlyWindowWideKeyIsNextModeAndNoComponentBindsIt() {
+    @DisplayName("parité : Ctrl+M et la palette (Ctrl+K) sont les seules touches de la fenêtre entière, aucun champ ne prend Ctrl+M")
+    void theOnlyWindowWideKeysAreNextModeAndThePaletteAndNoComponentBindsNextMode() {
         KeyStroke nextMode = KeyStroke.getKeyStroke(KeyEvent.VK_M, InputEvent.CTRL_DOWN_MASK);
+        KeyStroke palette = KeyStroke.getKeyStroke(KeyEvent.VK_K, menuMask());
 
-        List<KeyStroke> windowWide = List.of(frame.getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).keys());
-        assertEquals(List.of(nextMode), windowWide, "the window-wide shortcuts are Ctrl+M only");
+        java.util.Set<KeyStroke> windowWide = java.util.Set.of(frame.getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).keys());
+        assertEquals(java.util.Set.of(nextMode, palette), windowWide, "the window-wide shortcuts are Ctrl+M and the command palette only");
         for (int i = 0; i < frame.rowCount(); i++) {
             JTextField field = frame.row(i).field;
             assertNull(field.getInputMap(JComponent.WHEN_FOCUSED).get(nextMode), "the line fields leave Ctrl+M to the window");

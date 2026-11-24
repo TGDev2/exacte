@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import calc.detail.LineDetailText;
 import calc.expression.ParsedLine;
 import calc.expression.Span;
 import calc.format.DisplayMode;
@@ -16,11 +17,13 @@ import calc.format.FormattedValue;
 import calc.format.ValueFormatter;
 import calc.notebook.EvaluatedNotebook;
 import calc.notebook.LineError;
+import calc.notebook.LineId;
 import calc.notebook.LineResult;
 import calc.notebook.Notebook;
 import calc.notebook.NotebookCommand;
 import calc.notebook.NotebookEditor;
 import calc.notebook.NotebookException;
+import calc.notebook.Source;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -30,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.StringJoiner;
+import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -63,6 +67,10 @@ class WebNotebookAcceptanceTest {
     private static final String ROOT_BOUND = "± 2,1 × 10⁻²⁵";
     private static final String THIRD_AUTO = "0,333333333333…";
     private static final String THIRD_SCIENTIFIC = "3,33333333333… × 10⁻¹";
+    private static final String UNUSED = "Utilisée par aucune ligne";
+    private static final String ROOT_BOUNDS = "Valeur garantie entre 1,41421356237 et 1,41421356238";
+    /** The name, the sources, the users and the detail of a line that has none of them: a comment, an empty line, an error. */
+    private static final String NO_TAIL = tail(null, "[]", "[]");
     private static final String MISSING_OPERAND = "Opérande manquant après « + ».";
     private static final String DELETED_REFERENCE = "Référence vers une ligne supprimée.";
     private static final int MAX_LINE_LENGTH = 16384;
@@ -80,7 +88,9 @@ class WebNotebookAcceptanceTest {
     void theExampleOfTheContractIsReproducedToTheCharacter() {
         assertEquals("{\"mode\":\"AUTO\",\"canUndo\":false,\"canRedo\":false,\"message\":null,\"lines\":[{\"number\":1,"
                 + "\"text\":\"√2\",\"status\":\"APPROXIMATE\",\"result\":\"≈ 1,41421356237…\",\"exactFraction\":null,"
-                + "\"errorBound\":\"± 2,1 × 10⁻²⁵\",\"error\":null,\"errorStart\":-1,\"errorEnd\":-1}]}",
+                + "\"errorBound\":\"± 2,1 × 10⁻²⁵\",\"error\":null,\"errorStart\":-1,\"errorEnd\":-1,\"name\":null,\"sources\":[],"
+                + "\"usedBy\":[],\"detail\":[\"≈ 1,41421356237…\",\"Utilisée par aucune ligne\",\"Valeur garantie entre "
+                + "1,41421356237 et 1,41421356238\"]}]}",
                 new WebNotebook().load("√2", "AUTO"));
     }
 
@@ -95,36 +105,37 @@ class WebNotebookAcceptanceTest {
     void oneThirdTimesThreeIsExactlyOne() {
         assertEquals("{\"mode\":\"AUTO\",\"canUndo\":false,\"canRedo\":false,\"message\":null,\"lines\":[{\"number\":1,"
                 + "\"text\":\"(1/3)*3\",\"status\":\"EXACT\",\"result\":\"1\",\"exactFraction\":null,\"errorBound\":null,"
-                + "\"error\":null,\"errorStart\":-1,\"errorEnd\":-1}]}",
+                + "\"error\":null,\"errorStart\":-1,\"errorEnd\":-1,\"name\":null,\"sources\":[],\"usedBy\":[],"
+                + "\"detail\":[\"= 1\",\"Utilisée par aucune ligne\"]}]}",
                 new WebNotebook().load("(1/3)*3", "AUTO"));
     }
 
     @Test
     void oneThirdIsExactWithItsFraction() {
-        assertEquals(snapshot("AUTO", false, false, null, value(1, "1/3", "EXACT", THIRD_AUTO, "1/3", null)),
+        assertEquals(snapshot("AUTO", false, false, null, value(1, "1/3", "EXACT", THIRD_AUTO, "1/3", null, alone("= " + THIRD_AUTO, UNUSED))),
                 new WebNotebook().load("1/3", "AUTO"));
     }
 
     @Test
     void emptyLinesAndCommentsHaveNoResult() {
         assertEquals(snapshot("AUTO", false, false, null,
-                row(1, "# Devis", "COMMENT", null, null, null, null, -1, -1),
-                row(2, "", "EMPTY", null, null, null, null, -1, -1),
-                row(3, "   ", "EMPTY", null, null, null, null, -1, -1),
-                value(4, "2 # deux", "EXACT", "2", null, null)),
+                row(1, "# Devis", "COMMENT", null, null, null, null, -1, -1, NO_TAIL),
+                row(2, "", "EMPTY", null, null, null, null, -1, -1, NO_TAIL),
+                row(3, "   ", "EMPTY", null, null, null, null, -1, -1, NO_TAIL),
+                value(4, "2 # deux", "EXACT", "2", null, null, alone("= 2", UNUSED))),
                 new WebNotebook().load("# Devis\n\n   \n2 # deux", "AUTO"));
     }
 
     @Test
     void theJsonEscapesQuotesBackslashesAndControlCharactersAndNothingElse() {
         assertEquals("{\"number\":1,\"text\":\"\\\"\",\"status\":\"ERROR\",\"result\":null,\"exactFraction\":null,"
-                + "\"errorBound\":null,\"error\":\"Caractère inattendu « \\\" ».\",\"errorStart\":0,\"errorEnd\":1}",
+                + "\"errorBound\":null,\"error\":\"Caractère inattendu « \\\" ».\",\"errorStart\":0,\"errorEnd\":1" + NO_TAIL + "}",
                 onlyRow(new WebNotebook().load("\"", "AUTO")));
         assertEquals("{\"number\":1,\"text\":\"\\\\\",\"status\":\"ERROR\",\"result\":null,\"exactFraction\":null,"
-                + "\"errorBound\":null,\"error\":\"Caractère inattendu « \\\\ ».\",\"errorStart\":0,\"errorEnd\":1}",
+                + "\"errorBound\":null,\"error\":\"Caractère inattendu « \\\\ ».\",\"errorStart\":0,\"errorEnd\":1" + NO_TAIL + "}",
                 onlyRow(new WebNotebook().load("\\", "AUTO")));
         assertEquals("{\"number\":1,\"text\":\"1\\u0009+ 1\",\"status\":\"EXACT\",\"result\":\"2\",\"exactFraction\":null,"
-                + "\"errorBound\":null,\"error\":null,\"errorStart\":-1,\"errorEnd\":-1}",
+                + "\"errorBound\":null,\"error\":null,\"errorStart\":-1,\"errorEnd\":-1" + alone("= 2", UNUSED) + "}",
                 onlyRow(new WebNotebook().load("1\t+ 1", "AUTO")));
         assertTrue(new WebNotebook().load("\u0001", "AUTO").contains("\"text\":\"\\u0001\""));
         assertTrue(new WebNotebook().load("\u0019", "AUTO").contains("\"text\":\"\\u0019\""));
@@ -135,10 +146,10 @@ class WebNotebookAcceptanceTest {
     @Test
     void surrogatesPassAsTheyAreAndTheSpanCountsUtf16Units() {
         assertEquals("{\"number\":1,\"text\":\"1 😀 2\",\"status\":\"ERROR\",\"result\":null,\"exactFraction\":null,"
-                + "\"errorBound\":null,\"error\":\"Caractère inattendu « 😀 ».\",\"errorStart\":2,\"errorEnd\":4}",
+                + "\"errorBound\":null,\"error\":\"Caractère inattendu « 😀 ».\",\"errorStart\":2,\"errorEnd\":4" + NO_TAIL + "}",
                 onlyRow(new WebNotebook().load("1 😀 2", "AUTO")));
         assertEquals("{\"number\":1,\"text\":\"\uD83D\",\"status\":\"ERROR\",\"result\":null,\"exactFraction\":null,"
-                + "\"errorBound\":null,\"error\":\"Caractère inattendu « U+D83D ».\",\"errorStart\":0,\"errorEnd\":1}",
+                + "\"errorBound\":null,\"error\":\"Caractère inattendu « U+D83D ».\",\"errorStart\":0,\"errorEnd\":1" + NO_TAIL + "}",
                 onlyRow(new WebNotebook().load("\uD83D", "AUTO")));
     }
 
@@ -151,7 +162,8 @@ class WebNotebookAcceptanceTest {
         for (Map.Entry<String, String> shown : Map.of("AUTO", ROOT_AUTO, "DECIMAL", ROOT_AUTO, "FRACTION", ROOT_AUTO,
                 "SCIENTIFIC", ROOT_SCIENTIFIC).entrySet()) {
             assertEquals(snapshot(shown.getKey(), false, false, null,
-                    value(1, "√2", "APPROXIMATE", shown.getValue(), null, ROOT_BOUND)), notebook.setMode(shown.getKey()));
+                    value(1, "√2", "APPROXIMATE", shown.getValue(), null, ROOT_BOUND, alone(shown.getValue(), UNUSED, ROOT_BOUNDS))),
+                    notebook.setMode(shown.getKey()));
             assertEquals("√2", notebook.texts());
         }
     }
@@ -163,13 +175,14 @@ class WebNotebookAcceptanceTest {
         for (Map.Entry<String, String> shown : Map.of("AUTO", THIRD_AUTO, "DECIMAL", THIRD_AUTO, "FRACTION", "1/3",
                 "SCIENTIFIC", THIRD_SCIENTIFIC).entrySet()) {
             assertEquals(snapshot(shown.getKey(), false, false, null,
-                    value(1, "1/3", "EXACT", shown.getValue(), "1/3", null)), notebook.setMode(shown.getKey()));
+                    value(1, "1/3", "EXACT", shown.getValue(), "1/3", null, alone("= " + shown.getValue(), UNUSED))),
+                    notebook.setMode(shown.getKey()));
         }
     }
 
     @Test
     void loadChoosesTheModeOfTheNotebook() {
-        assertEquals(snapshot("SCIENTIFIC", false, false, null, value(1, "√2", "APPROXIMATE", ROOT_SCIENTIFIC, null, ROOT_BOUND)),
+        assertEquals(snapshot("SCIENTIFIC", false, false, null, value(1, "√2", "APPROXIMATE", ROOT_SCIENTIFIC, null, ROOT_BOUND, alone(ROOT_SCIENTIFIC, UNUSED, ROOT_BOUNDS))),
                 new WebNotebook().load("√2", "SCIENTIFIC"));
     }
 
@@ -222,7 +235,7 @@ class WebNotebookAcceptanceTest {
         assertEquals(new Span(2, 3), error.span());
 
         assertEquals(snapshot("AUTO", false, false, null,
-                row(1, "2 +", "ERROR", null, null, null, error.message(), error.span().start(), error.span().end())),
+                row(1, "2 +", "ERROR", null, null, null, error.message(), error.span().start(), error.span().end(), NO_TAIL)),
                 new WebNotebook().load("2 +", "AUTO"));
     }
 
@@ -252,17 +265,25 @@ class WebNotebookAcceptanceTest {
     @Test
     void movingALineRenumbersItsReferencesThenUndoAndRedoRestoreThem() {
         WebNotebook notebook = new WebNotebook();
-        String loaded = snapshot("AUTO", false, false, null, value(1, "10", "EXACT", "10", null, null),
-                value(2, "3", "EXACT", "3", null, null), value(3, "$1 + 1", "EXACT", "11", null, null));
+        String loaded = snapshot("AUTO", false, false, null,
+                value(1, "10", "EXACT", "10", null, null, tail(null, "[]", "[3]", "= 10", "Utilisée par 1 ligne")),
+                value(2, "3", "EXACT", "3", null, null, alone("= 3", UNUSED)),
+                value(3, "$1 + 1", "EXACT", "11", null, null,
+                        tail(null, "[1]", "[]", "= 10 + 1", "= 11", "Sources : ligne 1", UNUSED)));
         assertEquals(loaded, notebook.load("10\n3\n$1 + 1", "AUTO"));
 
-        String moved = snapshot("AUTO", true, false, null, value(1, "3", "EXACT", "3", null, null),
-                value(2, "10", "EXACT", "10", null, null), value(3, "$2 + 1", "EXACT", "11", null, null));
+        String moved = snapshot("AUTO", true, false, null, value(1, "3", "EXACT", "3", null, null, alone("= 3", UNUSED)),
+                value(2, "10", "EXACT", "10", null, null, tail(null, "[]", "[3]", "= 10", "Utilisée par 1 ligne")),
+                value(3, "$2 + 1", "EXACT", "11", null, null,
+                        tail(null, "[2]", "[]", "= 10 + 1", "= 11", "Sources : ligne 2", UNUSED)));
         assertEquals(moved, notebook.move(2, 1));
         assertEquals("3\n10\n$2 + 1", notebook.texts());
 
-        String undone = snapshot("AUTO", false, true, null, value(1, "10", "EXACT", "10", null, null),
-                value(2, "3", "EXACT", "3", null, null), value(3, "$1 + 1", "EXACT", "11", null, null));
+        String undone = snapshot("AUTO", false, true, null,
+                value(1, "10", "EXACT", "10", null, null, tail(null, "[]", "[3]", "= 10", "Utilisée par 1 ligne")),
+                value(2, "3", "EXACT", "3", null, null, alone("= 3", UNUSED)),
+                value(3, "$1 + 1", "EXACT", "11", null, null,
+                        tail(null, "[1]", "[]", "= 10 + 1", "= 11", "Sources : ligne 1", UNUSED)));
         assertEquals(undone, notebook.undo());
         assertEquals("10\n3\n$1 + 1", notebook.texts());
 
@@ -319,7 +340,7 @@ class WebNotebookAcceptanceTest {
         notebook.append("3");
         notebook.undo();
 
-        assertEquals(snapshot("FRACTION", false, false, null, value(1, "7", "EXACT", "7", null, null)),
+        assertEquals(snapshot("FRACTION", false, false, null, value(1, "7", "EXACT", "7", null, null, alone("= 7", UNUSED))),
                 notebook.load("7", "FRACTION"));
         assertEquals("7", notebook.texts());
     }
@@ -331,12 +352,12 @@ class WebNotebookAcceptanceTest {
         assertEquals(snapshot("AUTO", false, false, null), notebook.load("", "AUTO"));
         assertEquals("", notebook.texts());
 
-        assertEquals(snapshot("AUTO", false, false, null, value(1, "1", "EXACT", "1", null, null),
-                row(2, "", "EMPTY", null, null, null, null, -1, -1)), notebook.load("1\n", "AUTO"));
+        assertEquals(snapshot("AUTO", false, false, null, value(1, "1", "EXACT", "1", null, null, alone("= 1", UNUSED)),
+                row(2, "", "EMPTY", null, null, null, null, -1, -1, NO_TAIL)), notebook.load("1\n", "AUTO"));
         assertEquals("1\n", notebook.texts());
 
-        assertEquals(snapshot("AUTO", false, false, null, row(1, "", "EMPTY", null, null, null, null, -1, -1),
-                row(2, "", "EMPTY", null, null, null, null, -1, -1)), notebook.load("\n", "AUTO"));
+        assertEquals(snapshot("AUTO", false, false, null, row(1, "", "EMPTY", null, null, null, null, -1, -1, NO_TAIL),
+                row(2, "", "EMPTY", null, null, null, null, -1, -1, NO_TAIL)), notebook.load("\n", "AUTO"));
         assertEquals("\n", notebook.texts());
     }
 
@@ -375,8 +396,8 @@ class WebNotebookAcceptanceTest {
         WebNotebook notebook = new WebNotebook();
         notebook.load("1\n2\n$1 + $2", "AUTO");
 
-        assertEquals(snapshot("AUTO", true, false, null, value(1, "2", "EXACT", "2", null, null),
-                row(2, "$? + $1", "ERROR", null, null, null, DELETED_REFERENCE, 0, 2)), notebook.delete(1));
+        assertEquals(snapshot("AUTO", true, false, null, value(1, "2", "EXACT", "2", null, null, alone("= 2", UNUSED)),
+                row(2, "$? + $1", "ERROR", null, null, null, DELETED_REFERENCE, 0, 2, NO_TAIL)), notebook.delete(1));
         assertEquals("2\n$? + $1", notebook.texts());
 
         notebook.undo();
@@ -398,7 +419,8 @@ class WebNotebookAcceptanceTest {
     @Test
     void anAppendOnAnEmptyNotebookGivesItsFirstLine() {
         WebNotebook notebook = new WebNotebook();
-        assertEquals(snapshot("AUTO", true, false, null, value(1, "1", "EXACT", "1", null, null)), notebook.append("1"));
+        assertEquals(snapshot("AUTO", true, false, null, value(1, "1", "EXACT", "1", null, null, alone("= 1", UNUSED))),
+                notebook.append("1"));
     }
 
     /** Every command, numbers from 1 on one side and identifiers and an index from 0 on the other: same text, same snapshot. */
@@ -576,9 +598,10 @@ class WebNotebookAcceptanceTest {
         WebNotebook notebook = new WebNotebook();
         notebook.load("9", "AUTO");
 
-        assertEquals(snapshot("AUTO", true, false, null, value(1, "1 + 1", "EXACT", "2", null, null)), notebook.edit(1, "1\n+\r1"));
-        assertEquals(snapshot("AUTO", true, false, null, value(1, "1 + 1", "EXACT", "2", null, null),
-                value(2, "2 + 2", "EXACT", "4", null, null)), notebook.append("2\n+\r2"));
+        assertEquals(snapshot("AUTO", true, false, null, value(1, "1 + 1", "EXACT", "2", null, null, alone("= 2", UNUSED))),
+                notebook.edit(1, "1\n+\r1"));
+        assertEquals(snapshot("AUTO", true, false, null, value(1, "1 + 1", "EXACT", "2", null, null, alone("= 2", UNUSED)),
+                value(2, "2 + 2", "EXACT", "4", null, null, alone("= 4", UNUSED))), notebook.append("2\n+\r2"));
         notebook.insertBefore(1, "3\n+\r3");
         notebook.insertAfter(1, "4\n+\r4");
         assertEquals("3 + 3\n4 + 4\n1 + 1\n2 + 2", notebook.texts());
@@ -595,8 +618,8 @@ class WebNotebookAcceptanceTest {
     @Test
     void loadSplitsOnLineFeedsAndTurnsCarriageReturnsIntoSpaces() {
         WebNotebook notebook = new WebNotebook();
-        assertEquals(snapshot("AUTO", false, false, null, value(1, "1 ", "EXACT", "1", null, null),
-                value(2, "2 + 2", "EXACT", "4", null, null)), notebook.load("1\r\n2\r+ 2", "AUTO"));
+        assertEquals(snapshot("AUTO", false, false, null, value(1, "1 ", "EXACT", "1", null, null, alone("= 1", UNUSED)),
+                value(2, "2 + 2", "EXACT", "4", null, null, alone("= 4", UNUSED))), notebook.load("1\r\n2\r+ 2", "AUTO"));
         assertEquals("1 \n2 + 2", notebook.texts());
     }
 
@@ -778,41 +801,71 @@ class WebNotebookAcceptanceTest {
                 + ",\"lines\":" + lines + "}";
     }
 
-    private static String value(int number, String text, String status, String result, String fraction, String bound) {
-        return row(number, text, status, result, fraction, bound, null, -1, -1);
+    private static String value(int number, String text, String status, String result, String fraction, String bound, String tail) {
+        return row(number, text, status, result, fraction, bound, null, -1, -1, tail);
     }
 
+    /** The nine fields that were there, then {@code tail}: the four that the snapshot ends with. */
     private static String row(int number, String text, String status, String result, String fraction, String bound, String error,
-            int start, int end) {
+            int start, int end, String tail) {
         return "{\"number\":" + number + ",\"text\":" + json(text) + ",\"status\":\"" + status + "\",\"result\":" + json(result)
                 + ",\"exactFraction\":" + json(fraction) + ",\"errorBound\":" + json(bound) + ",\"error\":" + json(error)
-                + ",\"errorStart\":" + start + ",\"errorEnd\":" + end + "}";
+                + ",\"errorStart\":" + start + ",\"errorEnd\":" + end + tail + "}";
+    }
+
+    /** The name ({@code null} for none), the sources and the users as JSON arrays, the sentences of the detail. */
+    private static String tail(String name, String sources, String usedBy, String... detail) {
+        StringJoiner sentences = new StringJoiner(",", "[", "]");
+        for (String sentence : detail) {
+            sentences.add(json(sentence));
+        }
+        return ",\"name\":" + json(name) + ",\"sources\":" + sources + ",\"usedBy\":" + usedBy + ",\"detail\":" + sentences;
+    }
+
+    /** A line without a name that reads no line and that no line reads. */
+    private static String alone(String... detail) {
+        return tail(null, "[]", "[]", detail);
     }
 
     /** The snapshot that the core gives, by the rules of NotebookPresenter.row. */
     private static String fromCore(DisplayMode mode, boolean canUndo, boolean canRedo, EvaluatedNotebook evaluated) {
         List<String> rows = new ArrayList<>();
         for (LineResult result : evaluated.results()) {
-            rows.add(rowFromCore(result, mode));
+            rows.add(rowFromCore(result, mode, evaluated));
         }
         return snapshot(mode.name(), canUndo, canRedo, null, rows.toArray(String[]::new));
     }
 
-    private static String rowFromCore(LineResult result, DisplayMode mode) {
+    private static String rowFromCore(LineResult result, DisplayMode mode, EvaluatedNotebook evaluated) {
+        String tail = tailFromCore(result, mode, evaluated);
         if (result.isError()) {
             Span span = result.error().span();
             int end = Math.min(span.end(), result.text().length());
             boolean marked = span.length() > 0 && span.start() < end;
             return row(result.number(), result.text(), "ERROR", null, null, null, result.error().message(),
-                    marked ? span.start() : -1, marked ? end : -1);
+                    marked ? span.start() : -1, marked ? end : -1, tail);
         }
         if (result.hasValue()) {
             FormattedValue formatted = ValueFormatter.format(result.value(), mode);
             return value(result.number(), result.text(), formatted.exact() ? "EXACT" : "APPROXIMATE", formatted.text(),
-                    formatted.exactFraction().orElse(null), formatted.errorBound().orElse(null));
+                    formatted.exactFraction().orElse(null), formatted.errorBound().orElse(null), tail);
         }
         return row(result.number(), result.text(), result.kind() == ParsedLine.Kind.COMMENT ? "COMMENT" : "EMPTY", null, null, null,
-                null, -1, -1);
+                null, -1, -1, tail);
+    }
+
+    /** The four last fields, from the sources, the inverse of the sources and the sentences of the core. */
+    private static String tailFromCore(LineResult result, DisplayMode mode, EvaluatedNotebook evaluated) {
+        TreeSet<Integer> sources = new TreeSet<>();
+        for (Source source : result.sources()) {
+            sources.add(evaluated.result(source.target()).number());
+        }
+        List<Integer> users = new ArrayList<>();
+        for (LineId user : evaluated.usedBy(result.id())) {
+            users.add(evaluated.result(user).number());
+        }
+        return tail(result.definedName(), sources.toString().replace(" ", ""), users.toString().replace(" ", ""),
+                LineDetailText.of(evaluated, result.id(), mode).toArray(String[]::new));
     }
 
     private static String json(String value) {

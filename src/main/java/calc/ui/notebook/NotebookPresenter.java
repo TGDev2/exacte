@@ -75,6 +75,7 @@ public final class NotebookPresenter {
 
     static final String DEFAULT_STATUS = "Une expression par ligne. Entrée valide la ligne, Échap annule la saisie en cours.";
     static final String READ_ONLY_STATUS = "Calc est déjà ouvert ou le carnet est en lecture seule : les modifications ne seront pas enregistrées.";
+    private static final String HOW_TO_INTERRUPT = " — Échap pour interrompre";
     private static final String WATERMARK = "Une expression par ligne, par exemple : " + String.join("   ·   ", EXAMPLES);
 
     // A line break of a pasted text.
@@ -127,6 +128,8 @@ public final class NotebookPresenter {
     // The file just opened, whose sentence counts the lines in error and so waits for the end of the calculation.
     private Path openedFile;
     private String openedNotice = "";
+    // The summary of the status bar, counted once when a calculation has ended (never line by line); empty until then.
+    private String summary = "";
     private final List<WaitingExport> waitingExports = new ArrayList<>();
     private final NotebookPreview<PreviewKey> preview;
     // The preview asked for and not arrived yet; null when none is under way.
@@ -195,6 +198,7 @@ public final class NotebookPresenter {
 
             @Override
             public void finished() {
+                summarize();
                 announceOpenedFile();
                 writeWaitingExports();
                 tellTheView();
@@ -1095,7 +1099,9 @@ public final class NotebookPresenter {
     // what the window hears during a dialog is never about an old one.
     private void recalculate() {
         interruption = null;
+        summary = "";
         if (recalculation.calculate(document.notebook())) {
+            summarize();
             announceOpenedFile();
         }
     }
@@ -1107,7 +1113,28 @@ public final class NotebookPresenter {
         }
     }
 
+    // « N exactes, M approchées, K en erreur » from the results of the notebook calculated; comments and empty lines are not counted.
+    private void summarize() {
+        int exact = 0;
+        int approximate = 0;
+        int errors = 0;
+        for (LineResult result : recalculation.known()) {
+            if (result.isError()) {
+                errors++;
+            } else if (result.hasValue()) {
+                if (result.value().isExact()) {
+                    exact++;
+                } else {
+                    approximate++;
+                }
+            }
+        }
+        summary = exact + (exact > 1 ? " exactes, " : " exacte, ") + approximate + (approximate > 1 ? " approchées, " : " approchée, ")
+                + errors + " en erreur";
+    }
+
     private void interrupt(String sentence) {
+        summary = "";
         transientMessage = null;
         openedFile = null;
         interruption = new Message(sentence + recalculation.knownCount() + " / " + document.notebook().size() + " lignes calculées."
@@ -1182,12 +1209,25 @@ public final class NotebookPresenter {
             rows.set(active, rows.get(active).withPreview(shownPreview));
         }
         Message status = status();
+        int lines = notebook.size();
         boolean showHelp = notebook.isEmpty() && draft.isEmpty();
         boolean close = closeRequested;
         closeRequested = false;
         return new NotebookViewModel(rows, activeIndex(), draft, focus, document.canUndo(), document.canRedo() || isDraftRestorable(), mode,
                 status.text(), status.tone(), showHelp ? WATERMARK : "", title(), !document.isReadOnlyFile(), close,
-                theme, effectiveTheme(theme, systemTheme), systemTheme.available(), detail);
+                theme, effectiveTheme(theme, systemTheme), systemTheme.available(), detail, saveState(),
+                lines + (lines > 1 ? " lignes" : " ligne"), summary);
+    }
+
+    // How the document is kept: a file the program may not write, the untitled notebook saved at each change, or a file.
+    private String saveState() {
+        if (document.isReadOnlyFile()) {
+            return "Lecture seule";
+        }
+        if (document.isUntitled()) {
+            return "Enregistrement automatique";
+        }
+        return document.isModified() ? "Modifié" : "Enregistré";
     }
 
     /**
@@ -1220,7 +1260,8 @@ public final class NotebookPresenter {
         Message urgent = urgentError();
         if (recalculation.isRunning()) {
             String count = "Calcul en cours : " + recalculation.knownCount() + " / " + document.notebook().size() + " lignes";
-            return urgent == null ? new Message(count, StatusTone.INFO) : new Message(count + ". " + urgent.text(), StatusTone.ERROR);
+            return urgent == null ? new Message(count + HOW_TO_INTERRUPT, StatusTone.INFO)
+                    : new Message(count + ". " + urgent.text() + HOW_TO_INTERRUPT, StatusTone.ERROR);
         }
         if (urgent != null) {
             return urgent;

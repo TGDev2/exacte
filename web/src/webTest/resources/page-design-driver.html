@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Page pilote du design de la page Calc</title>
+</head>
+<body>
+<iframe id="page" title="Page sous test" style="height: 1400px; border: 0"></iframe>
+<pre id="result"></pre>
+<script>
+'use strict';
+// Opens index.html in an iframe on a notebook kept in the localStorage, moves the current line, and writes what the page
+// shows, as JSON, in <pre id="result">: the margin, the name, the result, the error and the detail of every line, the
+// colour scheme the browser reports, the background of the page and its layout.
+//
+//   ?scenario={"width":1024,"mode":"AUTO","lines":["…"],"steps":[{"focus":5},{"snapshot":"l5"}]}
+//
+// Steps: {"focus":5} focuses the field of line 5, the way a click does; {"snapshot":"name"} keeps the state of the lines.
+// The expected strings are read at the very end from the compiled core of the page (load of the same lines and mode), once
+// every observation of the page is taken: that call resets the notebook of the core.
+//
+// Only fixed selectors are used: [data-line="<number>"] with input.expression, .number, .sign, .source-mark, .name,
+// .result, .error, mark, .detail and its <p>, .badge (which must be gone); button; [data-theme].
+
+const KEY = 'calc.web.notebook.v1';
+const WATCHDOG_MS = 19000;
+const STEP_MS = 50;
+const SETTLE_MS = 300;
+const DARK_QUERY = '(prefers-color-scheme: dark)';
+
+const observed = {
+  error: null, snapshots: {}, expected: null, scheme: null, layout: null, buttons: [], resources: [], pageErrors: [],
+  addedElements: [], fonts: null,
+};
+let finished = false;
+
+function finish() {
+  if (finished) {
+    return;
+  }
+  finished = true;
+  // Pure ASCII, without any character HTML would escape: the test reads the text of the dump as it is.
+  document.getElementById('result').textContent = JSON.stringify(observed).replace(/[^\x20-\x7e]|[<>&]/g,
+      (unit) => '\\u' + unit.charCodeAt(0).toString(16).padStart(4, '0'));
+}
+
+function pause(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+// textContent as it is: a no-break space of a result is part of what the core gave.
+function rawText(element) {
+  return element === null ? null : element.textContent;
+}
+
+function trimmed(element) {
+  return element === null ? null : element.textContent.trim();
+}
+
+function box(element) {
+  if (element === null) {
+    return null;
+  }
+  const rect = element.getBoundingClientRect();
+  return {left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom, width: rect.width, height: rect.height};
+}
+
+function isShown(element) {
+  if (element === null || !element.checkVisibility({checkOpacity: true, checkVisibilityCSS: true})) {
+    return false;
+  }
+  const rect = element.getBoundingClientRect();
+  return rect.width > 0 && rect.height > 0;
+}
+
+function rowOf(row, win) {
+  const part = (selector) => row.querySelector(selector);
+  const input = part('input.expression');
+  const result = part('.result');
+  const resultStyle = result === null ? null : win.getComputedStyle(result);
+  const inputStyle = input === null ? null : win.getComputedStyle(input);
+  const badgeTexts = Array.from(row.querySelectorAll('*'))
+      .filter((element) => element.children.length === 0)
+      .map((element) => element.textContent.trim())
+      .filter((text) => text === 'Exact' || text === '≈ Approché');
+  return {
+    line: Number(row.getAttribute('data-line')),
+    classes: Array.from(row.classList),
+    value: input === null ? null : input.value,
+    number: trimmed(part('.number')),
+    sign: trimmed(part('.sign')),
+    sourceMark: trimmed(part('.source-mark')),
+    name: trimmed(part('.name')),
+    result: rawText(result),
+    error: trimmed(part('.error')),
+    marks: Array.from(row.querySelectorAll('mark'), (mark) => mark.textContent),
+    details: Array.from(row.querySelectorAll('.detail'), (detail) => ({
+      paragraphs: Array.from(detail.querySelectorAll('p'), (paragraph) => paragraph.textContent),
+      shown: isShown(detail),
+      box: box(detail),
+    })),
+    badges: row.querySelectorAll('.badge').length,
+    badgeTexts: badgeTexts,
+    shown: {
+      number: isShown(part('.number')), result: isShown(result), error: isShown(part('.error')), name: isShown(part('.name')),
+    },
+    boxes: {
+      input: box(input), number: box(part('.number')), sign: box(part('.sign')), sourceMark: box(part('.source-mark')),
+      result: box(result), error: box(part('.error')),
+    },
+    style: {
+      resultFamily: resultStyle === null ? null : resultStyle.fontFamily,
+      resultNumeric: resultStyle === null ? null : resultStyle.fontVariantNumeric,
+      inputFamily: inputStyle === null ? null : inputStyle.fontFamily,
+    },
+  };
+}
+
+function rows(frame) {
+  return Array.from(frame.contentDocument.querySelectorAll('[data-line]'), (row) => rowOf(row, frame.contentWindow));
+}
+
+function focusLine(frame, number) {
+  const row = frame.contentDocument.querySelector('[data-line="' + number + '"]');
+  const input = row === null ? null : row.querySelector('input.expression');
+  if (input === null) {
+    throw new Error('la ligne ' + number + ' n\'a pas de input.expression');
+  }
+  input.focus();
+}
+
+async function play(frame, step) {
+  if ('focus' in step) {
+    focusLine(frame, step.focus);
+    await pause(STEP_MS);
+  } else if ('snapshot' in step) {
+    observed.snapshots[step.snapshot] = rows(frame);
+  } else {
+    throw new Error('étape inconnue : ' + JSON.stringify(step));
+  }
+}
+
+function watchThePage(frame) {
+  const win = frame.contentWindow;
+  win.addEventListener('error', (event) => observed.pageErrors.push(String(event.message)));
+  win.addEventListener('unhandledrejection', (event) => observed.pageErrors.push(String(event.reason)));
+  new win.MutationObserver((records) => {
+    for (const record of records) {
+      for (const node of record.addedNodes) {
+        if (node.nodeType === 1) {
+          const dangerous = [node].concat(Array.from(node.querySelectorAll('*'))).filter((element) =>
+            ['IMG', 'SCRIPT', 'IFRAME', 'OBJECT', 'EMBED', 'SVG'].includes(element.tagName.toUpperCase()));
+          observed.addedElements.push(...dangerous.map((element) => element.tagName));
+        }
+      }
+    }
+  }).observe(frame.contentDocument.documentElement, {childList: true, subtree: true});
+}
+
+function readFinalState(frame) {
+  const doc = frame.contentDocument;
+  const win = frame.contentWindow;
+  const bodyBackground = win.getComputedStyle(doc.body).backgroundColor;
+  const rootStyle = win.getComputedStyle(doc.documentElement);
+  observed.scheme = {
+    driverPrefersDark: window.matchMedia(DARK_QUERY).matches,
+    pagePrefersDark: win.matchMedia(DARK_QUERY).matches,
+    themedInPage: doc.querySelectorAll('[data-theme]').length,
+    themedInDriver: document.querySelectorAll('[data-theme]').length,
+    bodyBackground: bodyBackground,
+    rootBackground: rootStyle.backgroundColor,
+    surfaceBase: rootStyle.getPropertyValue('--color-surface-base').trim(),
+  };
+  observed.fonts = {
+    mono: rootStyle.getPropertyValue('--font-mono').trim(),
+    ui: rootStyle.getPropertyValue('--font-ui').trim(),
+  };
+  observed.layout = {
+    innerWidth: win.innerWidth,
+    scrollWidth: doc.documentElement.scrollWidth,
+    clientWidth: doc.documentElement.clientWidth,
+  };
+  observed.buttons = Array.from(doc.querySelectorAll('button'), (button) => {
+    const rect = button.getBoundingClientRect();
+    return {
+      text: button.textContent.trim(), width: rect.width, height: rect.height, right: rect.right, shown: isShown(button),
+    };
+  });
+  observed.resources = win.performance.getEntriesByType('resource').map((entry) => entry.name)
+      .map((name) => (name.startsWith(location.origin + '/') ? name.substring(location.origin.length) : name));
+  observed.snapshots.final = rows(frame);
+}
+
+async function run() {
+  const scenario = JSON.parse(new URLSearchParams(location.search).get('scenario'));
+  const frame = document.getElementById('page');
+  frame.style.width = (scenario.width || 1024) + 'px';
+  localStorage.clear();
+  localStorage.setItem(KEY, JSON.stringify({version: 1, mode: scenario.mode || 'AUTO', lines: scenario.lines}));
+  await new Promise((resolve) => {
+    frame.addEventListener('load', resolve, {once: true});
+    frame.src = 'index.html';
+  });
+  watchThePage(frame);
+  await pause(STEP_MS);
+  for (const step of scenario.steps || []) {
+    await play(frame, step);
+  }
+  await pause(SETTLE_MS);
+  readFinalState(frame);
+  // Last: this call resets the notebook of the core of the page.
+  observed.expected = JSON.parse(frame.contentWindow.load(scenario.lines.join('\n'), scenario.mode || 'AUTO'));
+}
+
+setTimeout(() => {
+  observed.error = observed.error || 'pas de constat au bout de ' + WATCHDOG_MS + ' ms';
+  finish();
+}, WATCHDOG_MS);
+
+run().catch((failure) => {
+  observed.error = String(failure);
+}).finally(finish);
+</script>
+</body>
+</html>

@@ -36,7 +36,7 @@ final class NotebookDriver {
         view = new NotebookViewModel(settled.rows(), settled.activeIndex(), settled.activeDraft(), told.focus(), settled.canUndo(),
                 settled.canRedo(), settled.displayMode(), settled.statusMessage(), settled.statusTone(), settled.watermark(),
                 settled.title(), settled.canSave(), told.closeWindow(), settled.theme(), settled.effectiveTheme(),
-                settled.systemThemeAvailable(), settled.activeDetail());
+                settled.systemThemeAvailable(), settled.activeDetail(), settled.saveState(), settled.lineCount(), settled.summary());
         field = settled.activeDraft();
     }
 
