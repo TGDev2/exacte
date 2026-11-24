@@ -45,14 +45,12 @@ class PaletteContrastTest {
                 backgrounds.putAll(SYSTEM_PANELS);
             }
             String name = theme.name().toLowerCase(java.util.Locale.ROOT) + ": ";
-            ratios.put(name + "exact badge", Contrast.ratio(palette.exactForeground(), palette.exactBackground()));
-            ratios.put(name + "approximate badge", Contrast.ratio(palette.approximateForeground(), palette.approximateBackground()));
             Map<String, Color> foregrounds = new LinkedHashMap<>();
             foregrounds.put("success", palette.success());
             foregrounds.put("error", palette.error());
             foregrounds.put("info", palette.info());
-            foregrounds.put("exact mark", palette.exactForeground());
-            foregrounds.put("approximate mark", palette.approximateForeground());
+            foregrounds.put("exact sign", palette.exactSign());
+            foregrounds.put("approximate sign", palette.approximateSign());
             foregrounds.forEach((foreground, colour) -> backgrounds.forEach((background, under) ->
                     ratios.put(name + foreground + " on " + background, Contrast.ratio(colour, under))));
         }

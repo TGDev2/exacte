@@ -106,7 +106,7 @@ one byte over the limit (not even read: a 100 MB file is refused in 1 ms), a mil
 | Version found 2026-10-26 (web search, not checked on the official pages) | 2.21.5 (3.2.1 for `tools.jackson`) | 2.14.0 | - |
 | Licence | Apache 2.0 | Apache 2.0 | project |
 | Read limits | yes: `StreamReadConstraints` (nesting depth, string length, number length, document length); defaults are large (nesting 1000, string 20 000 000, document unlimited) and must be set explicitly; limit bypasses have been fixed in several releases (e.g. in the byte-based parsers) | nesting limit only (255 by default since 2.12, configurable on `JsonReader`); **no limit on a string, a number or the document** | all of section 5, in 60 lines |
-| Dependency | a first runtime dependency (the project has none: `calc.jar` has no classpath, `jpackage` bundles the classes only) | the same | none |
+| Dependency | one more runtime dependency (the only ones are FlatLaf and its two fonts, ADR 0017; the JSON reader stays part of the code) | the same | none |
 | Numbers | parsed to `double`/`BigDecimal` unless the streaming API is used with care | `JsonReader.nextString()` possible, but the tree API reads `double` | the literal is kept as text, never converted |
 | Cost of ownership | updates for security advisories of the parser | idem | about 280 lines and its own tests |
 

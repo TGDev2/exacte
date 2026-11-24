@@ -116,11 +116,11 @@ class NotebookFilesTest {
         assertEquals("devis.calc.json — Calc", d.view.title());
 
         append("ans + 1");
-        assertEquals("• devis.calc.json — Calc", d.view.title(), "an edit of a document with a file is marked");
+        assertEquals("devis.calc.json (modifié) — Calc", d.view.title(), "an edit of a document with a file is marked");
         d.undo();
         assertEquals("devis.calc.json — Calc", d.view.title(), "undoing back to the saved state clears the marker");
         d.redo();
-        assertTrue(d.view.title().startsWith("• "));
+        assertTrue(d.view.title().contains(" (modifié) "));
         d.save();
         assertEquals("devis.calc.json — Calc", d.view.title(), "saving clears the marker");
         dialogs.assertAllUsed();
@@ -223,7 +223,7 @@ class NotebookFilesTest {
 
         assertEquals(StatusTone.ERROR, d.view.statusTone());
         assertTrue(d.view.statusMessage().startsWith("Impossible d'enregistrer le fichier"), d.view.statusMessage());
-        assertTrue(d.view.title().startsWith("• "), "still modified");
+        assertTrue(d.view.title().contains(" (modifié) "), "still modified");
     }
 
     @Test
@@ -302,7 +302,7 @@ class NotebookFilesTest {
         append("ans + 1");
         dialogs.willAnswer(Unsaved.CANCEL);
         d.newDocument();
-        assertEquals("• work.calc.json — Calc", d.view.title(), "new, cancel: the document and its changes stay");
+        assertEquals("work.calc.json (modifié) — Calc", d.view.title(), "new, cancel: the document and its changes stay");
         assertArrayEquals(saved, Files.readAllBytes(file));
 
         dialogs.willAnswer(Unsaved.DISCARD);
@@ -317,7 +317,7 @@ class NotebookFilesTest {
         append("ans + 1");
         dialogs.willOpen(other).willAnswer(Unsaved.CANCEL);
         d.open();
-        assertEquals("• work.calc.json — Calc", d.view.title(), "open, cancel: stays on the document");
+        assertEquals("work.calc.json (modifié) — Calc", d.view.title(), "open, cancel: stays on the document");
         assertEquals(List.of("a = 2", "a * 3", "ans + 1"), lines(d));
 
         dialogs.willOpen(other).willAnswer(Unsaved.SAVE);
@@ -528,7 +528,7 @@ class NotebookFilesTest {
         assertEquals("work.calc.json — Calc", d.view.title());
 
         d.mode(DisplayMode.FRACTION);
-        assertEquals("• work.calc.json — Calc", d.view.title());
+        assertEquals("work.calc.json (modifié) — Calc", d.view.title());
         dialogs.willAnswer(Unsaved.SAVE);
         d.close();
 
@@ -602,7 +602,7 @@ class NotebookFilesTest {
             d.open();
             assertEquals(StatusTone.ERROR, d.view.statusTone(), file.toString());
             assertEquals(List.of("a = 2", "a * 3", "ans + 1"), lines(d), "the document is still there: " + file);
-            assertEquals("• mine.calc.json — Calc", d.view.title(), "with its changes: " + file);
+            assertEquals("mine.calc.json (modifié) — Calc", d.view.title(), "with its changes: " + file);
         }
         // The reasons, in words.
         dialogs.willOpen(invalid).willAnswer(Unsaved.DISCARD);

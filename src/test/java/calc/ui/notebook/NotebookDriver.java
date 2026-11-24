@@ -1,6 +1,7 @@
 package calc.ui.notebook;
 
 import calc.format.DisplayMode;
+import calc.ui.ThemeChoice;
 import java.awt.Frame;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -34,13 +35,14 @@ final class NotebookDriver {
         NotebookViewModel settled = onEdt(presenter::currentView);
         view = new NotebookViewModel(settled.rows(), settled.activeIndex(), settled.activeDraft(), told.focus(), settled.canUndo(),
                 settled.canRedo(), settled.displayMode(), settled.statusMessage(), settled.statusTone(), settled.watermark(),
-                settled.title(), settled.canSave(), told.closeWindow());
+                settled.title(), settled.canSave(), told.closeWindow(), settled.theme(), settled.effectiveTheme(),
+                settled.systemThemeAvailable(), settled.activeDetail());
         field = settled.activeDraft();
     }
 
-    /** Until the calculation under way has ended and the event thread has taken in all it produced. */
+    /** Until the calculation and the preview under way have ended and the event thread has taken in all they produced. */
     void awaitIdle() {
-        await(presenter::isCalculating);
+        await(() -> presenter.isCalculating() || presenter.isPreviewing());
     }
 
     /** The same for every window of the test. */
@@ -100,6 +102,34 @@ final class NotebookDriver {
         return this;
     }
 
+    /**
+     * Types {@code text} into the active field as the keyboard does: the presenter hears it at once (nothing is validated), and
+     * what is read here is the state once its preview has arrived.
+     */
+    NotebookDriver typing(String text) {
+        field = text;
+        show(() -> presenter.onDraftChanged(text));
+        return this;
+    }
+
+    /**
+     * Pastes {@code text} into the active field over its selection {@code start} to {@code end}, as Ctrl+V does: the field
+     * hands a text of several lines to the presenter, which already knows what the field holds.
+     */
+    NotebookDriver paste(int start, int end, String text) {
+        return pasteInto(view.activeIndex(), start, end, text);
+    }
+
+    /** The same into the field of the row at {@code index} (from 0), which a drop can reach without the focus. */
+    NotebookDriver pasteInto(int index, int start, int end, String text) {
+        String typed = field;
+        show(() -> {
+            presenter.onDraftChanged(typed);
+            return presenter.onPaste(index, start, end, text);
+        });
+        return this;
+    }
+
     /** The text now in the active field. */
     String field() {
         return field;
@@ -137,6 +167,12 @@ final class NotebookDriver {
 
     NotebookDriver redo() {
         show(() -> presenter.onRedo(field));
+        return this;
+    }
+
+    /** Affichage > Thème, with what is typed in the active field. */
+    NotebookDriver theme(ThemeChoice choice) {
+        show(() -> presenter.onThemeChanged(choice, field));
         return this;
     }
 

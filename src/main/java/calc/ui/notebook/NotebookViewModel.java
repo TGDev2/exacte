@@ -1,7 +1,10 @@
 package calc.ui.notebook;
 
+import calc.detail.LineDetailText;
 import calc.format.DisplayMode;
 import calc.ui.StatusTone;
+import calc.ui.ThemeChoice;
+import calc.ui.design.Theme;
 import java.util.List;
 
 /**
@@ -15,8 +18,16 @@ import java.util.List;
  * <p>{@code title} is the title of the window (document name, modified marker), {@code canSave} whether « Enregistrer » can
  * write the document (false for a file from a newer version), {@code closeWindow} that the window must now be closed.
  *
- * @param activeIndex the index, from 0, of the active row
- * @param focus       where the focus must go once the view model is shown
+ * <p>{@code theme} is the choice of Affichage > Thème, {@code effectiveTheme} the theme the window draws for it, and
+ * {@code systemThemeAvailable} whether the choice of the system theme is offered.
+ *
+ * <p>{@code activeDetail} is the detail of the active line ({@link LineDetailText}), shown under it; it is empty for a line
+ * without a value and while the notebook is being calculated. The rows that are sources of the active line say so
+ * ({@link NotebookRow#source()}).
+ *
+ * @param activeIndex  the index, from 0, of the active row
+ * @param focus        where the focus must go once the view model is shown
+ * @param activeDetail the sentences of the detail of the active line
  */
 public record NotebookViewModel(
         List<NotebookRow> rows,
@@ -31,10 +42,15 @@ public record NotebookViewModel(
         String watermark,
         String title,
         boolean canSave,
-        boolean closeWindow) {
+        boolean closeWindow,
+        ThemeChoice theme,
+        Theme effectiveTheme,
+        boolean systemThemeAvailable,
+        List<LineDetailText.Sentence> activeDetail) {
 
     public NotebookViewModel {
         rows = List.copyOf(rows);
+        activeDetail = List.copyOf(activeDetail);
         if (rows.isEmpty() || activeIndex < 0 || activeIndex >= rows.size()) {
             throw new IllegalArgumentException("active row " + activeIndex + " among " + rows.size());
         }

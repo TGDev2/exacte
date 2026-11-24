@@ -1,5 +1,6 @@
 package calc.ui.notebook;
 
+import calc.detail.LineDetailText;
 import calc.document.DocumentException;
 import calc.document.DocumentService;
 import calc.export.NotebookExporter;
@@ -15,12 +16,17 @@ import calc.notebook.LineResult;
 import calc.notebook.Notebook;
 import calc.notebook.NotebookCommand;
 import calc.notebook.NotebookException;
+import calc.notebook.Source;
 import calc.persistence.LoadedNotebook;
 import calc.persistence.NotebookStore;
 import calc.persistence.StorageLimits;
 import calc.ui.DisplayModeStore;
 import calc.ui.ResultDescription;
 import calc.ui.StatusTone;
+import calc.ui.ThemeChoice;
+import calc.ui.ThemeStore;
+import calc.ui.design.Theme;
+import calc.ui.theme.SystemThemeDetector;
 import calc.ui.widget.DisplayModeText;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -37,6 +43,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.regex.Pattern;
 
 /**
  * All the interaction logic of the notebook window, without Swing (docs/adr/0010-editeur-carnet.md). It drives a
@@ -51,7 +58,9 @@ import java.util.logging.Logger;
  * pending.
  *
  * <p>The model (the texts) changes here, on the event thread; the results come from a {@link NotebookRecalculation}, which
- * calculates elsewhere (docs/adr/0014-calcul-hors-interface.md). A line without its result yet says {@value #PENDING_RESULT}, a
+ * calculates elsewhere (docs/adr/0014-calcul-hors-interface.md). While a text is typed, a {@link NotebookPreview}, on its own
+ * thread, gives the result the line would have: the active row shows it as its {@link NotebookRow#preview()}, for that exact
+ * text only, and it is never applied, undone or saved. A line without its result yet says {@value #PENDING_RESULT}, a
  * view model never holds an old value, and files that only hold texts are written at once. An export needs the results: it
  * waits for them, and follows the notebook until they are there.
  *
@@ -68,6 +77,10 @@ public final class NotebookPresenter {
     static final String READ_ONLY_STATUS = "Calc est déjà ouvert ou le carnet est en lecture seule : les modifications ne seront pas enregistrées.";
     private static final String WATERMARK = "Une expression par ligne, par exemple : " + String.join("   ·   ", EXAMPLES);
 
+    // A line break of a pasted text.
+    private static final Pattern LINE_BREAK = Pattern.compile("\\r\\n|\\r|\\n");
+    /** The start of the message of a paste refused as a whole. */
+    static final String PASTE_REFUSED = "Collage refusé : ";
     /** What the column of the results says of a line not calculated yet. */
     static final String PENDING_RESULT = "Calcul en cours…";
     /** Why a line left by an interruption has no result. */
@@ -80,14 +93,19 @@ public final class NotebookPresenter {
     static final String RESERVED_FILE_STATUS = "Ce fichier est réservé à Calc : choisissez un autre nom.";
     static final String UNTITLED_NAME = "Carnet sans titre";
     private static final String TITLE_SUFFIX = " — Calc";
-    private static final String MODIFIED_MARKER = "• ";
+    private static final String MODIFIED_MARKER = " (modifié)";
+    private static final String READ_ONLY_MARKER = " (lecture seule)";
     static final String READ_ONLY_FILE_STATUS = "Ce carnet vient d'une version plus récente de Calc : il est en lecture seule. "
             + "« Enregistrer sous » en garde une copie.";
 
     private final DocumentService document;
     private final DisplayModeStore modeStore;
+    private final ThemeStore themeStore;
+    private final SystemThemeDetector systemTheme;
     private final NotebookDialogs dialogs;
     private DisplayMode mode;
+    // The theme chosen in Affichage > Thème; never SYSTEM when the theme of the system cannot be read.
+    private ThemeChoice theme;
     // Set by a quit that may go on; the next view model asks the window to close.
     private boolean closeRequested;
     // The active line; null while the notebook has no line (the window then shows one blank row).
@@ -110,6 +128,11 @@ public final class NotebookPresenter {
     private Path openedFile;
     private String openedNotice = "";
     private final List<WaitingExport> waitingExports = new ArrayList<>();
+    private final NotebookPreview<PreviewKey> preview;
+    // The preview asked for and not arrived yet; null when none is under way.
+    private PreviewKey asked;
+    // The last preview that arrived; shown only while it is that of the line and the text now typed.
+    private Previewed previewed;
 
     /**
      * @param document  the document, the untitled current notebook loaded at start
@@ -125,17 +148,40 @@ public final class NotebookPresenter {
         this(document, loaded, modeStore, dialogs, SHARED_CALCULATION, JUST_EVALUATE);
     }
 
+    NotebookPresenter(DocumentService document, LoadedNotebook loaded, DisplayModeStore modeStore, NotebookDialogs dialogs, Executor executor,
+                      BiFunction<String, Supplier<LineResult>, LineResult> aroundEachLine) {
+        this(document, loaded, modeStore, ThemeStore.noop(), SystemThemeDetector.none(), dialogs, executor, aroundEachLine);
+    }
+
     /**
+     * @param themeStore     where the chosen theme is remembered
+     * @param systemTheme    the theme of the system, which « Système » follows; « Système » is offered only when it is available
      * @param executor       what calculates: {@link #newRecalculationExecutor()} in the application, never the event thread
      * @param aroundEachLine called on the calculating thread with the text of each line really evaluated and its evaluation
      */
-    NotebookPresenter(DocumentService document, LoadedNotebook loaded, DisplayModeStore modeStore, NotebookDialogs dialogs, Executor executor,
+    NotebookPresenter(DocumentService document, LoadedNotebook loaded, DisplayModeStore modeStore, ThemeStore themeStore,
+                      SystemThemeDetector systemTheme, NotebookDialogs dialogs, Executor executor,
+                      BiFunction<String, Supplier<LineResult>, LineResult> aroundEachLine) {
+        this(document, loaded, modeStore, themeStore, systemTheme, dialogs, executor, NotebookPreview.newBackgroundThread(), aroundEachLine);
+    }
+
+    /**
+     * @param previewExecutor what calculates the preview of the line being typed: its own thread, never the event thread nor
+     *                        the one of {@code executor}
+     * @param aroundEachLine  called on the calculating threads with the text of each line really evaluated and its evaluation,
+     *                        for the notebook and for the preview alike
+     */
+    NotebookPresenter(DocumentService document, LoadedNotebook loaded, DisplayModeStore modeStore, ThemeStore themeStore,
+                      SystemThemeDetector systemTheme, NotebookDialogs dialogs, Executor executor, Executor previewExecutor,
                       BiFunction<String, Supplier<LineResult>, LineResult> aroundEachLine) {
         this.document = Objects.requireNonNull(document, "document");
         this.modeStore = Objects.requireNonNull(modeStore, "modeStore");
+        this.themeStore = Objects.requireNonNull(themeStore, "themeStore");
+        this.systemTheme = Objects.requireNonNull(systemTheme, "systemTheme");
         this.dialogs = Objects.requireNonNull(dialogs, "dialogs");
         Objects.requireNonNull(loaded, "loaded");
         mode = document.displayMode() != DisplayMode.AUTO ? document.displayMode() : modeStore.load();
+        theme = offered(themeStore.load());
         Message first = loaded.statusMessage().map(text -> new Message(text, toneOf(loaded.condition()))).orElse(null);
         lastingMessage = document.isStoreReadOnly()
                 ? new Message(first != null ? first.text() : READ_ONLY_STATUS, StatusTone.ERROR)
@@ -160,6 +206,7 @@ public final class NotebookPresenter {
                 tellTheView();
             }
         });
+        preview = new NotebookPreview<>(previewExecutor, aroundEachLine, this::previewArrived);
         if (!document.notebook().isEmpty()) {
             activeId = document.notebook().line(1).id();
             draft = document.notebook().line(1).text();
@@ -191,6 +238,28 @@ public final class NotebookPresenter {
         return new NotebookPresenter(new DocumentService(store, loaded), loaded, modeStore, dialogs, executor, JUST_EVALUATE);
     }
 
+    /**
+     * Same as {@link #open(NotebookStore, LoadedNotebook, DisplayModeStore, NotebookDialogs, Executor)}, with the theme remembered
+     * in {@code themeStore} and the theme of the system read by {@code systemTheme}.
+     */
+    public static NotebookPresenter open(NotebookStore store, LoadedNotebook loaded, DisplayModeStore modeStore, ThemeStore themeStore,
+                                         SystemThemeDetector systemTheme, NotebookDialogs dialogs, Executor executor) {
+        return new NotebookPresenter(new DocumentService(store, loaded), loaded, modeStore, themeStore, systemTheme, dialogs, executor,
+                JUST_EVALUATE);
+    }
+
+    /**
+     * The theme drawn for {@code choice}: the one of the system for « Système », light when it cannot be read. Main applies it
+     * before the window is built.
+     */
+    public static Theme effectiveTheme(ThemeChoice choice, SystemThemeDetector systemTheme) {
+        return switch (choice) {
+            case LIGHT -> Theme.LIGHT;
+            case DARK -> Theme.DARK;
+            case SYSTEM -> systemTheme.current().orElse(Theme.LIGHT);
+        };
+    }
+
     static NotebookPresenter open(NotebookStore store, DisplayModeStore modeStore, NotebookDialogs dialogs, Executor executor,
                                   BiFunction<String, Supplier<LineResult>, LineResult> aroundEachLine) {
         LoadedNotebook loaded = store.load();
@@ -207,6 +276,11 @@ public final class NotebookPresenter {
         return recalculation.isRunning();
     }
 
+    /** Whether the preview of the line being typed is being calculated: a test waits for its end. */
+    boolean isPreviewing() {
+        return asked != null;
+    }
+
     private static StatusTone toneOf(LoadedNotebook.Condition condition) {
         return condition == LoadedNotebook.Condition.MIGRATED ? StatusTone.SUCCESS : StatusTone.ERROR;
     }
@@ -221,6 +295,90 @@ public final class NotebookPresenter {
     /** The current state, without any change. */
     public NotebookViewModel currentView() {
         return snapshot(NotebookFocus.NONE);
+    }
+
+    /**
+     * The text of the active field changed: it is kept as the draft of the line, nothing is validated, and the result the line
+     * would have with it is asked for off the event thread. The view hears it when it arrives ({@link #setViewListener}), and only
+     * while the line holds that text. There is no preview for the validated text, a blank text or a text in error, nor while the
+     * notebook is being calculated: the next keystroke asks again.
+     */
+    public NotebookViewModel onDraftChanged(String pending) {
+        syncDraft(pending);
+        requestPreview();
+        return snapshot(NotebookFocus.NONE);
+    }
+
+    /**
+     * A paste into the field of the row {@code line} (from 0), over the selection {@code selectionStart} to
+     * {@code selectionEnd} (excluded) of the text it holds. A text with line breaks ({@code \r\n}, {@code \r} or
+     * {@code \n}; a final one adds no line) replaces the line by as many lines, the first after the text before the
+     * selection and the last before the text after it, in one command that a single undo takes back; the last of them
+     * becomes active. It is refused as a whole, the notebook left as it was, when a line would exceed
+     * {@link #MAX_LINE_LENGTH} characters or the notebook {@link Notebook#MAX_LINES} lines. A text without line break goes
+     * into the draft, as typing does. Another row than the active one is first activated, as the mouse does.
+     */
+    public NotebookViewModel onPaste(int line, int selectionStart, int selectionEnd, String text) {
+        Objects.requireNonNull(text, "text");
+        if (line != activeIndex()) {
+            if (line < 0 || line > document.notebook().size()) {
+                return view(NotebookFocus.NONE);
+            }
+            if (!commitDraft()) {
+                return view(NotebookFocus.ACTIVE_LINE);
+            }
+            select(line);
+        }
+        Objects.checkFromToIndex(selectionStart, selectionEnd, draft.length());
+        String before = draft.substring(0, selectionStart);
+        String after = draft.substring(selectionEnd);
+        if (text.indexOf('\n') < 0 && text.indexOf('\r') < 0) {
+            syncDraft(before + text + after);
+            requestPreview();
+            return snapshot(NotebookFocus.NONE);
+        }
+        List<String> texts = pastedLines(before, text, after);
+        for (int index = 0; index < texts.size(); index++) {
+            if (texts.get(index).length() > MAX_LINE_LENGTH) {
+                say(PASTE_REFUSED + "la ligne " + (index + 1) + " dépasserait " + integer(MAX_LINE_LENGTH)
+                        + " caractères. Le carnet n'a pas changé.", StatusTone.ERROR);
+                return view(NotebookFocus.ACTIVE_LINE);
+            }
+        }
+        int size = document.notebook().size() - (activeId == null ? 0 : 1) + texts.size();
+        if (size > Notebook.MAX_LINES) {
+            say(PASTE_REFUSED + "le carnet aurait " + integer(size) + " lignes, il ne peut pas dépasser "
+                    + integer(Notebook.MAX_LINES) + ". Le carnet n'a pas changé.", StatusTone.ERROR);
+            return view(NotebookFocus.ACTIVE_LINE);
+        }
+        if (activeId == null && texts.size() == 1 && texts.get(0).isBlank()) {
+            return view(NotebookFocus.ACTIVE_LINE);
+        }
+        int first = activeIndex();
+        NotebookCommand command = activeId == null
+                ? new NotebookCommand.AppendLines(texts)
+                : new NotebookCommand.ReplaceWithLines(activeId, texts);
+        if (apply(command)) {
+            select(first + texts.size() - 1);
+            say(texts.size() == 1 ? "Ligne collée. Annuler retire le collage."
+                    : texts.size() + " lignes collées. Annuler retire tout le collage.", StatusTone.INFO);
+        }
+        return view(NotebookFocus.ACTIVE_LINE);
+    }
+
+    // The lines a paste gives: the text without its final line break, cut at every other, between what the field held
+    // before and after the selection.
+    private static List<String> pastedLines(String before, String text, String after) {
+        String pasted = text.endsWith("\r\n") ? text.substring(0, text.length() - 2)
+                : text.endsWith("\n") || text.endsWith("\r") ? text.substring(0, text.length() - 1) : text;
+        List<String> lines = new ArrayList<>(List.of(LINE_BREAK.split(pasted, -1)));
+        lines.set(0, before + lines.get(0));
+        lines.set(lines.size() - 1, lines.get(lines.size() - 1) + after);
+        return lines;
+    }
+
+    private static String integer(int value) {
+        return NumberFormat.getIntegerInstance(Locale.FRANCE).format(value);
     }
 
     /** Enter: validates the active line, then moves to the next one, or adds a line at the end unless the last one is blank. */
@@ -408,6 +566,26 @@ public final class NotebookPresenter {
         return view(NotebookFocus.NONE);
     }
 
+    /**
+     * Affichage > Thème: remembers {@code choice}; the window draws {@link NotebookViewModel#effectiveTheme()}. Nothing is
+     * calculated or formatted again, and the line being typed keeps its text. « Système » is ignored where the theme of the
+     * system cannot be read: it is not offered there.
+     */
+    public NotebookViewModel onThemeChanged(ThemeChoice choice, String pending) {
+        syncDraft(pending);
+        if (choice != null && offered(choice) == choice && choice != theme) {
+            theme = choice;
+            themeStore.save(theme);
+            say("Thème : " + theme.label() + ".", StatusTone.INFO);
+        }
+        return view(NotebookFocus.NONE);
+    }
+
+    // SYSTEM is offered only when the theme of the system can be read; otherwise the light theme stands for it.
+    private ThemeChoice offered(ThemeChoice choice) {
+        return choice == ThemeChoice.SYSTEM && !systemTheme.available() ? ThemeChoice.LIGHT : choice;
+    }
+
     /** Same as {@link #onDisplayModeChanged} with the mode that follows the current one (the first after the last). */
     public NotebookViewModel onNextDisplayMode(String pending) {
         DisplayMode[] modes = DisplayMode.values();
@@ -494,6 +672,7 @@ public final class NotebookPresenter {
         closeRequested = commitDraft() && mayLeave(NotebookDialogs.Action.QUIT) && mayAbandonWaitingExports();
         if (closeRequested) {
             recalculation.stop();
+            dropPreviewRequest();
         }
         return view(closeRequested ? NotebookFocus.NONE : NotebookFocus.ACTIVE_LINE);
     }
@@ -701,8 +880,8 @@ public final class NotebookPresenter {
     }
 
     private String title() {
-        return (document.isModified() ? MODIFIED_MARKER : "") + documentName()
-                + (document.isReadOnlyFile() ? " (lecture seule)" : "") + TITLE_SUFFIX;
+        return documentName() + (document.isModified() ? MODIFIED_MARKER : "")
+                + (document.isReadOnlyFile() ? READ_ONLY_MARKER : "") + TITLE_SUFFIX;
     }
 
     // ------------------------------------------------------------------------------------------------ internals
@@ -741,8 +920,9 @@ public final class NotebookPresenter {
         return view(NotebookFocus.ACTIVE_LINE);
     }
 
-    // Records what the field holds. A line break cannot be part of a line: the field never produces one, a caller might.
-    // A new draft replaces the one undo took out.
+    // Records what the field holds. A line break cannot be part of a line: a paste of several lines goes through onPaste
+    // and the field never produces one, but a caller might, and it becomes a space. A new draft replaces the one undo
+    // took out.
     private void syncDraft(String pending) {
         if (pending != null) {
             draft = pending.replace("\r\n", " ").replace('\n', ' ').replace('\r', ' ');
@@ -844,6 +1024,66 @@ public final class NotebookPresenter {
         }
     }
 
+    // ------------------------------------------------------------------------------------------------ the preview
+
+    // Asks for the result of the active line with the draft, in place of the one asked before. The lines above are those of the
+    // notebook, already calculated: only the active line is evaluated, on a notebook edited here and never applied.
+    private void requestPreview() {
+        if (previewed != null && isCurrent(previewed.key())) {
+            return;
+        }
+        dropPreviewRequest();
+        previewed = null;
+        if (!isDraftPending() || draft.isBlank() || draft.length() > MAX_LINE_LENGTH || recalculation.isRunning()
+                || !recalculation.isComplete()) {
+            return;
+        }
+        Notebook notebook = document.notebook();
+        int index = activeIndex();
+        Notebook edited;
+        if (activeId == null) {
+            try {
+                edited = notebook.append(draft);
+            } catch (NotebookException full) {
+                return;
+            }
+        } else {
+            edited = notebook.edit(activeId, draft);
+        }
+        asked = new PreviewKey(notebook, activeId, draft);
+        preview.request(edited, index, recalculation.known().subList(0, index), asked);
+    }
+
+    private void dropPreviewRequest() {
+        preview.cancel();
+        asked = null;
+    }
+
+    // The answer to the request under way (the preview drops the others); null when the preview failed.
+    private void previewArrived(PreviewKey key, LineResult result) {
+        asked = null;
+        if (result == null || !isCurrent(key)) {
+            return;
+        }
+        previewed = new Previewed(key, result);
+        if (result.hasValue()) {
+            tellTheView();
+        }
+    }
+
+    // Whether a preview is that of the active line as it is now: the same notebook, the same line, the same text typed.
+    private boolean isCurrent(PreviewKey key) {
+        return key.notebook() == document.notebook() && Objects.equals(key.line(), activeId) && key.text().equals(draft);
+    }
+
+    // The preview of the active line in the display mode in force; empty without one, or for a text in error.
+    private String previewText() {
+        if (previewed == null || !isCurrent(previewed.key()) || !isDraftPending() || !previewed.result().hasValue()) {
+            return "";
+        }
+        return ValueFormatter.format(previewed.result().value(), mode).text();
+    }
+
     private void say(String text, StatusTone tone) {
         transientMessage = new Message(text, tone);
         openedFile = null;
@@ -884,6 +1124,13 @@ public final class NotebookPresenter {
     }
 
     private record RemovedDraft(String text, int index, String validatedText) {
+    }
+
+    // What a preview is for: the notebook it was asked on, the active line (null for the new line at the end), the text typed.
+    private record PreviewKey(Notebook notebook, LineId line, String text) {
+    }
+
+    private record Previewed(PreviewKey key, LineResult result) {
     }
 
     private record ShownResult(LineResult result, NotebookRow row) {
@@ -928,12 +1175,42 @@ public final class NotebookPresenter {
         }
         // The new line at the end: always there, it only becomes a line of the notebook when it is validated with a text.
         rows.add(new NotebookRow(rows.size() + 1, "", NotebookRow.Status.EMPTY, "", "", "", -1, -1, "", "Ligne vide"));
+        List<LineDetailText.Sentence> detail = justifyActiveLine(rows);
+        String shownPreview = previewText();
+        if (!shownPreview.isEmpty()) {
+            int active = activeIndex();
+            rows.set(active, rows.get(active).withPreview(shownPreview));
+        }
         Message status = status();
         boolean showHelp = notebook.isEmpty() && draft.isEmpty();
         boolean close = closeRequested;
         closeRequested = false;
         return new NotebookViewModel(rows, activeIndex(), draft, focus, document.canUndo(), document.canRedo() || isDraftRestorable(), mode,
-                status.text(), status.tone(), showHelp ? WATERMARK : "", title(), !document.isReadOnlyFile(), close);
+                status.text(), status.tone(), showHelp ? WATERMARK : "", title(), !document.isReadOnlyFile(), close,
+                theme, effectiveTheme(theme, systemTheme), systemTheme.available(), detail);
+    }
+
+    /**
+     * Marks the rows that are sources of the active line and returns its detail, once every line is calculated: the lines
+     * that use it are only known then. Only the rows whose mark changes differ from the previous view model, so the window
+     * only redraws those.
+     */
+    private List<LineDetailText.Sentence> justifyActiveLine(List<NotebookRow> rows) {
+        Notebook notebook = document.notebook();
+        int active = activeIndex();
+        if (active >= notebook.size() || !recalculation.isComplete() || recalculation.knownCount() != notebook.size()) {
+            return List.of();
+        }
+        EvaluatedNotebook evaluated = new EvaluatedNotebook(notebook, recalculation.known());
+        LineResult line = evaluated.result(active + 1);
+        if (!line.id().equals(activeId)) {
+            return List.of();
+        }
+        for (Source source : line.sources()) {
+            int index = evaluated.result(source.target()).number() - 1;
+            rows.set(index, rows.get(index).withSource(true));
+        }
+        return LineDetailText.sentences(evaluated, line.id(), mode);
     }
 
     // The count of a calculation under way comes first, followed by what cannot wait for its end: see urgentError. Then that

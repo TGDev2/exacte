@@ -117,7 +117,7 @@ Chaque test échouait avant sa correction. Le contrôle final les exécute tous.
 | D9 | Faible | `hs_err_*.log` et `replay_*.log` ne sont pas ignorés par git : le rapport de conformité d'un clone propre indique « + modifications non commitées » | `gradlew conformity` sous manque de mémoire, voir `git status` ; sans plantage, le même rapport indique bien `0bdd5343ecac` seul |
 | D14 | Faible | Le message sur les entrées les plus anciennes est inexact (`NotebookStore.java:247`) | 12 000 entrées : annonce 7000 dans `v2.bak`, qui en contient 10 000 ; les 2000 plus anciennes sont seulement dans `v1.bak` |
 | D15 | Faible | Répertoire de données invalide : sortie silencieuse, code 0, sans fenêtre (`DataDirectory.java:67`) | `APPDATA=C:\bad\|dir` |
-| D16 | Faible | Un collage trop long est tronqué sans message (`LineField.java:116`) | Coller 20 000 caractères : le champ en garde 16 385 |
+| D16 | Faible | Un collage trop long est tronqué sans message (`LineField.java:116`). Corrigé en partie après la recette, preuve dans `MultiLinePasteAcceptanceTest` : un collage de plusieurs lignes dont une dépasserait 16 384 caractères est maintenant refusé en entier, avec un message « Collage refusé … » ; un collage d'une seule ligne reste coupé à 16 385 caractères par le champ, et `Entrée` refuse alors la ligne avec un message | Coller 20 000 caractères : le champ en garde 16 385 ; coller `1`, un saut de ligne et 20 000 caractères : avant, une ligne coupée ; après, refus et carnet inchangé |
 | D17 | Faible | Une valeur dont la forme canonique dépasse 1000 caractères migre en commentaire coupé à 400 caractères (`HistoryMigration.java:49`) | Entrée d'historique valant `2^4095+1` |
 | D8 | Cosmétique | Décimal sous le seuil annoncé de 10⁻¹⁵ (`ValueFormatter.java:132`) | `(sqrt(2)-sqrt(2))*1.21134e9+5.00998982603e-16` |
 
@@ -188,7 +188,7 @@ Build Gradle, JUnit 5, tests par propriétés et de robustesse, tests d'interfac
 - [ ] Parcours complet au clavier sur Windows (Tab, flèches, Entrée, Ctrl+Z/Y, menus, dialogues de fichiers réels).
 - [ ] Essai de l'application sur macOS et Linux (raccourcis, dialogues natifs).
 - [ ] Ouverture d'un CSV exporté dans Excel : séparateur, accents, et cellules ` =1+1`, `＝1+1`, `1,=1+1` (risque R1).
-- [ ] Lisibilité des badges exact et approché, en clair et selon le thème du système.
+- [ ] Lisibilité des signes « = » et « ≈ » de la marge (qui remplacent les badges exact et approché), en clair et en sombre.
 - [ ] Téléchargement de la release v1.0.0 publiée et vérification des SHA-256 avec SHA256SUMS, lecture du SBOM.
 - [ ] Sur un vrai Mac, retirer la quarantaine avec `xattr -dr com.apple.quarantine Calc.app` puis ouvrir l'application.
 - [ ] Lire Aide > À propos de Calc dans l'application empaquetée : la version affichée est 1.0.0.
@@ -197,6 +197,7 @@ Build Gradle, JUnit 5, tests par propriétés et de robustesse, tests d'interfac
 - [ ] Pendant ce calcul, appuyer sur Échap : le calcul s'arrête et les lignes restantes disent « Non calculée : calcul interrompu ».
 - [ ] Taper `√2 - √2` dans la fenêtre : le résultat se lit `|x| ≤ …` et ne contient pas `≈ 0`.
 - [ ] Taper `(sqrt(2) / 16) ^ 4096` : la ligne est en erreur avec le même message que `(1/16) ^ 4096`.
+- [ ] Thème et Cmd+K sous macOS : non vérifié (Affichage > Thème Clair et Sombre sur un vrai Mac, sans l'option Système).
 
 ## 9. Recommandations hiérarchisées
 

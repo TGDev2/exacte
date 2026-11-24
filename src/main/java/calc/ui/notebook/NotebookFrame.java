@@ -2,7 +2,10 @@ package calc.ui.notebook;
 
 import calc.format.DisplayMode;
 import calc.ui.StatusTone;
+import calc.ui.ThemeChoice;
+import calc.ui.design.DesignTokens;
 import calc.ui.notebook.NotebookShortcuts.Command;
+import calc.ui.theme.ThemeManager;
 import calc.ui.widget.DisplayModeSelector;
 import calc.ui.widget.DisplayModeText;
 import calc.ui.widget.Palette;
@@ -44,6 +47,8 @@ import javax.swing.JTextArea;
 import javax.swing.JViewport;
 import javax.swing.Scrollable;
 import javax.swing.SwingUtilities;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 
 /**
  * The main window: the notebook, one {@link NotebookRowView} per line plus the new line at the end. A view only: it shows
@@ -67,10 +72,13 @@ public final class NotebookFrame extends JFrame {
     private final transient NotebookShortcuts shortcuts;
     private final transient List<NotebookRowView> rows = new ArrayList<>();
     private final RowsPanel rowsPanel = new RowsPanel();
+    // The one detail of the window, under the active line.
+    private final LineDetailView lineDetail = new LineDetailView();
     private final JScrollPane scrollPane;
     private final JLabel statusLabel = new JLabel(" ");
     private final DisplayModeSelector modeSelector = new DisplayModeSelector();
     private final transient Map<DisplayMode, JRadioButtonMenuItem> modeItems = new EnumMap<>(DisplayMode.class);
+    private final transient Map<ThemeChoice, JRadioButtonMenuItem> themeItems = new EnumMap<>(ThemeChoice.class);
     private final transient Action saveAction;
     private final transient Action undoAction;
     private final transient Action redoAction;
@@ -122,20 +130,16 @@ public final class NotebookFrame extends JFrame {
         JLabel modeLabel = new JLabel("Affichage");
         modeLabel.setLabelFor(modeSelector);
         modeLabel.setDisplayedMnemonic('A');
+        // The title of the window names the document: the header only holds the display modes.
         JPanel top = new JPanel(new BorderLayout(8, 0));
         top.setBorder(BorderFactory.createEmptyBorder(6, 10, 6, 10));
-        JLabel title = new JLabel("Carnet de calcul");
-        title.setFont(title.getFont().deriveFont(Font.BOLD, title.getFont().getSize2D() + 3f));
-        top.add(title, BorderLayout.WEST);
-        JPanel modePanel = new JPanel(new BorderLayout(6, 0));
+        JPanel modePanel = new JPanel(new BorderLayout(8, 0));
         modePanel.add(modeLabel, BorderLayout.WEST);
         modePanel.add(modeSelector, BorderLayout.CENTER);
-        top.add(modePanel, BorderLayout.EAST);
+        top.add(modePanel, BorderLayout.WEST);
 
         statusLabel.setName("statusLabel");
-        statusLabel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createMatteBorder(1, 0, 0, 0, NotebookPalette.active().border()),
-                BorderFactory.createEmptyBorder(5, 10, 5, 10)));
+        frameStatusBar();
 
         getContentPane().add(top, BorderLayout.NORTH);
         getContentPane().add(scrollPane, BorderLayout.CENTER);
@@ -270,7 +274,48 @@ public final class NotebookFrame extends JFrame {
         next.setAccelerator(shortcuts.stroke(Command.NEXT_MODE));
         next.addActionListener(event -> apply(presenter.onNextDisplayMode(pendingText())));
         items.add(next);
+        items.add(null);
+        items.add(themeMenu());
         return items;
+    }
+
+    // Affichage > Thème: Clair, Sombre, and Système only where the theme of the system can be read (ADR 0017).
+    private JMenu themeMenu() {
+        JMenu menu = new JMenu("Thème");
+        menu.setName("themeMenu");
+        ButtonGroup group = new ButtonGroup();
+        boolean system = presenter.currentView().systemThemeAvailable();
+        for (ThemeChoice choice : ThemeChoice.values()) {
+            if (choice == ThemeChoice.SYSTEM && !system) {
+                continue;
+            }
+            JRadioButtonMenuItem item = new JRadioButtonMenuItem(choice.label());
+            item.setName("themeItem" + choice.name());
+            item.addActionListener(event -> {
+                if (!applying) {
+                    applyTheme(presenter.onThemeChanged(choice, pendingText()));
+                }
+            });
+            group.add(item);
+            themeItems.put(choice, item);
+            menu.add(item);
+        }
+        return menu;
+    }
+
+    // The same window, its rows and what is typed kept: the look and feel changes and every component reads its colours again.
+    private void applyTheme(NotebookViewModel viewModel) {
+        apply(viewModel);
+        ThemeManager.apply(viewModel.effectiveTheme());
+        scrollPane.getViewport().setBackground(NotebookPalette.active().rowBackground());
+        frameStatusBar();
+        showStatus(shown.statusMessage(), shown.statusTone());
+    }
+
+    private void frameStatusBar() {
+        statusLabel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(1, 0, 0, 0, NotebookPalette.active().border()),
+                BorderFactory.createEmptyBorder(5, 10, 5, 10)));
     }
 
     private List<JMenuItem> help() {
@@ -316,7 +361,7 @@ public final class NotebookFrame extends JFrame {
         area.setEditable(false);
         area.setLineWrap(true);
         area.setWrapStyleWord(true);
-        area.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 13));
+        area.setFont(new Font(DesignTokens.load().fontFamily("mono"), Font.PLAIN, 13));
         area.setCaretPosition(0);
         area.setMargin(new java.awt.Insets(8, 10, 8, 10));
         area.getAccessibleContext().setAccessibleName(title);
@@ -421,6 +466,7 @@ public final class NotebookFrame extends JFrame {
                 }
             }
             showWindowState(viewModel);
+            showDetail(viewModel);
         } finally {
             applying = false;
         }
@@ -434,6 +480,7 @@ public final class NotebookFrame extends JFrame {
             boolean moved = shown == null || shown.activeIndex() != viewModel.activeIndex();
             showRows(viewModel);
             showWindowState(viewModel);
+            showDetail(viewModel);
             // The caret only moves when another line is active or the text of the active field was replaced.
             focusMoved = moved || !before.equals(rows.get(viewModel.activeIndex()).field.getText());
         } finally {
@@ -465,6 +512,15 @@ public final class NotebookFrame extends JFrame {
             boolean active = i == viewModel.activeIndex();
             rows.get(i).show(row, active, active ? viewModel.activeDraft() : row.text(), active ? viewModel.watermark() : "");
         }
+    }
+
+    // The detail of the active line goes under it; it only redraws the rows it leaves and reaches.
+    private void showDetail(NotebookViewModel viewModel) {
+        int active = viewModel.activeIndex();
+        if (active < rows.size()) {
+            rows.get(active).holdDetail(lineDetail);
+        }
+        lineDetail.show(viewModel.activeDetail());
     }
 
     private void removeRowsFrom(int count) {
@@ -521,6 +577,10 @@ public final class NotebookFrame extends JFrame {
         redoAction.setEnabled(viewModel.canRedo());
         modeSelector.showMode(viewModel.displayMode());
         modeItems.get(viewModel.displayMode()).setSelected(true);
+        JRadioButtonMenuItem themeItem = themeItems.get(viewModel.theme());
+        if (themeItem != null) {
+            themeItem.setSelected(true);
+        }
         showStatus(viewModel.statusMessage(), viewModel.statusTone());
         shown = viewModel;
         growLater();
@@ -537,9 +597,33 @@ public final class NotebookFrame extends JFrame {
                 }
             }
         });
+        row.field.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent event) {
+                draftChanged(row);
+            }
+
+            @Override
+            public void removeUpdate(DocumentEvent event) {
+                draftChanged(row);
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent event) {
+            }
+        });
         bindKeys(row);
+        row.field.setMultiLinePaste((start, end, text) -> apply(presenter.onPaste(row.index, start, end, text)));
         rows.add(row);
         rowsPanel.add(row);
+    }
+
+    // The user typed in the active line: the presenter keeps the text and asks for its preview. Like a calculation, the answer
+    // leaves the field, its caret and the scroll bar alone: nothing here may write into the document that is notifying.
+    private void draftChanged(NotebookRowView row) {
+        if (!applying && shown != null && row.index == shown.activeIndex()) {
+            applyCalculation(presenter.onDraftChanged(row.field.getText()));
+        }
     }
 
     private void scrollToActive() {
@@ -605,6 +689,13 @@ public final class NotebookFrame extends JFrame {
             setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
             setBackground(NotebookPalette.active().rowBackground());
             setOpaque(true);
+        }
+
+        @Override
+        public void updateUI() {
+            super.updateUI();
+            // A change of theme: the sheet takes the surface of the new theme.
+            setBackground(NotebookPalette.active().rowBackground());
         }
 
         @Override

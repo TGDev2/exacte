@@ -177,6 +177,35 @@ class NotebookRecalculationTest {
         assertTrue(d.view.statusMessage().contains("erreur inattendue"), d.view.statusMessage());
     }
 
+    // ------------------------------------------------------------------------------------------------ the preview
+
+    /** The preview does not compete with a calculation: what is typed meanwhile waits for the next keystroke. */
+    @Test
+    void noPreviewIsAskedWhileTheNotebookIsBeingCalculated() throws Exception {
+        NotebookPresenter presenter = openBlocked();
+        NotebookViewModel typed;
+        try {
+            typed = onEdt(() -> presenter.onDraftChanged("a = 5"));
+            assertFalse(onEdt(presenter::isPreviewing), "nothing is asked during the calculation");
+        } finally {
+            awaitTheEnd(presenter);
+        }
+        assertEquals("a = 5", typed.activeDraft(), "the text typed is kept");
+        assertEquals("", typed.rows().get(0).preview());
+        assertEquals("", onEdt(presenter::currentView).rows().get(0).preview(), "the end of the calculation brings no preview");
+        assertFalse(onEdt(presenter::isPreviewing));
+
+        onEdt(() -> presenter.onDraftChanged("a = 5"));
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+        while (onEdt(presenter::isPreviewing)) {
+            assertTrue(System.nanoTime() < deadline, "the preview has not arrived after 30 s");
+            Thread.onSpinWait();
+        }
+        NotebookViewModel previewed = onEdt(presenter::currentView);
+        assertEquals("5", previewed.rows().get(0).preview(), "the next keystroke has its preview");
+        assertEquals("1", previewed.rows().get(0).result());
+    }
+
     // ------------------------------------------------------------------------------------------------ the status bar
 
     @Test

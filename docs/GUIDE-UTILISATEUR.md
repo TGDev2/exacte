@@ -16,6 +16,18 @@ répétée ici) ; elle est aussi résumée dans le menu **Aide > Syntaxe des exp
 - Annuler et rétablir portent sur les lignes **validées**. `Échap` abandonne définitivement la saisie en cours dans la ligne.
   Annuler la retire d'abord, et Rétablir la remet, sans la valider, tant que rien d'autre n'a changé : une nouvelle saisie, une
   commande validée ou annulée, une autre ligne ou un autre document la font oublier.
+- Coller (`Ctrl+V`, ou glisser-déposer) un texte de plusieurs lignes dans une ligne en fait autant de lignes, à cet endroit :
+  la première suit le texte placé avant le curseur, la dernière précède le texte qui le suit, et les autres lignes ne bougent
+  pas. Les fins de ligne de Windows, macOS et Linux sont reconnues ; un saut de ligne final n'ajoute pas de ligne vide. Les
+  lignes collées sont validées et calculées, et un seul `Ctrl+Z` retire tout le collage (`Ctrl+Y` le refait). Un collage qui
+  ferait dépasser 5000 lignes au carnet ou 16 384 caractères à une ligne est refusé en entier : le carnet ne change pas et la
+  barre d'état l'explique par un message qui commence par « Collage refusé ». Un texte sans saut de ligne s'insère dans le
+  champ, comme une frappe, sans rien valider.
+- Pendant la frappe, la zone du résultat montre un **aperçu** en gris, sans signe dans la marge : le résultat qu'aurait la
+  ligne avec le texte tapé, calculé en arrière-plan avec les lignes du dessus (variables, `$n`, `ans`). Rien n'est validé ni
+  enregistré, et les autres lignes ne changent pas : `Entrée` valide la ligne et son résultat remplace l'aperçu, `Échap` rend
+  le texte validé et efface l'aperçu. Un texte incomplet ou en erreur (`2 +`) n'a pas d'aperçu ; son erreur n'apparaît qu'une
+  fois la ligne validée. Pendant le calcul du carnet, l'aperçu attend la frappe suivante.
 - Le calcul se fait en arrière-plan : la fenêtre répond toujours, même sur un très gros carnet. Une ligne pas encore calculée
   affiche « Calcul en cours… » et la barre d'état compte « Calcul en cours : n / N lignes ». Toute nouvelle commande remplace le
   calcul en cours. Les lignes d'un très gros carnet apparaissent par tranches, en 2 à 3 secondes pour 5000 lignes.
@@ -30,8 +42,11 @@ exactement `1`. Seule une racine carrée qui ne tombe pas juste est approchée.
 
 | Ce que vous voyez | Ce que cela veut dire |
 |---|---|
-| badge **Exact** | la valeur est exacte (une fraction). Le texte peut être arrondi pour l'affichage, la valeur gardée ne l'est pas |
-| badge **≈ Approché** | la valeur est une approximation (racine non exacte) ; la vraie valeur est certainement dans l'intervalle calculé |
+| signe **=** dans la marge | la valeur est exacte (une fraction). Le texte peut être arrondi pour l'affichage, la valeur gardée ne l'est pas |
+| signe **≈** dans la marge | la valeur est une approximation (racine non exacte) ; la vraie valeur est certainement dans l'intervalle calculé |
+| signe **!** dans la marge | la ligne est en erreur, voir le message sous la ligne |
+| nom à gauche du résultat (`total`) | la ligne définit cette variable (`total = plan + meubles + pose`) |
+| ligne qui commence par `#` | un titre de section, en gras ; son texte reste tel quel dans la ligne |
 | **≈** devant un nombre | même chose : seuls les chiffres garantis sont affichés (`√2 ≈ 1,41421356237…`) |
 | **\|x\| ≤ …** | le signe de la valeur n'a pas pu être établi : elle vaut peut-être 0, et elle est au plus … en valeur absolue (`√2 - √2` donne `\|x\| ≤ 4,2 × 10⁻²⁵`) |
 | **…** après les chiffres | des chiffres existent mais ne sont pas affichés (`1 / 3 = 0,333333333333…`) |
@@ -40,14 +55,53 @@ exactement `1`. Seule une racine carrée qui ne tombe pas juste est approchée.
 | message sous la ligne, partie soulignée | la ligne est en erreur ; le message dit pourquoi et le soulignement montre où |
 
 Un nombre non nul n'est jamais affiché `0` : une valeur trop petite pour être encadrée sans toucher 0 est refusée, avec le
-même message que `(1/16) ^ 4096`. Le badge est toujours accompagné d'un texte : la couleur seule ne porte pas l'information.
+même message que `(1/16) ^ 4096`. La couleur seule ne porte jamais l'information : le signe de la marge est un caractère,
+et un lecteur d'écran entend « valeur exacte » ou « valeur approchée » dans la description de la ligne. Les résultats sont
+alignés sur la virgule : les unités de toutes les lignes tombent dans la même colonne.
 
-## Modes d'affichage
+## Le détail de la ligne active
 
-Le menu **Affichage** (et le sélecteur en haut de la fenêtre) change la notation des résultats, **sans rien recalculer** :
-Auto, Décimal, Fraction, Scientifique. `Ctrl+M` passe au mode suivant (toujours `Ctrl`, même sous macOS où `Cmd+M`
-minimise la fenêtre). Le mode est enregistré avec le carnet et mémorisé entre deux lancements ; si les préférences de Java
-sont inaccessibles, l'application démarre en mode Auto.
+Sous la ligne où se trouve le curseur, le carnet explique comment sa valeur a été obtenue et à quoi elle sert. Pour la ligne
+`total = plan + meubles + pose` du devis de cuisine :
+
+```text
+= 1250 + 3480 + 437,5
+= 5167,5
+Sources : lignes 2, 3 et 4
+Utilisée par 1 ligne
+```
+
+- **Le développement** (`= 1250 + 3480 + 437,5`) : la ligne où chaque variable, `$n` ou `ans` de valeur exacte est remplacé
+  par sa valeur, sur un seul niveau. Il n'apparaît que si la ligne utilise d'autres lignes. Une valeur approchée garde son
+  écriture.
+- **Le résultat**, tel que la ligne l'affiche dans le mode en cours : précédé de « = » s'il est exact ; une valeur approchée
+  commence déjà par « ≈ » (ou se lit `|x| ≤ …`).
+- **Les sources** : les lignes dont elle se sert. Elles sont aussi marquées **◆** dans la marge, et un lecteur d'écran
+  entend « source de la ligne active » dans leur description.
+- **Les utilisations** : « Utilisée par 1 ligne », « Utilisée par 3 lignes » ou « Utilisée par aucune ligne ».
+- Pour une valeur approchée, **« Valeur garantie entre … et … »** : les bornes de l'intervalle calculé, arrondies vers
+  l'extérieur à 12 chiffres significatifs ; la vraie valeur est certainement entre les deux (`√2` : entre 1,41421356237 et
+  1,41421356238).
+
+Un titre, un commentaire, une ligne vide ou une ligne en erreur n'ont pas de détail. Le détail suit les modifications : il
+apparaît dès que le calcul en arrière-plan est terminé.
+
+## Modes d'affichage et thème
+
+Le menu **Affichage**, et le contrôle segmenté en haut de la fenêtre (quatre boutons côte à côte, celui du mode en vigueur
+enfoncé), changent la notation des résultats, **sans rien recalculer** : Auto, Décimal, Fraction, Scientifique. `Ctrl+M`
+passe au mode suivant (toujours `Ctrl`, même sous macOS où `Cmd+M` minimise la fenêtre) ; le bouton enfoncé et le menu
+suivent. Au clavier, `Tab` atteint chaque bouton et `Espace` le choisit. Le mode est enregistré avec le carnet et mémorisé
+entre deux lancements ; si les préférences de Java sont inaccessibles, l'application démarre en mode Auto.
+
+**Affichage > Thème** choisit l'apparence de la fenêtre : **Clair** ou **Sombre**, et **Système** sous Windows, qui suit le
+réglage clair ou sombre de Windows (lu au lancement de Calc). Sous macOS et Linux, Système n'est pas proposé. Le changement
+s'applique tout de suite à la fenêtre ouverte, sans rien recalculer ni perdre ce qui est en cours de saisie. Le thème est
+mémorisé entre deux lancements ; sans choix mémorisé, ou si les préférences de Java sont inaccessibles, Calc démarre en
+thème Clair.
+
+Le titre de la fenêtre nomme le document : « Carnet sans titre — Calc », « Devis.calc.json — Calc », avec « (modifié) »
+quand des changements ne sont pas enregistrés et « (lecture seule) » pour un fichier d'une version plus récente.
 
 Les définitions précises (nombre de chiffres, bascule en notation scientifique, fraction secondaire) sont dans
 [l'ADR 0004](adr/0004-regles-affichage.md).
@@ -95,7 +149,7 @@ Le modificateur de menu est `Ctrl` sous Windows et Linux, `Cmd` sous macOS. La l
 |---|---|
 | `Entrée` | valider la ligne et passer à la suivante |
 | `↑` / `↓` | ligne précédente / suivante (la ligne quittée est validée) |
-| `Échap` | abandonner la saisie en cours dans la ligne ; sans saisie, interrompre le calcul, aussi depuis le sélecteur de modes |
+| `Échap` | abandonner la saisie en cours dans la ligne ; sans saisie, interrompre le calcul, aussi depuis les boutons des modes |
 | `Ctrl+Z` | retirer la saisie en cours ; sans saisie, annuler la dernière modification validée |
 | `Ctrl+Y`, `Ctrl+Maj+Z` | remettre la saisie retirée par Annuler ; sinon, rétablir la dernière modification annulée |
 | `Ctrl+Entrée` / `Ctrl+Maj+Entrée` | insérer une ligne au-dessous / au-dessus |
@@ -150,5 +204,5 @@ Les documents que vous enregistrez avec **Enregistrer sous** sont ailleurs : à 
 | un fichier `.calc.json` est refusé | le message en barre d'état donne la raison (format, taille, version) ; le carnet courant n'a pas été touché |
 
 Limites à connaître : une ligne fait au plus 16 384 caractères dans un fichier (l'éditeur refuse davantage) et au plus 1000
-caractères à évaluer ; un carnet compte au plus 5000 lignes ; coller du texte sur plusieurs lignes dans un champ joint les
-lignes en une seule. La liste complète des limites est dans le [README](../README.md#limites-connues).
+caractères à évaluer ; un carnet compte au plus 5000 lignes ; coller du texte sur plusieurs lignes crée autant de
+lignes, et un collage qui dépasserait ces limites est refusé en entier. La liste complète des limites est dans le [README](../README.md#limites-connues).

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Unpacks a packaged application, checks the modules embedded in its runtime, starts it and checks that the process is
-# still running a few seconds later and that its output shows no Java error. It does not look for the window.
+# Unpacks a packaged application, checks the modules embedded in its runtime and the licences in app/licences, starts it
+# and checks that the process is still running a few seconds later and that its output shows no Java error. It does not
+# look for the window.
 # Usage: bash tools/release/smoke-test.sh <Calc-X.Y.Z-os-arch.zip|.tar.gz> [seconds]
 # The archive goes to a new temporary directory; only the process started here is stopped.
 # Made for CI runners. On a personal machine, note that on macOS the application writes its data to the real
@@ -31,13 +32,16 @@ case "$archive" in
     *.zip)
         powershell -NoProfile -Command "Expand-Archive -LiteralPath '$(cygpath -w "$archive")' -DestinationPath '$(cygpath -w "$work/app")'"
         launcher="$work/app/Calc/Calc.exe"
+        licences="$work/app/Calc/app/licences"
         ;;
     *.tar.gz)
         tar -xzf "$archive" -C "$work/app"
         if [ -d "$work/app/Calc.app" ]; then
             launcher="$work/app/Calc.app/Contents/MacOS/Calc"
+            licences="$work/app/Calc.app/Contents/app/licences"
         else
             launcher="$work/app/Calc/bin/Calc"
+            licences="$work/app/Calc/lib/app/licences"
         fi
         ;;
     *)
@@ -60,6 +64,14 @@ fi
 for module in java.desktop java.prefs jdk.localedata; do
     if ! grep '^MODULES=' "$runtime_release" | grep -qw "$module"; then
         echo "FAIL: the module $module is not embedded ($(grep '^MODULES=' "$runtime_release"))" >&2
+        exit 1
+    fi
+done
+
+# The licences of the runtime dependencies travel with the application, in app/licences (ADR 0017).
+for licence in FlatLaf-LICENSE.txt Inter-OFL.txt JetBrainsMono-OFL.txt; do
+    if [ ! -s "$licences/$licence" ]; then
+        echo "FAIL: the licence $licence is not in app/licences of the archive" >&2
         exit 1
     fi
 done

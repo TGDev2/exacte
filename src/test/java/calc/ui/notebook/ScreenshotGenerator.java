@@ -1,8 +1,12 @@
 package calc.ui.notebook;
 
+import calc.format.DisplayMode;
+import calc.notebook.Notebook;
 import calc.persistence.LoadedNotebook;
 import calc.persistence.NotebookStore;
 import calc.ui.DisplayModeStore;
+import calc.ui.design.Theme;
+import calc.ui.theme.ThemeManager;
 import java.awt.Graphics2D;
 import java.awt.Insets;
 import java.awt.RenderingHints;
@@ -13,14 +17,15 @@ import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import javax.imageio.ImageIO;
 import javax.swing.JRootPane;
 import javax.swing.SwingUtilities;
-import javax.swing.UIManager;
 
 /**
  * Paints {@link NotebookFrame} off screen, for the pictures of the documentation: the window is built as {@code Main} builds it,
@@ -28,8 +33,8 @@ import javax.swing.UIManager;
  * {@code printAll} into an image, then disposed.
  *
  * <p>It lives in the test source set, in the package of the window, to reach what the tests reach ({@code isCalculating()},
- * {@code row(i)}, {@code statusLabel()}), and is run by {@code gradlew screenshots}. The rendering depends on the fonts of the
- * system: two runs on the same machine give the same pixels.
+ * {@code row(i)}, {@code statusLabel()}), and is run by {@code gradlew screenshots}. The window has the theme asked and the
+ * embedded fonts of the application: two runs on the same machine give the same pixels.
  */
 public final class ScreenshotGenerator {
 
@@ -48,6 +53,8 @@ public final class ScreenshotGenerator {
     static final int WIDTH = 1100;
     static final int HEIGHT = 720;
     private static final String LIGHT = "clair";
+    private static final String DARK = "sombre";
+    private static final String BOTH = "tous";
     private static final long PATIENCE_SECONDS = 10;
 
     private ScreenshotGenerator() {
@@ -55,52 +62,77 @@ public final class ScreenshotGenerator {
 
     /**
      * {@code main(dossier, thème, échelle)}: writes {@code carnet-devis.png} (the {@link #DEMO}, the total line active) and
-     * {@code carnet-vide.png} (an empty notebook) into {@code dossier}, in 1100 × 720 times the scale.
+     * {@code carnet-vide.png} (an empty notebook) into {@code dossier}, in 1100 × 720 times the scale, in the theme
+     * {@code clair} or {@code sombre}. The theme {@code tous} writes both themes, the names ending in {@code -clair} and
+     * {@code -sombre}.
      */
     public static void main(String... args) throws Exception {
         if (args.length != 3) {
-            throw new IllegalArgumentException("Usage : ScreenshotGenerator <dossier> <thème : " + LIGHT + "> <échelle>");
+            throw new IllegalArgumentException(
+                    "Usage : ScreenshotGenerator <dossier> <thème : " + LIGHT + ", " + DARK + " ou " + BOTH + "> <échelle>");
         }
         Path folder = Path.of(args[0]);
-        if (!LIGHT.equals(args[1])) {
-            throw new IllegalArgumentException("Thème « " + args[1] + " » inconnu : seul le thème « " + LIGHT + " » existe pour l'instant.");
+        // The name suffix of each theme to paint: none for a single theme.
+        Map<Theme, String> themes = new LinkedHashMap<>();
+        switch (args[1]) {
+            case LIGHT -> themes.put(Theme.LIGHT, "");
+            case DARK -> themes.put(Theme.DARK, "");
+            case BOTH -> {
+                themes.put(Theme.LIGHT, "-" + LIGHT);
+                themes.put(Theme.DARK, "-" + DARK);
+            }
+            default -> throw new IllegalArgumentException(
+                    "Thème « " + args[1] + " » inconnu : « " + LIGHT + " », « " + DARK + " » ou « " + BOTH + " ».");
         }
         double scale = Double.parseDouble(args[2]);
         if (!(scale > 0)) {
             throw new IllegalArgumentException("L'échelle doit être un nombre positif : " + args[2]);
         }
-        BufferedImage quote = render(DEMO, 5, WIDTH, HEIGHT, scale);
-        BufferedImage empty = render(List.of(), 1, WIDTH, HEIGHT, scale);
-        Files.createDirectories(folder);
-        write(quote, folder.resolve("carnet-devis.png"));
-        write(empty, folder.resolve("carnet-vide.png"));
+        for (Map.Entry<Theme, String> theme : themes.entrySet()) {
+            BufferedImage quote = render(DEMO, 5, WIDTH, HEIGHT, scale, theme.getKey());
+            BufferedImage empty = render(List.of(), 1, WIDTH, HEIGHT, scale, theme.getKey());
+            Files.createDirectories(folder);
+            write(quote, folder.resolve("carnet-devis" + theme.getValue() + ".png"));
+            write(empty, folder.resolve("carnet-vide" + theme.getValue() + ".png"));
+        }
+    }
+
+    /** Same as {@link #render(List, int, int, int, double, Theme)} in the light theme. */
+    public static BufferedImage render(List<String> lines, int activeLine, int width, int height, double scale) throws Exception {
+        return render(lines, activeLine, width, height, scale, Theme.LIGHT);
     }
 
     /**
-     * Paints the notebook of {@code lines} with the line numbered {@code activeLine} (from 1) active; a number out of range keeps
-     * the blank line at the end active. The image is {@code round(width × scale)} by {@code round(height × scale)}. No window is
-     * ever visible, and none stays displayable.
+     * Paints the notebook of {@code lines} in {@code theme} with the line numbered {@code activeLine} (from 1) active; a number out
+     * of range keeps the blank line at the end active. The image is {@code round(width × scale)} by {@code round(height × scale)}.
+     * No window is ever visible, and none stays displayable.
      */
-    public static BufferedImage render(List<String> lines, int activeLine, int width, int height, double scale) throws Exception {
+    public static BufferedImage render(List<String> lines, int activeLine, int width, int height, double scale, Theme theme)
+            throws Exception {
         if (SwingUtilities.isEventDispatchThread()) {
             throw new IllegalStateException("render waits for the event thread: call it from another thread");
         }
-        UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+        // As Main: the embedded fonts and the theme, on the event thread before the window is built (ADR 0017).
+        onEventThread(() -> {
+            ThemeManager.installFonts();
+            ThemeManager.apply(theme);
+        });
         Path data = Files.createTempDirectory("calc-screenshots");
         NotebookStore store = NotebookStore.open(data);
         AtomicReference<NotebookFrame> holder = new AtomicReference<>();
         try {
+            // The notebook is opened in one piece, as at a start: one calculation, not one per line entered.
+            if (!lines.isEmpty()) {
+                store.saveCurrent(Notebook.of(lines), DisplayMode.AUTO);
+            }
             LoadedNotebook loaded = store.load();
             onEventThread(() -> {
                 NotebookPresenter presenter = NotebookPresenter.open(store, loaded, DisplayModeStore.noop(),
                         NotebookDialogs.cancelling(), NotebookPresenter.newRecalculationExecutor());
-                for (String line : lines) {
-                    presenter.onEnter(line);
-                }
-                // The same path as the arrows: a number out of range leaves the blank line at the end active.
-                if (activeLine >= 1 && activeLine <= lines.size()) {
-                    presenter.onActivate(activeLine - 1, "");
-                }
+                // The same path as a click, the field left handing over its own text; a number out of range activates the
+                // blank line at the end.
+                boolean inRange = activeLine >= 1 && activeLine <= lines.size();
+                presenter.onActivate(inRange ? activeLine - 1 : lines.size(), presenter.currentView().activeDraft());
                 // The JDK lists a window as visible while its constructor runs, and Window.getWindows() takes the lock of
                 // Window.class: holding it keeps that moment from being seen, so that no window is ever observed visible.
                 NotebookFrame frame;

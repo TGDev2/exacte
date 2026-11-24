@@ -14,7 +14,8 @@ published a file, and nothing proved that the jar is the same from one build to 
 What was checked before deciding (July-October 2026 documentation and tools, run on 2026-10-27):
 
 - The application has **no third-party runtime dependency** (`runtimeClasspath` is empty; the JSON reader is part of the code). The
-  jar is the only file to ship.
+  jar is the only file to ship. *No longer true since [ADR 0017](0017-flatlaf-et-polices-embarquees.md): the only runtime
+  dependencies are FlatLaf and its fonts Inter and JetBrains Mono, three jars staged next to `calc.jar`, with their licences.*
 - The toolchain JDK (Temurin 21.0.7) contains `jpackage` and `jdeps` in `bin/`.
 - `jpackage` (Java 21 manual): `--type app-image` builds the image without any installer tool; the other types need tools on the
   machine: WiX 3 or later for `exe` / `msi`, Xcode command line tools for some `dmg` / `pkg` cases, `fakeroot` (Ubuntu) or `rpm-build`
@@ -99,8 +100,9 @@ The `org.cyclonedx.bom` plugin (3.5.1) is applied; `cyclonedxDirectBom` is limit
 `application`, and only the JSON file is kept (CycloneDX 1.6). `gradlew cyclonedxBom` writes `build/reports/cyclonedx/bom.json`; the
 workflow copies it to `Calc-<version>-sbom.cdx.json`.
 
-What it contains today: the component `calc` and **no other component**, because the application has no third-party runtime
-library. This is the true answer, not a gap in the plugin. What it does not describe: the JDK runtime embedded in each image (the plugin
+What it contained at this decision: the component `calc` and **no other component**, because the application had no third-party
+runtime library. Since [ADR 0017](0017-flatlaf-et-polices-embarquees.md) it also lists `flatlaf`, `flatlaf-fonts-inter` and
+`flatlaf-fonts-jetbrains-mono`, the only runtime dependencies. What it does not describe: the JDK runtime embedded in each image (the plugin
 only reads Gradle configurations). A later Epic can add it as a component by hand.
 
 ### 8. Release workflow (`.github/workflows/release.yml`)

@@ -18,7 +18,8 @@ document renvoie à un test, à une mesure ou à une limite écrite.
 - **Des calculs exacts** : `+ - * /`, `^` (exposant entier), `√`, parenthèses. `1 / 3` vaut exactement un tiers et
   `(1 / 3) * 3` redonne exactement `1`. Seule une racine qui ne tombe pas juste est approchée, avec une borne d'erreur.
 - **Un affichage lisible** : modes Auto, Décimal, Fraction et Scientifique, sans recalcul ; « ≈ » pour une valeur approchée,
-  « … » quand des chiffres sont omis ; un badge « Exact » / « ≈ Approché ».
+  « … » quand des chiffres sont omis ; un signe « = » ou « ≈ » dans la marge de chaque ligne et des résultats alignés sur
+  la virgule.
 - **Une saisie française souple** : virgule ou point décimal, notation scientifique (`1,5e-7`), espaces insécables pour
   les milliers.
 - **Des erreurs ciblées** : le message est écrit sous la ligne et la partie fautive est soulignée.
@@ -117,8 +118,8 @@ de [docs/TESTS.md](docs/TESTS.md)) :
 - **Calcul en arrière-plan** : la fenêtre répond pendant le recalcul d'un carnet, que `Échap` peut interrompre
   ([ADR 0014](docs/adr/0014-calcul-hors-interface.md)). Il n'est pas accéléré pour autant : borné par ligne (1000 caractères,
   100 niveaux, 500 éléments, nombres de 4096 bits), un carnet de 5000 lignes conçu pour coûter cher prend environ 3 minutes.
-- **Éditeur** : une ligne de plus de 16 384 caractères est refusée ; coller du texte sur plusieurs lignes dans un champ les
-  joint en une seule ; un carnet compte au plus 5000 lignes ; pas d'aperçu du résultat pendant la frappe.
+- **Éditeur** : une ligne de plus de 16 384 caractères est refusée ; coller du texte sur plusieurs lignes crée autant de
+  lignes, et un collage trop long ou trop grand est refusé en entier ; un carnet compte au plus 5000 lignes ; pas d'aperçu du résultat pendant la frappe.
 - **Langage** : pas de multiplication implicite (`2x`), de pourcentage, de constantes `π` ou `e`, ni de fonctions à plusieurs
   arguments ([docs/GUIDE-EXPRESSIONS.md](docs/GUIDE-EXPRESSIONS.md)).
 - **Dans le navigateur, pas de fichier** : pas de menu Fichier, ni d'ouverture et d'enregistrement de fichiers `.calc.json`, de migration des anciens historiques, de verrou et d'écriture atomique ; le carnet reste dans ce navigateur.

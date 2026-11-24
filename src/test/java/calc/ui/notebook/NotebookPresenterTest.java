@@ -2,9 +2,11 @@ package calc.ui.notebook;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import calc.format.DisplayMode;
+import calc.notebook.Notebook;
 import calc.persistence.NotebookCodec;
 import calc.persistence.NotebookStore;
 import calc.ui.DisplayModeStore;
@@ -13,9 +15,11 @@ import calc.ui.notebook.NotebookRow.Status;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.text.NumberFormat;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -42,6 +46,105 @@ class NotebookPresenterTest {
     @AfterEach
     void stop() {
         store.close();
+    }
+
+    // ------------------------------------------------------------------------------------------------ the preview
+
+    @Test
+    void typingShowsThePreviewOfTheActiveLineOnlyAndValidatesNothing() {
+        d.line("a = 2").line("a * 10").up();
+        d.typing("a * 7");
+
+        assertEquals("14", d.row(2).preview(), "the result the typed text would have");
+        assertEquals("20", d.row(2).result(), "the validated result stays the result");
+        assertEquals("", d.row(1).preview(), "only the active line has a preview");
+        assertEquals("", d.row(3).preview());
+        assertEquals(List.of("a = 2", "a * 10"), savedTexts(), "nothing is saved");
+
+        d.typing("a * 10");
+        assertEquals("", d.row(2).preview(), "the validated text has no preview: its result is shown");
+    }
+
+    @Test
+    void aBlankTextACommentOrATextInErrorHasNoPreview() {
+        d.line("a = 2");
+        for (String text : List.of("   ", "# titre", "2 +", "b * 2")) {
+            d.typing(text);
+            assertEquals("", d.row(2).preview(), "« " + text + " »");
+            assertEquals("", d.row(2).errorMessage(), "« " + text + " » is not in error until it is validated");
+            assertEquals(StatusTone.INFO, d.view.statusTone(), "« " + text + " »");
+        }
+        d.typing("a + 1");
+        assertEquals("3", d.row(2).preview());
+    }
+
+    @Test
+    void theDisplayModeInForceFormatsThePreviewAndEnterGivesTheSameText() {
+        d.line("a = 1").mode(DisplayMode.DECIMAL);
+        d.typing("a / 3");
+        String decimal = d.row(2).preview();
+        assertFalse(decimal.isEmpty());
+
+        d.mode(DisplayMode.FRACTION);
+        assertEquals("a / 3", d.field(), "a change of mode keeps the text typed");
+        String fraction = d.row(2).preview();
+        assertFalse(fraction.equals(decimal), "the preview follows the mode: " + decimal + " / " + fraction);
+        d.enter();
+        assertEquals(fraction, d.row(2).result(), "Enter gives the result the preview showed");
+        assertEquals("", d.row(2).preview());
+    }
+
+    @Test
+    void undoTakesThePreviewOutWithTheDraftAndRedoBringsBothBack() {
+        d.line("a = 2").line("a * 10").up().up();
+        d.typing("a = 3");
+        assertEquals("3", d.row(1).preview());
+
+        d.undo();
+        assertEquals("a = 2", d.field());
+        assertEquals("", d.row(1).preview());
+        assertFalse(d.row(2).hasPreview());
+
+        d.redo();
+        assertEquals("a = 3", d.field(), "the draft comes back, still a draft");
+        assertEquals("3", d.row(1).preview());
+        assertEquals("20", d.row(2).result(), "the line below keeps the validated value");
+    }
+
+    @Test
+    void anIntentionThatValidatesTheDraftReplacesThePreviewByTheResult() {
+        d.line("a = 2").line("a * 10").up();
+        d.typing("a * 4");
+        assertEquals("8", d.row(2).preview());
+
+        d.up();
+        assertEquals(List.of("2", "8", ""), d.results(), "moving away validates the line");
+        assertEquals(List.of("", "", ""), d.view.rows().stream().map(NotebookRow::preview).toList());
+        assertEquals(List.of("a = 2", "a * 4"), savedTexts());
+    }
+
+    @Test
+    void theActiveLineCarriesItsDetailAndMarksItsSources() {
+        d.line("a = 2").line("b = 3").line("a * b + a").line("1 / 3");
+        d.click(2);
+        assertEquals(List.of(true, true, false, false, false), d.view.rows().stream().map(NotebookRow::source).toList());
+        assertEquals(List.of("= 2 * 3 + 2", "= 8", "Sources : lignes 1 et 2", "Utilisée par aucune ligne"), detail(d.view));
+
+        d.click(0);
+        assertEquals(List.of(false, false, false, false, false), d.view.rows().stream().map(NotebookRow::source).toList());
+        assertEquals(List.of("= 2", "Utilisée par 1 ligne"), detail(d.view));
+
+        // The result of the detail follows the display mode.
+        d.click(3).mode(DisplayMode.FRACTION);
+        assertEquals(List.of("= 1/3", "Utilisée par aucune ligne"), detail(d.view));
+
+        // The new line at the end has no detail.
+        d.click(4);
+        assertEquals(List.of(), d.view.activeDetail());
+    }
+
+    private static List<String> detail(NotebookViewModel view) {
+        return view.activeDetail().stream().map(calc.detail.LineDetailText.Sentence::text).toList();
     }
 
     /** A mode store that remembers in memory what was saved. */
@@ -429,7 +532,120 @@ class NotebookPresenterTest {
     }
 
     @Test
-    void aLineBreakInAPastedTextBecomesASpace() {
+    void aPastedTextOfSeveralLinesBecomesThatManyLinesInOneCommand() {
+        d.line("10");
+        d.type("1 +").paste(3, 3, " 2\n$1 * 2\r\nans + 1\n");
+
+        assertEquals(List.of("10", "1 + 2", "$1 * 2", "ans + 1", ""), d.texts());
+        assertEquals(List.of("10", "3", "20", "21", ""), d.results());
+        assertEquals(4, d.active(), "the last pasted line is active");
+        assertEquals("ans + 1", d.field());
+        assertEquals("3 lignes collées. Annuler retire tout le collage.", d.view.statusMessage());
+        assertEquals(StatusTone.INFO, d.view.statusTone());
+        assertEquals(List.of("10", "1 + 2", "$1 * 2", "ans + 1"), savedTexts());
+
+        d.undo();
+        assertEquals(List.of("10", ""), d.texts());
+        assertEquals(List.of("10"), savedTexts());
+    }
+
+    @Test
+    void aPasteEndingWithItsOnlyLineBreakValidatesTheLine() {
+        d.line("2 +");
+        d.up();
+
+        d.paste(3, 3, " 3\r\n");
+
+        assertEquals(List.of("2 + 3", ""), d.texts());
+        assertEquals("5", d.row(1).result());
+        assertEquals(1, d.active());
+        assertEquals("Ligne collée. Annuler retire le collage.", d.view.statusMessage());
+        d.undo();
+        assertEquals(List.of("2 +", ""), d.texts());
+    }
+
+    @Test
+    void aPasteIntoAnotherRowValidatesTheLineLeftThenPastesThere() {
+        d.line("1").line("2").type("5");
+
+        d.pasteInto(0, 1, 1, " + 1\n3");
+
+        assertEquals(List.of("1 + 1", "3", "2", "5", ""), d.texts(), "« 5 » typed in the line left is validated first");
+        assertEquals(2, d.active());
+    }
+
+    @Test
+    void aPasteIntoARowThatDoesNotExistChangesNothing() {
+        d.line("1");
+
+        d.pasteInto(5, 0, 0, "2\n3");
+        d.pasteInto(-1, 0, 0, "2\n3");
+
+        assertEquals(List.of("1", ""), d.texts());
+        assertFalse(d.view.statusMessage().startsWith(NotebookPresenter.PASTE_REFUSED));
+    }
+
+    @Test
+    void aLineBreakAloneOnTheNewLineAddsNothing() {
+        d.line("1");
+
+        d.paste(0, 0, "\n");
+
+        assertEquals(List.of("1", ""), d.texts());
+        assertEquals(List.of("1"), savedTexts());
+        assertEquals(2, d.active());
+    }
+
+    @Test
+    void aPastedTextWithoutLineBreakGoesIntoTheDraftWithoutBeingValidated() {
+        d.line("1");
+        d.type("a = b");
+
+        d.paste(4, 5, "2 * 3");
+
+        assertEquals("a = 2 * 3", d.view.activeDraft());
+        assertEquals(List.of("1", ""), d.texts(), "nothing is validated");
+        assertEquals(List.of("1"), savedTexts());
+    }
+
+    @Test
+    void aSelectionOutsideTheTextIsAProgrammingError() {
+        d.type("12");
+
+        assertThrows(IndexOutOfBoundsException.class, () -> d.paste(1, 3, "a\nb"));
+        assertThrows(IndexOutOfBoundsException.class, () -> d.paste(2, 1, "a\nb"));
+        assertThrows(NullPointerException.class, () -> d.paste(0, 0, null));
+    }
+
+    @Test
+    void aPasteRefusedForALongLineSaysWhichLineAndChangesNothing() {
+        d.line("1");
+
+        d.paste(0, 0, "2\n" + "3".repeat(NotebookPresenter.MAX_LINE_LENGTH + 1));
+
+        assertEquals(NotebookPresenter.PASTE_REFUSED + "la ligne 2 dépasserait "
+                + NumberFormat.getIntegerInstance(Locale.FRANCE).format(NotebookPresenter.MAX_LINE_LENGTH)
+                + " caractères. Le carnet n'a pas changé.", d.view.statusMessage());
+        assertEquals(StatusTone.ERROR, d.view.statusTone());
+        assertEquals(List.of("1", ""), d.texts());
+    }
+
+    @Test
+    void aPasteRefusedForTooManyLinesSaysHowManyAndChangesNothing() {
+        d.line("1");
+
+        d.paste(0, 0, "2\n".repeat(Notebook.MAX_LINES) + "3");
+
+        NumberFormat format = NumberFormat.getIntegerInstance(Locale.FRANCE);
+        assertEquals(NotebookPresenter.PASTE_REFUSED + "le carnet aurait " + format.format(Notebook.MAX_LINES + 2)
+                + " lignes, il ne peut pas dépasser " + format.format(Notebook.MAX_LINES) + ". Le carnet n'a pas changé.",
+                d.view.statusMessage());
+        assertEquals(StatusTone.ERROR, d.view.statusTone());
+        assertEquals(List.of("1", ""), d.texts());
+    }
+
+    @Test
+    void aLineBreakThatReachesTheDraftBecomesASpace() {
         d.type("1 +\n2\r\n+ 3").enter();
 
         assertEquals("1 + 2 + 3", d.row(1).text());

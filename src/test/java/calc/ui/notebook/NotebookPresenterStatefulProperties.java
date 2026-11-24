@@ -162,13 +162,13 @@ class NotebookPresenterStatefulProperties {
             if (!store.isReadOnly() && Files.exists(store.currentFile())) {
                 assertEquals(texts, NotebookCodec.read(store.currentFile()).notebook().texts(), "the autosave: " + context);
             }
-            assertFalse(view.title().startsWith("• "), context);
+            assertFalse(view.title().contains(" (modifié) "), context);
         } else {
-            String name = view.title().replaceFirst("^• ", "").replace(" (lecture seule)", "").replaceFirst(" — Calc$", "");
+            String name = view.title().replace(" (modifié)", "").replace(" (lecture seule)", "").replaceFirst(" — Calc$", "");
             Path file = documents.resolve(name);
             if (Files.exists(file) && !view.title().contains("lecture seule")) {
                 boolean differs = !texts.equals(NotebookCodec.read(file).notebook().texts());
-                assertTrue(!differs || view.title().startsWith("• "), "a document that differs from its file is marked: " + context);
+                assertTrue(!differs || view.title().contains(" (modifié) "), "a document that differs from its file is marked: " + context);
             }
         }
     }

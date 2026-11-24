@@ -28,6 +28,10 @@ repositories {
 }
 
 dependencies {
+    // The only runtime dependencies: the look and feel and its two embedded fonts (ADR 0017).
+    implementation("com.formdev:flatlaf:3.8")
+    implementation("com.formdev:flatlaf-fonts-inter:4.1")
+    implementation("com.formdev:flatlaf-fonts-jetbrains-mono:2.304")
     testImplementation(platform("org.junit:junit-bom:5.14.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     // Property-based testing engine for the JUnit Platform. 1.10.2 is built against JUnit Platform 1.14.4,
@@ -343,10 +347,12 @@ val checkAppVersion = tasks.register("checkAppVersion") {
 }
 
 val stageAppInput = tasks.register<Sync>("stageAppInput") {
-    description = "Collects the application jar and its runtime dependencies in the jpackage input directory."
+    description = "Collects the application jar, its runtime dependencies and their licences in the jpackage input directory."
     dependsOn(checkAppVersion)
     from(tasks.jar)
     from(configurations.runtimeClasspath)
+    // The licences of the runtime dependencies, in app/licences of the image (ADR 0017).
+    from("config/licences") { into("licences") }
     into(packagingDir.map { it.dir("input") })
 }
 
