@@ -66,6 +66,11 @@ final class NotebookPalette {
         return role("surface.raised");
     }
 
+    /** The status bar: the same raised surface as the detail. */
+    Color statusBarBackground() {
+        return role("surface.raised");
+    }
+
     /** The sentences of the detail of the active line. */
     Color detailForeground() {
         return role("text.secondary");

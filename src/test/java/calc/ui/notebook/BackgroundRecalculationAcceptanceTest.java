@@ -116,7 +116,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 class BackgroundRecalculationAcceptanceTest {
     private static final String PENDING = "Calcul en cours…";
     private static final String INTERRUPTED = "Non calculée : calcul interrompu";
-    private static final Pattern PROGRESS = Pattern.compile("Calcul en cours : (\\d+) / (\\d+) lignes");
+    private static final Pattern PROGRESS = Pattern.compile("Calcul en cours : (\\d+) / (\\d+) lignes — Échap pour interrompre");
     /** A line of the reproduction of B1: valid, under every limit, and about 37 ms of work. */
     private static final String HOSTILE_LINE = String.join("+", Collections.nCopies(65, "sqrt(2^4000+1)"));
     private static final int HOSTILE_LINES = 5000;
@@ -265,7 +265,7 @@ class BackgroundRecalculationAcceptanceTest {
 
         gate.awaitReached();
         NotebookViewModel during = lab.awaitView("three lines are counted",
-                view -> "Calcul en cours : 3 / 6 lignes".equals(view.statusMessage()));
+                view -> "Calcul en cours : 3 / 6 lignes — Échap pour interrompre".equals(view.statusMessage()));
         assertEquals(List.of("1", "2", "3", PENDING, PENDING, PENDING, ""), results(during));
 
         gate.release();
@@ -363,7 +363,7 @@ class BackgroundRecalculationAcceptanceTest {
         Path other = notebookFile("autre.calc.json", List.of("b = 5000", "b + 1", "b + 2"));
         Lab lab = lab(true, baseLines(111));
         Gate gate = lab.startACalculationBlockedOnALine(command);
-        lab.awaitView("four lines are counted", view -> "Calcul en cours : 4 / 8 lignes".equals(view.statusMessage()));
+        lab.awaitView("four lines are counted", view -> "Calcul en cours : 4 / 8 lignes — Échap pour interrompre".equals(view.statusMessage()));
 
         lab.command((p, f) -> p.onCancelEdit(f));
         assertInterrupted(lab.view, 6, 7, 8);

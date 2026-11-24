@@ -29,7 +29,7 @@ répétée ici) ; elle est aussi résumée dans le menu **Aide > Syntaxe des exp
   le texte validé et efface l'aperçu. Un texte incomplet ou en erreur (`2 +`) n'a pas d'aperçu ; son erreur n'apparaît qu'une
   fois la ligne validée. Pendant le calcul du carnet, l'aperçu attend la frappe suivante.
 - Le calcul se fait en arrière-plan : la fenêtre répond toujours, même sur un très gros carnet. Une ligne pas encore calculée
-  affiche « Calcul en cours… » et la barre d'état compte « Calcul en cours : n / N lignes ». Toute nouvelle commande remplace le
+  affiche « Calcul en cours… » et la barre d'état compte « Calcul en cours : n / N lignes — Échap pour interrompre ». Toute nouvelle commande remplace le
   calcul en cours. Les lignes d'un très gros carnet apparaissent par tranches, en 2 à 3 secondes pour 5000 lignes.
 - Sans saisie en cours, `Échap` interrompt le calcul : les lignes restantes disent « Non calculée : calcul interrompu », et la
   commande suivante (valider, ajouter, supprimer, annuler, rétablir, changer de mode, ouvrir, Nouveau, exporter) relance le
@@ -85,6 +85,21 @@ Utilisée par 1 ligne
 
 Un titre, un commentaire, une ligne vide ou une ligne en erreur n'ont pas de détail. Le détail suit les modifications : il
 apparaît dès que le calcul en arrière-plan est terminé.
+
+## La barre d'état
+
+La barre sous le carnet dit, de gauche à droite :
+
+- le message du moment : l'aide de la saisie, la confirmation ou le refus de la dernière commande, et pendant un calcul
+  « Calcul en cours : n / N lignes — Échap pour interrompre » ;
+- l'état d'enregistrement : « Enregistrement automatique » pour le carnet sans titre, « Enregistré » pour un document sans
+  modification, « Modifié » après une modification pas encore enregistrée, « Lecture seule » pour un document écrit par une
+  version plus récente de Calc ;
+- le nombre de lignes du carnet, sans la ligne vide du bas : « 0 ligne », « 1 ligne », « 8 lignes » ;
+- le résumé des résultats, une fois le calcul fini : « 7 exactes, 0 approchée, 0 en erreur ». Les commentaires et les lignes vides
+  ne sont pas comptés. Pendant un calcul, le résumé précédent reste affiché ; après une interruption, il est vide.
+
+Chaque texte se lit en toutes lettres : la couleur ne fait que l'accompagner.
 
 ## Modes d'affichage et thème
 

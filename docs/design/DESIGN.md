@@ -187,7 +187,8 @@ segment choisi a le fond `accent` et le texte `selection.text` ; les autres sont
 Sur `surface.raised`, en Inter `font.size.caption`, `text.secondary`, de gauche à droite :
 
 - `statusLabel` : le message du moment, avec les mêmes priorités qu'aujourd'hui ;
-- `saveStateLabel` : l'état d'enregistrement du document ;
+- `saveStateLabel` : l'état d'enregistrement du document (« Enregistrement automatique », « Enregistré », « Modifié »,
+  « Lecture seule » ; ce dernier en `error.text`, le texte porte l'information, la couleur l'accompagne) ;
 - `lineCountLabel` : « 11 lignes » ;
 - `summaryLabel` : « N exactes, M approchées, K en erreur ».
 

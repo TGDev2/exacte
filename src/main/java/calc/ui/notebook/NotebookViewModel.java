@@ -25,6 +25,10 @@ import java.util.List;
  * without a value and while the notebook is being calculated. The rows that are sources of the active line say so
  * ({@link NotebookRow#source()}).
  *
+ * <p>{@code saveState}, {@code lineCount} and {@code summary} are the texts of the status bar next to the message: how the document
+ * is saved, how many lines the notebook holds (without the new line at the end) and, once the calculation has ended, how many
+ * of them are exact, approximate or in error; the summary is empty while the notebook is being calculated or after an interruption.
+ *
  * @param activeIndex  the index, from 0, of the active row
  * @param focus        where the focus must go once the view model is shown
  * @param activeDetail the sentences of the detail of the active line
@@ -46,7 +50,10 @@ public record NotebookViewModel(
         ThemeChoice theme,
         Theme effectiveTheme,
         boolean systemThemeAvailable,
-        List<LineDetailText.Sentence> activeDetail) {
+        List<LineDetailText.Sentence> activeDetail,
+        String saveState,
+        String lineCount,
+        String summary) {
 
     public NotebookViewModel {
         rows = List.copyOf(rows);

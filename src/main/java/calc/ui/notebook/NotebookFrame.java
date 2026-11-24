@@ -36,6 +36,7 @@ import java.util.concurrent.TimeUnit;
 import javax.swing.AbstractAction;
 import javax.swing.Action;
 import javax.swing.BorderFactory;
+import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.ButtonGroup;
 import javax.swing.JComponent;
@@ -86,7 +87,12 @@ public final class NotebookFrame extends JFrame {
     // The one detail of the window, under the active line.
     private final LineDetailView lineDetail = new LineDetailView();
     private final JScrollPane scrollPane;
+    // The status bar: the message, then how the document is saved, how many lines it holds and what they gave.
+    private final JPanel statusBar = new JPanel(new BorderLayout(16, 0));
     private final JLabel statusLabel = new JLabel(" ");
+    private final JLabel saveStateLabel = new JLabel(" ");
+    private final JLabel lineCountLabel = new JLabel(" ");
+    private final JLabel summaryLabel = new JLabel(" ");
     private final DisplayModeSelector modeSelector = new DisplayModeSelector();
     private final transient Map<DisplayMode, JRadioButtonMenuItem> modeItems = new EnumMap<>(DisplayMode.class);
     private final transient Map<ThemeChoice, JRadioButtonMenuItem> themeItems = new EnumMap<>(ThemeChoice.class);
@@ -152,12 +158,11 @@ public final class NotebookFrame extends JFrame {
         modePanel.add(modeSelector, BorderLayout.CENTER);
         top.add(modePanel, BorderLayout.WEST);
 
-        statusLabel.setName("statusLabel");
-        frameStatusBar();
+        buildStatusBar();
 
         getContentPane().add(top, BorderLayout.NORTH);
         getContentPane().add(scrollPane, BorderLayout.CENTER);
-        getContentPane().add(statusLabel, BorderLayout.SOUTH);
+        getContentPane().add(statusBar, BorderLayout.SOUTH);
         setJMenuBar(createMenuBar());
         installModeShortcut();
         commandPalette = new CommandPaletteView(new CommandPaletteView.Listener() {
@@ -336,12 +341,55 @@ public final class NotebookFrame extends JFrame {
         scrollPane.getViewport().setBackground(NotebookPalette.active().rowBackground());
         frameStatusBar();
         showStatus(shown.statusMessage(), shown.statusTone());
+        showBarTexts(shown);
     }
 
+    private void buildStatusBar() {
+        statusLabel.setName("statusLabel");
+        saveStateLabel.setName("saveStateLabel");
+        saveStateLabel.getAccessibleContext().setAccessibleName("État d'enregistrement");
+        lineCountLabel.setName("lineCountLabel");
+        lineCountLabel.getAccessibleContext().setAccessibleName("Nombre de lignes");
+        summaryLabel.setName("summaryLabel");
+        summaryLabel.getAccessibleContext().setAccessibleName("Résumé des résultats");
+        JPanel facts = new JPanel();
+        facts.setOpaque(false);
+        facts.setLayout(new BoxLayout(facts, BoxLayout.X_AXIS));
+        facts.add(saveStateLabel);
+        facts.add(Box.createHorizontalStrut(16));
+        facts.add(lineCountLabel);
+        facts.add(Box.createHorizontalStrut(16));
+        facts.add(summaryLabel);
+        statusBar.setName("statusBar");
+        statusBar.add(statusLabel, BorderLayout.CENTER);
+        statusBar.add(facts, BorderLayout.EAST);
+        frameStatusBar();
+    }
+
+    // The bar on the raised surface under a rule, and the quiet text of its three facts: only the message and a read-only document colour.
     private void frameStatusBar() {
-        statusLabel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createMatteBorder(1, 0, 0, 0, NotebookPalette.active().border()),
+        NotebookPalette palette = NotebookPalette.active();
+        statusBar.setBackground(palette.statusBarBackground());
+        statusBar.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(1, 0, 0, 0, palette.border()),
                 BorderFactory.createEmptyBorder(5, 10, 5, 10)));
+        lineCountLabel.setForeground(palette.detailForeground());
+        summaryLabel.setForeground(palette.detailForeground());
+    }
+
+    // Every text says it in words; the colour of a read-only document only completes « Lecture seule ». The summary is empty while
+    // a calculation runs, and the previous one stays until its end so that the bar does not blink at each line validated.
+    private void showBarTexts(NotebookViewModel viewModel) {
+        saveStateLabel.setText(viewModel.saveState());
+        saveStateLabel.setForeground(viewModel.saveState().equals("Lecture seule") ? Palette.active().error()
+                : NotebookPalette.active().detailForeground());
+        lineCountLabel.setText(viewModel.lineCount());
+        if (!viewModel.summary().isEmpty() || !presenter.isCalculating()) {
+            summaryLabel.setText(viewModel.summary());
+        }
+        for (JLabel label : List.of(saveStateLabel, lineCountLabel, summaryLabel)) {
+            label.getAccessibleContext().setAccessibleDescription(label.getText());
+        }
     }
 
     private List<JMenuItem> help() {
@@ -739,6 +787,7 @@ public final class NotebookFrame extends JFrame {
             themeItem.setSelected(true);
         }
         showStatus(viewModel.statusMessage(), viewModel.statusTone());
+        showBarTexts(viewModel);
         shown = viewModel;
         growLater();
     }
