@@ -49,11 +49,24 @@
     return node;
   }
 
+  // The margin of a line says whether its value is exact, like the desktop; the title spells it out for a pointer.
+  const SIGNS = {EXACT: '=', APPROXIMATE: '≈', ERROR: '!'};
+  const SIGN_TITLES = {EXACT: 'Valeur exacte', APPROXIMATE: 'Valeur approchée, avec son erreur maximale', ERROR: 'Erreur'};
+  // The mark of a line the current line reads.
+  const SOURCE_MARK = '◆';
+
+  // A row: the margin (number, sign, source mark), the field, the name of an assignment and the result; under them the
+  // error and the detail. The parts are kept on the row, which is reused from one display to the next.
   function newRow() {
     const row = document.createElement('li');
     row.className = 'line';
     const number = element('span', 'number', '');
     number.setAttribute('aria-hidden', 'true');
+    const sign = element('span', 'sign', '');
+    const sourceMark = element('span', 'source-mark', '');
+    sourceMark.setAttribute('aria-hidden', 'true');
+    const margin = element('span', 'marge', '');
+    margin.append(number, sign, sourceMark);
     const input = document.createElement('input');
     input.className = 'expression';
     input.type = 'text';
@@ -61,8 +74,16 @@
     input.spellcheck = false;
     input.setAttribute('autocapitalize', 'off');
     input.setAttribute('enterkeyhint', 'next');
-    row.append(number, input);
+    const name = element('span', 'name', '');
+    const result = element('span', 'result', '');
+    row.append(margin, input, name, result);
+    row.parts = {number: number, sign: sign, sourceMark: sourceMark, input: input, name: name, result: result, detail: null};
     return row;
+  }
+
+  // A line whose text starts with # is a title: the field keeps the raw text, only the typography changes.
+  function isTitle(line) {
+    return /^\s*#/.test(line.text);
   }
 
   function faultyPart(line) {
@@ -79,25 +100,36 @@
     return faulty;
   }
 
-  function outputs(line) {
-    const parts = [];
-    if (line.result !== null) {
-      parts.push(element('span', 'result', line.result));
-    }
-    if (line.status === 'EXACT') {
-      parts.push(element('span', 'badge badge-exact', 'Exact'));
-    } else if (line.status === 'APPROXIMATE') {
-      parts.push(element('span', 'badge badge-approche', '≈ Approché'));
+  function errorParts(line) {
+    return line.error === null ? [] : [element('div', 'error', 'Erreur : ' + line.error), faultyPart(line)];
+  }
+
+  // Under the current line, the sentences of the detail the core wrote (LineDetailText), one paragraph each: the formulas
+  // in the monospace face, the sentences in the face of the page. Under any other line, only what the result cannot say
+  // by itself: the maximum error of an approximate value, or the exact value behind a cut one.
+  function detailOf(line, isCurrent) {
+    if (isCurrent && line.detail.length > 0) {
+      const detail = element('div', 'detail detail-courant', '');
+      detail.append(...line.detail.map((sentence) => element('p', /^\p{L}/u.test(sentence) ? 'phrase' : 'formule', sentence)));
+      return detail;
     }
     if (line.errorBound !== null) {
-      parts.push(element('div', 'detail', 'Erreur maximale : ' + line.errorBound));
-    } else if (line.exactFraction !== null && line.result.includes(CUT_MARK)) {
-      parts.push(element('div', 'detail', 'Valeur exacte : ' + line.exactFraction));
+      return element('div', 'detail', 'Erreur maximale : ' + line.errorBound);
     }
-    if (line.error !== null) {
-      parts.push(element('div', 'error', 'Erreur : ' + line.error), faultyPart(line));
+    if (line.exactFraction !== null && line.result.includes(CUT_MARK)) {
+      return element('div', 'detail', 'Valeur exacte : ' + line.exactFraction);
     }
-    return parts;
+    return null;
+  }
+
+  function placeDetail(row, isCurrent) {
+    if (row.parts.detail !== null) {
+      row.parts.detail.remove();
+    }
+    row.parts.detail = detailOf(row.line, isCurrent);
+    if (row.parts.detail !== null) {
+      row.append(row.parts.detail);
+    }
   }
 
   // A text typed in a field and not yet validated: it differs from the text the notebook holds for that line.
@@ -109,28 +141,39 @@
   // then shows the text the notebook holds, which is also the text Escape brings back: every command validates what was
   // typed before it runs. A change of mode is the exception (`keepTyped`): it validates nothing, so the focused field
   // keeps what is typed in it.
+  // The row is drawn as no line were current: markCurrentLine adds the detail and the source marks afterwards.
   function fill(row, line, keepTyped) {
-    const number = row.firstElementChild;
-    const input = number.nextElementSibling;
+    const parts = row.parts;
+    const input = parts.input;
+    row.line = line;
     row.setAttribute('data-line', String(line.number));
     row.setAttribute('data-status', line.status);
-    number.textContent = String(line.number);
+    row.classList.toggle('titre', isTitle(line));
+    row.classList.remove('courante', 'source');
+    parts.number.textContent = String(line.number);
+    parts.sign.textContent = SIGNS[line.status] || '';
+    parts.sign.title = SIGN_TITLES[line.status] || '';
+    parts.sourceMark.textContent = '';
     input.setAttribute('aria-label', 'Ligne ' + line.number);
     if (input.value !== line.text && !(keepTyped && input === document.activeElement)) {
       input.value = line.text;
     }
     input.dataset.validated = line.text;
-    while (input.nextSibling !== null) {
-      input.nextSibling.remove();
+    parts.name.textContent = line.name === null ? '' : line.name;
+    parts.result.textContent = line.result === null ? '' : line.result;
+    while (parts.result.nextSibling !== null) {
+      parts.result.nextSibling.remove();
     }
-    row.append(...outputs(line));
+    parts.detail = null;
+    row.append(...errorParts(line));
+    placeDetail(row, false);
   }
 
   // Like the desktop, the sheet always ends with a line not yet in the notebook: typing there appends it.
   function draftLine(number) {
     return {
       number: number, text: '', status: 'EMPTY', result: null, exactFraction: null, errorBound: null, error: null,
-      errorStart: -1, errorEnd: -1,
+      errorStart: -1, errorEnd: -1, name: null, sources: [], usedBy: [], detail: [],
     };
   }
 
@@ -139,10 +182,28 @@
     messageElement.hidden = text === '';
   }
 
+  // What the current line marks: itself, with its detail, and its sources, with « ◆ » in their margin. Only the rows
+  // whose marks change are touched, so that moving in a long notebook stays quick.
+  let marked = {line: 0, sources: []};
+
+  function decorate(number) {
+    const row = linesElement.children[number - 1];
+    if (row === undefined) {
+      return;
+    }
+    const isCurrent = number === marked.line;
+    const isSource = marked.sources.includes(number);
+    row.classList.toggle('courante', isCurrent);
+    row.classList.toggle('source', isSource);
+    row.parts.sourceMark.textContent = isSource ? SOURCE_MARK : '';
+    placeDetail(row, isCurrent);
+  }
+
   function markCurrentLine() {
-    Array.from(linesElement.children).forEach((row, index) => {
-      row.classList.toggle('courante', index + 1 === currentLine);
-    });
+    const before = [marked.line].concat(marked.sources);
+    const line = current.lines[currentLine - 1];
+    marked = {line: currentLine, sources: line === undefined ? [] : line.sources};
+    new Set(before.concat(currentLine, marked.sources)).forEach(decorate);
   }
 
   // True while the rows are being redrawn: a browser may report the loss of the focus of a row that is removed, and its
@@ -153,6 +214,7 @@
     modeSelect.value = current.mode;
     const lines = current.lines.concat(draftLine(current.lines.length + 1));
     drawing = true;
+    marked = {line: 0, sources: []};
     while (linesElement.children.length > lines.length) {
       linesElement.lastElementChild.remove();
     }

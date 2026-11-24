@@ -1,137 +1,96 @@
 /*
- * A sheet of French school paper: the Seyes ruling, a red margin with the line numbers in it, results written on the
- * right, and errors corrected in red. Every text sits on a height that is a multiple of --pas, so the ruling stays
- * under the text whatever a line holds.
+ * The page wears the design of the desktop (docs/design/DESIGN.md): a sheet of school paper where each line has its margin
+ * (number, sign of exactness, source mark), its expression, the name of an assignment and the result on the right; the
+ * error and the detail of the current line go under the line. Every colour, font and size comes from tokens.css, loaded
+ * first: this sheet holds only var(--...) and units, never a colour of its own. tokens.css follows prefers-color-scheme.
  */
-:root {
-  color-scheme: light dark;
 
-  --papier: #fbfcff;
-  --bureau: #dde3f2;
-  --ligne: #c3cdea;
-  --ligne-fine: #e8ecf8;
-  --marge: #d9566b;
-  --encre: #1c2f8f;
-  --sur-encre: #ffffff;
-  --graphite: #1a1d29;
-  --crayon: #565c73;
-  --correction: #b3122e;
-  --correction-fond: #fde4e8;
-
-  --pas: 0.5rem;
-  --interligne: 2rem;
-  --assise: -0.4rem;
-  --marge-x: 3.5rem;
-  --retrait: 0.5rem;
-
-  --chiffres: "Cascadia Mono", "SF Mono", ui-monospace, Menlo, Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace;
-  --texte: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", "Liberation Sans", sans-serif;
-  --titre: "Palatino Linotype", Palatino, "Iowan Old Style", "Book Antiqua", "URW Palladio L", serif;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --papier: #141a2e;
-    --bureau: #0c1020;
-    --ligne: #313b5e;
-    --ligne-fine: #1d2541;
-    --marge: #b9475a;
-    --encre: #aebfff;
-    --sur-encre: #10152a;
-    --graphite: #eef1fb;
-    --crayon: #a6aec9;
-    --correction: #ff9aa8;
-    --correction-fond: #48202c;
-  }
-}
-
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
+}
+
+:root {
+  --marge-largeur: calc(var(--space-8) + var(--space-8) + var(--space-2));
+  --hauteur-ligne: var(--space-8);
+  --largeur-feuille: 60rem;
 }
 
 body {
   margin: 0;
-  background: var(--bureau);
-  color: var(--graphite);
-  font-family: var(--texte);
-  font-size: 1rem;
-  line-height: var(--interligne);
+  background: var(--color-surface-base);
+  color: var(--color-text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-body);
+  line-height: calc(var(--space-4) + var(--space-2));
 }
 
-/* ---- The sheet ---------------------------------------------------------------------------------------------------- */
+::selection {
+  background: var(--color-selection-background);
+  color: var(--color-selection-text);
+}
 
 .feuille {
-  max-width: 60rem;
-  margin: var(--interligne) auto;
-  background-color: var(--papier);
-  background-image:
-    linear-gradient(to right,
-      transparent calc(var(--marge-x) - 2px), var(--marge) calc(var(--marge-x) - 2px),
-      var(--marge) var(--marge-x), transparent var(--marge-x)),
-    linear-gradient(to bottom, transparent calc(100% - 1px), var(--ligne) calc(100% - 1px)),
-    linear-gradient(to bottom, transparent calc(100% - 1px), var(--ligne-fine) calc(100% - 1px));
-  background-size: 100% 100%, 100% var(--interligne), 100% var(--pas);
-  background-position: 0 0, 0 var(--assise), 0 var(--assise);
-  background-repeat: no-repeat, repeat, repeat;
+  max-width: var(--largeur-feuille);
+  min-height: 100vh;
+  margin: 0 auto;
+  border-inline: 1px solid var(--color-border-subtle);
 }
 
-.entete,
-.pied {
-  padding-left: calc(var(--marge-x) + var(--retrait));
-  padding-right: 1rem;
-}
+/* ---- The head of the sheet ------------------------------------------------------------------------------------------ */
 
 .entete {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
   justify-content: space-between;
-  column-gap: 2rem;
-  padding-top: var(--interligne);
-  padding-bottom: var(--interligne);
+  gap: var(--space-3) var(--space-8);
+  padding: var(--space-6) var(--space-4) var(--space-4) calc(var(--marge-largeur) + var(--space-2));
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-raised);
 }
 
 h1 {
   margin: 0;
-  color: var(--encre);
-  font-family: var(--titre);
-  font-size: 3rem;
-  font-style: italic;
-  font-weight: 400;
-  line-height: calc(2 * var(--interligne));
+  font-size: calc(var(--font-size-title) + var(--font-size-title) / 2);
+  font-weight: 700;
+  line-height: var(--space-8);
 }
 
-.these,
-.reglage {
-  margin: 0;
+.these {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-secondary);
 }
 
 .reglage {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  height: var(--interligne);
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-text-secondary);
 }
 
 select {
-  height: 1.75rem;
-  border: 1px solid var(--crayon);
-  border-radius: 3px;
-  background: var(--papier);
-  color: var(--graphite);
+  min-height: var(--space-8);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-small);
+  background: var(--color-surface-base);
+  color: var(--color-text-primary);
   font: inherit;
 }
 
 #message {
   margin: 0;
-  padding-left: calc(var(--marge-x) + var(--retrait));
-  color: var(--correction);
+  padding: var(--space-2) var(--space-4) 0 calc(var(--marge-largeur) + var(--space-2));
+  color: var(--color-error-text);
   font-weight: 600;
 }
 
 .sans-script {
   margin: 0;
-  padding-left: calc(var(--marge-x) + var(--retrait));
+  padding: var(--space-4) var(--space-4) var(--space-4) calc(var(--marge-largeur) + var(--space-2));
 }
 
 /* ---- The buttons: the same actions as the keys, for a finger -------------------------------------------------------- */
@@ -139,187 +98,272 @@ select {
 .outils {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  padding: 0 1rem 0.5rem calc(var(--marge-x) + var(--retrait));
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4) var(--space-3) calc(var(--marge-largeur) + var(--space-2));
+  border-bottom: 1px solid var(--color-border-subtle);
 }
 
 .outils button {
-  min-width: 2.75rem;
-  min-height: 2.75rem;
-  padding: 0 0.75rem;
-  border: 1.5px solid var(--encre);
-  border-radius: 3px;
-  background: var(--papier);
-  color: var(--encre);
+  min-width: calc(var(--space-8) + var(--space-3));
+  min-height: calc(var(--space-8) + var(--space-3));
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-medium);
+  background: var(--color-surface-raised);
+  color: var(--color-text-primary);
   font: inherit;
-  font-size: 0.9rem;
   font-weight: 600;
-  line-height: 1.25rem;
   cursor: pointer;
 }
 
 .outils button:hover:not(:disabled) {
-  background: var(--encre);
-  color: var(--sur-encre);
+  background: var(--color-surface-hover);
 }
 
 .outils button:disabled {
-  border-color: var(--crayon);
-  color: var(--crayon);
+  color: var(--color-text-muted);
   cursor: default;
-  opacity: 0.55;
 }
 
-.outils button:focus-visible {
-  outline: 2px solid var(--encre);
-  outline-offset: 2px;
+button:focus-visible,
+select:focus-visible,
+a:focus-visible,
+input.expression:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: -2px;
 }
 
-/* ---- The lines ---------------------------------------------------------------------------------------------------- */
+/* ---- The lines: margin | expression | name | result, then the error and the detail under the line ------------------ */
 
 #lines {
-  min-height: calc(8 * var(--interligne));
+  min-height: calc(8 * var(--hauteur-ligne));
   margin: 0;
-  padding: 0;
+  padding: 0 0 var(--space-8);
   list-style: none;
 }
 
 .line {
+  --filet: var(--color-border-subtle);
   display: grid;
-  grid-template-columns: var(--marge-x) minmax(8rem, 1fr) minmax(0, auto) 6.5rem;
-  align-items: start;
+  grid-template-columns: var(--marge-largeur) minmax(10rem, 1fr) auto minmax(0, max-content);
+  align-items: center;
+  min-height: var(--hauteur-ligne);
+  padding-right: var(--space-3);
+  /* The ruling under the line and the vertical rule of the margin, down the whole height of the line. */
+  background-image: linear-gradient(to right, transparent calc(var(--marge-largeur) - 1px), var(--filet) calc(var(--marge-largeur) - 1px),
+      var(--filet) var(--marge-largeur), transparent var(--marge-largeur));
+  box-shadow: inset 0 -1px 0 var(--color-border-subtle);
 }
 
-.line.courante .number {
-  color: var(--marge);
-  font-weight: 700;
+.line:hover {
+  background-color: var(--color-surface-hover);
+}
+
+.line.courante {
+  background-color: var(--color-surface-active);
+}
+
+.line[data-status="ERROR"] {
+  --filet: var(--color-error-underline);
+  background-color: var(--color-error-surface);
+}
+
+.marge {
+  display: grid;
+  grid-column: 1;
+  grid-row: 1;
+  grid-template-columns: minmax(0, 1fr) var(--space-4) var(--space-4);
+  align-items: center;
+  align-self: stretch;
+  padding-right: var(--space-2);
 }
 
 .number {
-  grid-column: 1;
-  padding-right: 0.75rem;
-  color: var(--crayon);
-  font-family: var(--chiffres);
-  font-size: 0.8rem;
+  padding-right: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
+  font-variant-numeric: tabular-nums;
   text-align: right;
+}
+
+.line.courante .number {
+  color: var(--color-text-secondary);
+  font-weight: 600;
+}
+
+.sign {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-result);
+  font-weight: 600;
+  text-align: center;
+}
+
+.line[data-status="EXACT"] .sign {
+  color: var(--color-exact-sign);
+}
+
+.line[data-status="APPROXIMATE"] .sign {
+  color: var(--color-approximate-sign);
+}
+
+.line[data-status="ERROR"] .sign {
+  color: var(--color-error-text);
+}
+
+.source-mark {
+  display: grid;
+  place-items: center;
+  align-self: stretch;
+  margin-left: var(--space-1);
+  color: var(--color-source-mark);
+  font-size: var(--font-size-caption);
+}
+
+.line.source .source-mark {
+  background: var(--color-source-surface);
 }
 
 input.expression {
   grid-column: 2;
+  grid-row: 1;
   width: 100%;
   min-width: 0;
-  height: var(--interligne);
-  padding: 0 var(--retrait);
+  height: var(--hauteur-ligne);
+  margin: 0;
+  padding: 0 var(--space-2);
   border: 0;
-  border-radius: 0;
+  border-radius: var(--radius-small);
   background: transparent;
-  color: var(--encre);
-  font-family: var(--chiffres);
-  font-size: 1rem;
-  line-height: var(--interligne);
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body);
+  font-variant-numeric: tabular-nums;
 }
 
 input.expression::placeholder {
-  color: var(--crayon);
+  color: var(--color-text-muted);
   opacity: 1;
 }
 
-input.expression:focus-visible,
-select:focus-visible,
-a:focus-visible {
-  outline: 2px solid var(--encre);
-  outline-offset: -2px;
+.line.courante input.expression {
+  background: var(--color-surface-base);
 }
 
-.line[data-status="COMMENT"] input.expression {
-  color: var(--crayon);
-  font-style: italic;
+/* A title keeps its raw text, # included: only the typography changes. */
+.line.titre {
+  padding-top: var(--space-6);
 }
 
-.result {
+.line.titre input.expression {
+  height: calc(var(--space-6) + var(--space-4));
+  font-family: var(--font-ui);
+  font-size: var(--font-size-title);
+  font-weight: 700;
+}
+
+.name {
   grid-column: 3;
-  min-width: 0;
-  padding-left: 0.75rem;
-  font-size: 1.0625rem;
-  font-variant-numeric: lining-nums tabular-nums;
-  font-weight: 600;
-  overflow-wrap: anywhere;
+  grid-row: 1;
+  padding: 0 var(--space-2) 0 var(--space-4);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+  overflow: hidden;
   text-align: right;
-}
-
-/* Solid when the value is certain, dashed when it is bounded: the same line convention as a technical drawing. */
-.badge {
-  grid-column: 4;
-  justify-self: end;
-  margin: 0.25rem 0.75rem 0 0;
-  padding: 0 0.4rem;
-  border: 1.5px solid var(--encre);
-  border-radius: 3px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  line-height: 1.25rem;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.badge-exact {
-  background: var(--encre);
-  color: var(--sur-encre);
-}
-
-.badge-approche {
-  border-style: dashed;
-  color: var(--encre);
-}
-
-.detail,
-.error,
-.faulty {
+.result {
+  grid-column: 4;
+  grid-row: 1;
   min-width: 0;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-result);
+  font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
-  line-height: 1.5rem;
-}
-
-.detail {
-  grid-column: 2 / 4;
-  color: var(--crayon);
-  font-size: 0.875rem;
-  font-variant-numeric: lining-nums tabular-nums;
   text-align: right;
 }
 
+.line[data-status="APPROXIMATE"] .result {
+  color: var(--color-approximate-sign);
+}
+
+/* ---- Under the line: the error, the faulty part, the detail -------------------------------------------------------- */
+
 .error,
-.faulty {
+.faulty,
+.detail {
   grid-column: 2 / -1;
-  padding: 0 0.75rem 0 var(--retrait);
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .error {
-  color: var(--correction);
-  font-size: 0.9rem;
+  padding: 0 var(--space-2);
+  color: var(--color-error-text);
+  font-size: var(--font-size-caption);
   font-weight: 600;
+  line-height: var(--space-4);
 }
 
 .faulty {
-  font-family: var(--chiffres);
-  font-size: 0.9rem;
+  padding: 0 var(--space-2) var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body);
   white-space: pre-wrap;
 }
 
 mark {
-  background: var(--correction-fond);
-  color: var(--correction);
-  font-weight: 700;
-  text-decoration: underline solid var(--correction) 2px;
-  text-underline-offset: 3px;
+  background: transparent;
+  color: var(--color-error-text);
+  text-decoration: underline wavy var(--color-error-underline);
+  text-decoration-thickness: 1px;
+  text-underline-offset: var(--space-1);
 }
 
-/* ---- The foot of the sheet ---------------------------------------------------------------------------------------- */
+/* Under any line: the maximum error of an approximate value, or the exact value behind a cut one. */
+.detail {
+  padding: 0 0 var(--space-1);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--space-4);
+  text-align: right;
+}
+
+/* Under the current line: the sentences of LineDetailText, one per paragraph, formulas in the monospace face. */
+.detail.detail-courant {
+  margin: var(--space-1) 0 var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-medium);
+  background: var(--color-surface-raised);
+  color: var(--color-text-secondary);
+  text-align: left;
+}
+
+.detail-courant p {
+  margin: 0;
+  line-height: calc(var(--space-4) + var(--space-2));
+}
+
+.detail-courant .formule {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body);
+}
+
+.detail-courant .phrase {
+  font-family: var(--font-ui);
+  font-size: var(--font-size-caption);
+}
+
+/* ---- The foot of the sheet ------------------------------------------------------------------------------------------ */
 
 .pied {
-  padding-top: var(--interligne);
-  padding-bottom: var(--interligne);
-  color: var(--crayon);
-  font-size: 0.9rem;
+  padding: var(--space-4) var(--space-4) var(--space-6) calc(var(--marge-largeur) + var(--space-2));
+  border-top: 1px solid var(--color-border-subtle);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
 }
 
 .pied p {
@@ -329,43 +373,60 @@ mark {
 .liens {
   display: flex;
   flex-wrap: wrap;
-  column-gap: 1.5rem;
+  column-gap: var(--space-6);
 }
 
 .pied a {
-  color: var(--encre);
+  color: var(--color-accent);
 }
 
-/* ---- A phone: the result goes under its expression, still on the right ------------------------------------------- */
+/* ---- A phone: the name and the result go under the expression, the result still on the right ---------------------- */
 
 @media (max-width: 36rem) {
   :root {
-    --marge-x: 2.5rem;
+    --marge-largeur: calc(var(--space-8) + var(--space-6));
   }
 
   .feuille {
-    margin: 0;
+    border-inline: 0;
+  }
+
+  .entete,
+  .outils,
+  .pied,
+  #message,
+  .sans-script {
+    padding-left: var(--space-3);
+    padding-right: var(--space-3);
   }
 
   .line {
-    grid-template-columns: var(--marge-x) minmax(0, 1fr) auto;
+    grid-template-columns: var(--marge-largeur) minmax(0, 1fr) minmax(0, auto);
+  }
+
+  .marge {
+    grid-template-columns: minmax(0, 1fr) var(--space-3) var(--space-3);
+    padding-right: var(--space-1);
+  }
+
+  .number {
+    padding-right: var(--space-1);
   }
 
   input.expression {
     grid-column: 2 / -1;
   }
 
-  .result {
+  .name {
     grid-column: 2;
+    grid-row: 2;
+    padding-left: var(--space-2);
+    text-align: left;
   }
 
-  .badge {
+  .result {
     grid-column: 3;
-    margin-left: 0.5rem;
-  }
-
-  .detail {
-    grid-column: 2 / -1;
-    padding-right: 0.75rem;
+    grid-row: 2;
+    padding-bottom: var(--space-1);
   }
 }

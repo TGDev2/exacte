@@ -16,7 +16,7 @@
 // Steps: {"enter":"text"} types in the last line; {"edit":"text","typed":0} types again in the line of the first
 // {"enter"}; {"mode":"Fraction"} picks the option with this label; {"snapshot":"name"} keeps the state of the lines.
 //
-// Only the fixed selectors are used: [data-line="<number>"] with input.expression, .result, .badge, .detail, .error and
+// Only the fixed selectors are used: [data-line="<number>"] with input.expression, .result, .sign, .detail, .error and
 // mark; #display-mode; footer. The last line is taken whatever it holds, so the scenario does not depend on what the page
 // shows at load: the observations of a step are read from the line that step typed in.
 
@@ -85,16 +85,16 @@ function rowOf(row, frame) {
     line: Number(row.getAttribute('data-line')),
     value: input === null ? null : input.value,
     result: textOf(part('.result')),
-    badge: textOf(part('.badge')),
+    sign: textOf(part('.sign')),
     detail: textOf(part('.detail')),
     error: textOf(part('.error')),
     marks: Array.from(row.querySelectorAll('mark'), markOf),
     shown: {
-      result: isShown(part('.result')), badge: isShown(part('.badge')),
+      result: isShown(part('.result')), sign: isShown(part('.sign')),
       detail: isShown(part('.detail')), error: isShown(part('.error')),
     },
     inside: {
-      result: staysInside(part('.result'), frame), badge: staysInside(part('.badge'), frame),
+      result: staysInside(part('.result'), frame), sign: staysInside(part('.sign'), frame),
       detail: staysInside(part('.detail'), frame), error: staysInside(part('.error'), frame),
     },
   };

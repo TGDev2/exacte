@@ -72,16 +72,16 @@ class WebPageEditingAcceptanceTest {
 
         Json one = page.row("load", 2);
         assertEquals("1", one.get("result").text());
-        assertEquals("Exact", one.get("badge").text());
+        assertEquals("=", one.get("sign").text());
         Json root = page.row("load", 3);
         assertEquals(ROOT_RESULT, root.get("result").text());
-        assertEquals("≈ Approché", root.get("badge").text());
+        assertEquals("≈", root.get("sign").text());
         assertEquals(ROOT_BOUND, root.get("detail").text());
         assertEquals("12,5", page.row("load", 4).get("result").text());
         assertEquals("37,5", page.row("load", 5).get("result").text());
         Json sum = page.row("load", 6);
         assertEquals("38,5", sum.get("result").text());
-        assertEquals("Exact", sum.get("badge").text());
+        assertEquals("=", sum.get("sign").text());
         Json broken = page.row("load", 7);
         assertEquals(MISSING_OPERAND, broken.get("error").text());
         assertEquals("", broken.get("result").text());
@@ -764,7 +764,7 @@ class WebPageEditingAcceptanceTest {
         assertEquals(8, page.rows(snapshot).size(), "Les 7 lignes du carnet d'exemple, puis la ligne de saisie vide");
         assertEquals("", page.row(snapshot, 1).get("result").text(), "Un commentaire n'a pas de résultat");
         assertEquals("1", page.row(snapshot, 2).get("result").text());
-        assertEquals("Exact", page.row(snapshot, 2).get("badge").text());
+        assertEquals("=", page.row(snapshot, 2).get("sign").text());
         assertEquals(ROOT_RESULT, page.row(snapshot, 3).get("result").text());
         assertEquals(ROOT_BOUND, page.row(snapshot, 3).get("detail").text());
         assertEquals("38,5", page.row(snapshot, 6).get("result").text());

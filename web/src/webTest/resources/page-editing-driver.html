@@ -30,7 +30,7 @@
 // In "store" values and "type" or "enter" texts, {"$repeat":[item,count]} stands for an array and {"$string":[unit,count]} for a
 // string, so that a scenario does not carry 5001 lines in the address.
 //
-// Only the fixed selectors of page-driver.html are used: [data-line="<number>"], input.expression, .result, .badge, .detail,
+// Only the fixed selectors of page-driver.html are used: [data-line="<number>"], input.expression, .result, .sign, .detail,
 // .error, mark, #display-mode and footer; plus #message for the messages, and the buttons by their text.
 
 const KEY = 'calc.web.notebook.v1';
@@ -104,7 +104,7 @@ function rowOf(row) {
     value: input === null ? null : input.value,
     length: input === null ? 0 : input.value.length,
     result: textOf(part('.result')),
-    badge: textOf(part('.badge')),
+    sign: textOf(part('.sign')),
     detail: textOf(part('.detail')),
     error: textOf(part('.error')),
     marks: Array.from(row.querySelectorAll('mark'), (mark) => mark.textContent),

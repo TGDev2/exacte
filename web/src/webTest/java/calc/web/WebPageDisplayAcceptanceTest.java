@@ -40,7 +40,7 @@ class WebPageDisplayAcceptanceTest {
     private static final Path SOURCES = Path.of("web", "site");
     private static final Path COMPILED = Path.of("web", "build", "generated", "teavm", "js", "calc.js");
     private static final Path BUILD_FILE = Path.of("web", "build.gradle.kts");
-    private static final List<String> SITE_FILES = List.of("index.html", "style.css", "app.js", "calc.js");
+    private static final List<String> SITE_FILES = List.of("index.html", "tokens.css", "style.css", "app.js", "calc.js");
     private static final long MAX_CALC_JS_BYTES = 2_097_152;
 
     private static final int DESKTOP = 1024;
@@ -49,7 +49,7 @@ class WebPageDisplayAcceptanceTest {
     private static final String HOSTILE = "<img src=x onerror=alert(1)>";
     private static final String ROOT_RESULT = "≈ 1,41421356237…";
     private static final String ROOT_BOUND = "Erreur maximale : ± 2,1 × 10⁻²⁵";
-    private static final String APPROXIMATE_BADGE = "≈ Approché";
+    private static final String APPROXIMATE_SIGN = "≈";
     private static final String MISSING_OPERAND = "Erreur : Opérande manquant après « + ».";
     private static final Pattern ABSOLUTE_ADDRESS = Pattern.compile("^\\s*(?:[a-zA-Z][a-zA-Z0-9+.-]*:|/|\\\\)");
     private static final Pattern DARK_SCHEME = Pattern.compile("prefers-color-scheme\\s*:\\s*dark");
@@ -78,7 +78,7 @@ class WebPageDisplayAcceptanceTest {
     /** The site is rebuilt from its sources: an old folder that happens to be there would prove nothing. */
     @Test
     void theSiteIsACopyOfTheSourcesAndOfTheCompiledCore() throws IOException {
-        for (String file : List.of("index.html", "style.css", "app.js")) {
+        for (String file : List.of("index.html", "tokens.css", "style.css", "app.js")) {
             assertSameBytes(SOURCES.resolve(file), SITE.resolve(file));
         }
         assertSameBytes(COMPILED, SITE.resolve("calc.js"));
@@ -95,12 +95,16 @@ class WebPageDisplayAcceptanceTest {
 
     @Test
     void theStyleSheetHasADarkModeAndNoExternalResource() throws IOException {
-        Path css = SITE.resolve("style.css");
-        assertTrue(Files.isRegularFile(css), "Manque dans le site : " + css);
-        String content = Files.readString(css, UTF_8);
-        assertTrue(DARK_SCHEME.matcher(content).find(), "style.css ne contient pas prefers-color-scheme: dark");
-        Matcher external = EXTERNAL_IN_CSS.matcher(content);
-        assertFalse(external.find(), () -> "Ressource externe dans style.css : " + external.group());
+        boolean dark = false;
+        for (String file : List.of("tokens.css", "style.css")) {
+            Path css = SITE.resolve(file);
+            assertTrue(Files.isRegularFile(css), "Manque dans le site : " + css);
+            String content = Files.readString(css, UTF_8);
+            dark |= DARK_SCHEME.matcher(content).find();
+            Matcher external = EXTERNAL_IN_CSS.matcher(content);
+            assertFalse(external.find(), () -> "Ressource externe dans " + file + " : " + external.group());
+        }
+        assertTrue(dark, "Ni tokens.css ni style.css ne contient prefers-color-scheme: dark");
     }
 
     /** A comment holding one of these words is refused too: nothing in this script may look like it writes markup. */
@@ -192,18 +196,18 @@ class WebPageDisplayAcceptanceTest {
         Json one = page.typedLine(0);
         assertEquals("(1/3)*3", one.get("value").text());
         assertEquals("1", one.get("result").text());
-        assertEquals("Exact", one.get("badge").text());
+        assertEquals("=", one.get("sign").text());
         assertEquals("", one.get("detail").text(), "Un résultat exact et complet n'a rien à préciser");
         assertTrue(one.get("shown").get("result").bool(), "Le résultat 1 n'est pas visible");
-        assertTrue(one.get("shown").get("badge").bool(), "Le badge Exact n'est pas visible");
+        assertTrue(one.get("shown").get("sign").bool(), "Le signe = n'est pas visible");
 
         Json root = page.typedLine(1);
         assertEquals("√2", root.get("value").text());
         assertEquals(ROOT_RESULT, root.get("result").text());
-        assertEquals(APPROXIMATE_BADGE, root.get("badge").text());
+        assertEquals(APPROXIMATE_SIGN, root.get("sign").text());
         assertEquals(ROOT_BOUND, root.get("detail").text());
         assertTrue(root.get("shown").get("result").bool(), "Le résultat de √2 n'est pas visible");
-        assertTrue(root.get("shown").get("badge").bool(), "Le badge de √2 n'est pas visible");
+        assertTrue(root.get("shown").get("sign").bool(), "Le signe de √2 n'est pas visible");
         assertTrue(root.get("shown").get("detail").bool(), "La borne doit se lire sans survol, pas dans une infobulle");
         assertEquals("", root.get("error").text());
         assertEquals(List.of(), root.get("marks").items());
@@ -214,7 +218,7 @@ class WebPageDisplayAcceptanceTest {
         Json third = drive(DESKTOP, enter("1/3")).typedLine(0);
 
         assertEquals("0,333333333333…", third.get("result").text());
-        assertEquals("Exact", third.get("badge").text());
+        assertEquals("=", third.get("sign").text());
         assertEquals("Valeur exacte : 1/3", third.get("detail").text());
         assertTrue(third.get("shown").get("detail").bool(), "La valeur exacte doit se lire sans survol");
     }
@@ -231,7 +235,7 @@ class WebPageDisplayAcceptanceTest {
         assertEquals("21", page.line("après", page.typedNumber(1)).get("result").text());
         Json mended = page.typedLine(2);
         assertEquals("3", mended.get("result").text());
-        assertEquals("Exact", mended.get("badge").text());
+        assertEquals("=", mended.get("sign").text());
         assertEquals("", mended.get("error").text());
         assertEquals(List.of(), mended.get("marks").items());
     }
@@ -246,7 +250,7 @@ class WebPageDisplayAcceptanceTest {
         assertEquals(MISSING_OPERAND, line.get("error").text());
         assertTrue(line.get("shown").get("error").bool(), "Le message d'erreur n'est pas visible");
         assertEquals("", line.get("result").text(), "Une erreur n'a pas de résultat");
-        assertNoExactnessBadge(line);
+        assertNoExactnessSign(line);
         assertMarked(line, "2 ", "+", "");
     }
 
@@ -297,7 +301,7 @@ class WebPageDisplayAcceptanceTest {
 
         Json scientificRoot = page.line("scientifique", root);
         assertEquals("≈ 1,41421356237… × 10⁰", scientificRoot.get("result").text());
-        assertEquals(APPROXIMATE_BADGE, scientificRoot.get("badge").text());
+        assertEquals(APPROXIMATE_SIGN, scientificRoot.get("sign").text());
         assertEquals(ROOT_BOUND, scientificRoot.get("detail").text());
         assertEquals("√2", scientificRoot.get("value").text());
 
@@ -398,7 +402,7 @@ class WebPageDisplayAcceptanceTest {
                         + ", clientWidth " + layout.get("clientWidth").number());
         for (int typed = 0; typed < 7; typed++) {
             Json line = page.typedLine(typed);
-            for (String part : List.of("result", "badge", "detail", "error")) {
+            for (String part : List.of("result", "sign", "detail", "error")) {
                 assertTrue(line.get("inside").get(part).bool(), part + " sort de l'écran à la ligne " + line.get("value").text());
             }
         }
@@ -411,8 +415,8 @@ class WebPageDisplayAcceptanceTest {
 
         assertEquals(ROOT_RESULT, root.get("result").text());
         assertEquals(ROOT_BOUND, root.get("detail").text());
-        assertEquals(APPROXIMATE_BADGE, root.get("badge").text());
-        for (String part : List.of("result", "badge", "detail")) {
+        assertEquals(APPROXIMATE_SIGN, root.get("sign").text());
+        for (String part : List.of("result", "sign", "detail")) {
             assertTrue(root.get("shown").get(part).bool(), part + " n'est pas visible à 360 px");
             assertTrue(root.get("inside").get(part).bool(), part + " sort de l'écran à 360 px");
         }
@@ -513,9 +517,9 @@ class WebPageDisplayAcceptanceTest {
         assertTrue(mark.get("after").text().startsWith(after), "Après le mark : " + mark.get("after").text());
     }
 
-    private static void assertNoExactnessBadge(Json line) {
-        String badge = line.get("badge").text();
-        assertFalse(badge.equals("Exact") || badge.equals(APPROXIMATE_BADGE), "Une erreur n'a pas ce badge : " + badge);
+    private static void assertNoExactnessSign(Json line) {
+        String sign = line.get("sign").text();
+        assertFalse(sign.equals("=") || sign.equals(APPROXIMATE_SIGN), "Une erreur n'a pas ce signe : " + sign);
     }
 
     private static void assertAddressIsRelative(String address) {
