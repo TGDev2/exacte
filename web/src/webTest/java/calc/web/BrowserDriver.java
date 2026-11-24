@@ -132,12 +132,41 @@ public final class BrowserDriver {
      * @param queryString what follows the question mark, already encoded for a URL
      */
     public static String run(String driverPage, String queryString) throws IOException, InterruptedException {
+        return run(driverPage, queryString, List.of());
+    }
+
+    /**
+     * The colour scheme the page sees in {@code prefers-color-scheme}, whatever the system prefers: Blink reads it from
+     * {@code --blink-settings=preferredColorScheme}, where 0 is dark and 1 is light (checked on Edge 158 through
+     * {@code matchMedia} by {@code WebPageDesignAcceptanceTest}).
+     */
+    public enum ColorScheme {
+        LIGHT("1"),
+        DARK("0");
+
+        private final String blinkValue;
+
+        ColorScheme(String blinkValue) {
+            this.blinkValue = blinkValue;
+        }
+
+        String option() {
+            return "--blink-settings=preferredColorScheme=" + blinkValue;
+        }
+    }
+
+    /** Like {@link #run(String, String)}, with the colour scheme given to the browser explicitly. */
+    public static String run(String driverPage, String queryString, ColorScheme scheme) throws IOException, InterruptedException {
+        return run(driverPage, queryString, List.of(scheme.option()));
+    }
+
+    private static String run(String driverPage, String queryString, List<String> options) throws IOException, InterruptedException {
         Path browser = requireInstalled();
         HttpServer server = serve();
         Path profile = Files.createTempDirectory("calc-browser-profile");
         try {
             String url = "http://127.0.0.1:" + server.getAddress().getPort() + "/" + driverPage + "?" + queryString;
-            return resultOf(launch(browser, profile, url));
+            return resultOf(launch(browser, profile, url, options));
         } finally {
             server.stop(0);
             deleteQuietly(profile);
@@ -201,9 +230,11 @@ public final class BrowserDriver {
     private record BrowserRun(int exitCode, String stdout, String stderr) {
     }
 
-    private static BrowserRun launch(Path browser, Path profile, String url) throws IOException, InterruptedException {
+    private static BrowserRun launch(Path browser, Path profile, String url, List<String> options)
+            throws IOException, InterruptedException {
         List<String> command = new ArrayList<>(List.of(browser.toString(), "--headless=new", "--disable-gpu", "--no-first-run",
                 "--user-data-dir=" + profile, "--virtual-time-budget=20000", "--dump-dom"));
+        command.addAll(options);
         if (System.getenv("CI") != null) {
             command.add("--no-sandbox");
         }
