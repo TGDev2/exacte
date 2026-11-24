@@ -34,7 +34,8 @@ public final class NotebookShortcuts {
         NEW_DOCUMENT("Nouveau carnet"),
         OPEN_DOCUMENT("Ouvrir un carnet"),
         SAVE("Enregistrer le carnet dans son fichier"),
-        SAVE_AS("Enregistrer le carnet sous un autre nom");
+        SAVE_AS("Enregistrer le carnet sous un autre nom"),
+        COMMAND_PALETTE("Ouvrir la palette de commandes : chercher une commande par son nom et l'exécuter");
 
         private final String description;
 
@@ -75,6 +76,8 @@ public final class NotebookShortcuts {
         strokes.put(Command.OPEN_DOCUMENT, KeyStroke.getKeyStroke(KeyEvent.VK_O, menuMask));
         strokes.put(Command.SAVE, KeyStroke.getKeyStroke(KeyEvent.VK_S, menuMask));
         strokes.put(Command.SAVE_AS, KeyStroke.getKeyStroke(KeyEvent.VK_S, menuMask | shift));
+        // The command palette (E10): Ctrl+K was free, Ctrl+Maj+K deletes the line (docs/adr/0010-editeur-carnet.md).
+        strokes.put(Command.COMMAND_PALETTE, KeyStroke.getKeyStroke(KeyEvent.VK_K, menuMask));
     }
 
     public KeyStroke stroke(Command command) {
@@ -87,7 +90,11 @@ public final class NotebookShortcuts {
 
     /** The key as the user reads it in French: {@code Ctrl+Maj+K}, {@code Ctrl+Maj+↑}, {@code Entrée}. */
     public String text(Command command) {
-        KeyStroke stroke = stroke(command);
+        return text(stroke(command));
+    }
+
+    /** The same for any key: {@code Ctrl+S}, {@code Ctrl+Maj+Entrée}. */
+    public String text(KeyStroke stroke) {
         List<String> parts = new ArrayList<>();
         int modifiers = stroke.getModifiers();
         if ((modifiers & InputEvent.CTRL_DOWN_MASK) != 0) {
@@ -110,6 +117,38 @@ public final class NotebookShortcuts {
             default -> KeyEvent.getKeyText(stroke.getKeyCode());
         });
         return String.join("+", parts);
+    }
+
+    /**
+     * The key as a list of commands writes it next to a command: the text of {@link #text(KeyStroke)} ({@code Ctrl+S}), or,
+     * with the Cmd modifier of macOS, the symbols of its menus in their order ({@code ⌘S}, {@code ⇧⌘S}, {@code ⌃M}).
+     */
+    public String commandText(KeyStroke stroke) {
+        if (menuMask != InputEvent.META_DOWN_MASK) {
+            return text(stroke);
+        }
+        StringBuilder text = new StringBuilder();
+        int modifiers = stroke.getModifiers();
+        if ((modifiers & InputEvent.CTRL_DOWN_MASK) != 0) {
+            text.append('⌃');
+        }
+        if ((modifiers & InputEvent.ALT_DOWN_MASK) != 0) {
+            text.append('⌥');
+        }
+        if ((modifiers & InputEvent.SHIFT_DOWN_MASK) != 0) {
+            text.append('⇧');
+        }
+        if ((modifiers & InputEvent.META_DOWN_MASK) != 0) {
+            text.append('⌘');
+        }
+        text.append(switch (stroke.getKeyCode()) {
+            case KeyEvent.VK_ENTER -> "↩";
+            case KeyEvent.VK_ESCAPE -> "⎋";
+            case KeyEvent.VK_UP -> "↑";
+            case KeyEvent.VK_DOWN -> "↓";
+            default -> KeyEvent.getKeyText(stroke.getKeyCode());
+        });
+        return text.toString();
     }
 
     /** The lines of the help of the keyboard: the key, a tab, what it does. */

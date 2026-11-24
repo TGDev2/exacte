@@ -125,6 +125,16 @@ final class NotebookPalette {
         return role("border.subtle");
     }
 
+    /** The background of the selected entry of the command palette. */
+    Color selectedEntryBackground() {
+        return role("accent");
+    }
+
+    /** The text of the selected entry of the command palette. */
+    Color selectedEntryText() {
+        return role("selection.text");
+    }
+
     /** The outline of the field that has the keyboard focus. */
     Color focusBorder() {
         return role("border.focus");
