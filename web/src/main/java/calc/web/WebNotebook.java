@@ -1,18 +1,22 @@
 package calc.web;
 
+import calc.detail.LineDetailText;
 import calc.expression.ParsedLine;
 import calc.expression.Span;
 import calc.format.DisplayMode;
 import calc.format.FormattedValue;
 import calc.format.ValueFormatter;
+import calc.notebook.EvaluatedNotebook;
 import calc.notebook.LineId;
 import calc.notebook.LineResult;
 import calc.notebook.Notebook;
 import calc.notebook.NotebookCommand;
 import calc.notebook.NotebookEditor;
 import calc.notebook.NotebookException;
+import calc.notebook.Source;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.TreeSet;
 
 /**
  * The notebook as JavaScript drives it: lines designated by their number, modes by their name, and every answer a JSON
@@ -226,17 +230,21 @@ public final class WebNotebook {
 
     private String calculatedLines() {
         StringBuilder json = new StringBuilder();
-        for (LineResult result : editor.current().results()) {
+        EvaluatedNotebook evaluated = editor.current();
+        for (LineResult result : evaluated.results()) {
             if (json.length() > 0) {
                 json.append(',');
             }
-            appendLine(json, result);
+            appendLine(json, evaluated, result);
         }
         return json.toString();
     }
 
-    /** The rules of NotebookPresenter.row, without its dependency on the window. Package-private: no text reaches every rule. */
-    void appendLine(StringBuilder json, LineResult result) {
+    /**
+     * The rules of NotebookPresenter.row, without its dependency on the window, then the name, the sources, the users and the
+     * detail of the line. Package-private: no text reaches every rule.
+     */
+    void appendLine(StringBuilder json, EvaluatedNotebook evaluated, LineResult result) {
         if (result.isError()) {
             Span span = result.error().span();
             int end = Math.min(span.end(), result.text().length());
@@ -250,6 +258,45 @@ public final class WebNotebook {
             String status = result.kind() == ParsedLine.Kind.COMMENT ? "COMMENT" : "EMPTY";
             appendLine(json, result, status, null, null, null, null, -1, -1);
         }
+        json.append(",\"name\":");
+        appendString(json, result.definedName());
+        json.append(",\"sources\":");
+        appendNumbers(json, sourceNumbers(evaluated, result));
+        json.append(",\"usedBy\":");
+        List<Integer> users = new ArrayList<>();
+        for (LineId user : evaluated.usedBy(result.id())) {
+            users.add(evaluated.result(user).number());
+        }
+        appendNumbers(json, users);
+        json.append(",\"detail\":[");
+        List<String> sentences = LineDetailText.of(evaluated, result.id(), mode);
+        for (int index = 0; index < sentences.size(); index++) {
+            if (index > 0) {
+                json.append(',');
+            }
+            appendString(json, sentences.get(index));
+        }
+        json.append("]}");
+    }
+
+    // The numbers of the lines that the line reads, once each, in the order of the notebook.
+    private static List<Integer> sourceNumbers(EvaluatedNotebook evaluated, LineResult result) {
+        TreeSet<Integer> numbers = new TreeSet<>();
+        for (Source source : result.sources()) {
+            numbers.add(evaluated.result(source.target()).number());
+        }
+        return new ArrayList<>(numbers);
+    }
+
+    private static void appendNumbers(StringBuilder json, List<Integer> numbers) {
+        json.append('[');
+        for (int index = 0; index < numbers.size(); index++) {
+            if (index > 0) {
+                json.append(',');
+            }
+            json.append(numbers.get(index));
+        }
+        json.append(']');
     }
 
     private static void appendLine(StringBuilder json, LineResult result, String status, String shown, String fraction, String bound,
@@ -264,7 +311,7 @@ public final class WebNotebook {
         appendString(json, bound);
         json.append(",\"error\":");
         appendString(json, error);
-        json.append(",\"errorStart\":").append(errorStart).append(",\"errorEnd\":").append(errorEnd).append('}');
+        json.append(",\"errorStart\":").append(errorStart).append(",\"errorEnd\":").append(errorEnd);
     }
 
     /** Only what JSON forbids is escaped: every other character, even half a surrogate pair, passes as it is. */
