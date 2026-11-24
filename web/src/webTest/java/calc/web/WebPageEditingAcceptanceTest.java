@@ -596,7 +596,7 @@ class WebPageEditingAcceptanceTest {
 
     private static Observation otherKeys() throws Exception {
         return drive("otherKeys", DESKTOP, storeNothing(), load("normal"),
-                focus(3), key("c", "ctrl"), key("a", "ctrl"), key("x", "ctrl"), key("v", "ctrl"), key("k", "ctrl"),
+                focus(3), key("c", "ctrl"), key("a", "ctrl"), key("x", "ctrl"), key("v", "ctrl"),
                 key("Tab"), key("Home"), snapshot("untouched"));
     }
 

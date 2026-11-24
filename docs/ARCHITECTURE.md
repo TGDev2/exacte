@@ -21,7 +21,7 @@ tests le vérifient (`NotebookDependenciesTest`, `ServicesDependenciesTest` : vo
 | `calc.ui.design` | Jetons de design (ADR 0016) : `DesignTokens` lit `tokens.properties`, la seule source des couleurs par rôle et par thème (`Theme` : clair, sombre), des polices, des tailles et des paires de contraste | tout le reste de l'application |
 | `calc.ui.theme` | Apparence (ADR 0017) : `ThemeManager` installe les polices embarquées Inter et JetBrains Mono et applique `CalcLightLaf` ou `CalcDarkLaf`, thèmes FlatLaf lus dans les `.properties` générés des jetons ; `SystemThemeDetector` lit le thème du système (Windows seulement, `WindowsSystemThemeDetector`) | la fenêtre |
 | `calc.ui.widget` | Composants Swing réutilisables : contrôle segmenté des modes, palette (thème actif lu dans l'apparence installée) et contrastes | la fenêtre |
-| `calc.ui.notebook` | La fenêtre principale : `NotebookPresenter` (toute la logique d'interaction, testable sans Swing), `NotebookViewModel` (état immuable remis à la vue, détail de la ligne active compris), `NotebookPreview` (l'aperçu de la ligne en cours de frappe, sur son propre fil), `CommandPalette` (la palette de commandes comme modèle, sans Swing : entrées dérivées des menus, recherche sans casse ni accents), `NotebookFrame`, `NotebookRowView`, `LineDetailView` et `CommandPaletteView` (Swing, rien d'autre que l'affichage ; la palette est une couche du `JLayeredPane`, jamais un dialogue), `NotebookDialogs` (interface des boîtes de dialogue, remplacée par un faux dans les tests) | — |
+| `calc.ui.notebook` | La fenêtre principale : `NotebookPresenter` (toute la logique d'interaction, testable sans Swing), `NotebookViewModel` (état immuable remis à la vue, détail de la ligne active compris), `NotebookPreview` (l'aperçu de la ligne en cours de frappe, sur son propre fil), `CommandPalette` (la palette de commandes comme modèle, sans Swing : entrées dérivées des menus, recherche sans casse ni accents), `NotebookExamples` (les trois carnets d'exemple du carnet vide, insérés par `NotebookPresenter.onInsertExample` en une commande annulable), `NotebookFrame`, `NotebookRowView`, `LineDetailView`, `ExamplesPanel` (les trois boutons d'exemple, un seul panneau sous les lignes), `SyntaxHelpDialog` (l'aide de syntaxe, fenêtre non modale à exemples insérables) et `CommandPaletteView` (Swing, rien d'autre que l'affichage ; la palette est une couche du `JLayeredPane`, jamais un dialogue), `NotebookDialogs` (interface des boîtes de dialogue, remplacée par un faux dans les tests) | — |
 | `calc` | `Main` : installe le thème, branche le magasin du carnet, le mode d'affichage et la fenêtre | — |
 | `calc.web` (sous-projet `web/`) | La version web : `WebNotebook` (le carnet tel que JavaScript le pilote, instantanés JSON), `WebExports` (seul point d'entrée de TeaVM), `calc.web.compat` (compléments du JDK), `calc.web.tools` (rapport de conformité mis en page, sur la machine de construction seulement) | Swing, la persistance, les documents |
 
@@ -43,6 +43,20 @@ flowchart TD
     Expr --> Num[calc.number<br/>Rational, CertifiedValue]
     Fmt --> Num
 ```
+
+## Jetons de design et leur génération
+
+Les couleurs par rôle et par thème, les polices, les tailles et les paires de contraste ont une seule source :
+`src/main/resources/calc/ui/design/tokens.properties` (ADR 0016). Le bureau la lit à l'exécution par
+`calc.ui.design.DesignTokens` (`Palette`, `NotebookPalette`, `LineDetailView`) ; `calc.ui.theme.ThemeManager` applique les
+thèmes FlatLaf `CalcLightLaf` et `CalcDarkLaf`. Trois fichiers en sont générés et versionnés :
+
+- `src/main/resources/calc/ui/theme/CalcLightLaf.properties` et `CalcDarkLaf.properties`, les thèmes FlatLaf ;
+- `web/site/tokens.css`, les variables `var(--…)` de la page web, chargée avant `style.css`.
+
+`gradlew generateDesignTokens` les réécrit (`DesignTokenGenerator`, dans les sources de test, jamais livré) après une
+modification des jetons ; `DesignTokensAcceptanceTest` échoue tant qu'un fichier diffère de ce que le générateur écrirait, et
+mesure chaque paire de contraste dans les deux thèmes.
 
 ## Flux d'une ligne
 
@@ -97,7 +111,12 @@ Le sous-projet Gradle `web/` compile le même cœur vers JavaScript avec TeaVM, 
    design du bureau (`docs/design/DESIGN.md`) : `index.html` charge `tokens.css` (généré depuis les jetons, ADR 0016) puis
    `style.css`, qui ne lit ses couleurs que par `var(--color-…)` ; chaque ligne a sa marge (numéro, signe « = », « ≈ » ou « ! »,
    marque « ◆ » des sources de la ligne courante), le nom d'une affectation, le résultat à droite, l'erreur dessous, et la ligne
-   courante le détail de son `detail`. Le thème suit `prefers-color-scheme`.
+   courante le détail de son `detail`. Le thème suit `prefers-color-scheme`, sauf choix dans la palette de commandes : `Ctrl+K`
+   (`Cmd+K`) ou le bouton « Commandes » l'ouvre, une couche non modale (`#command-palette`, rôle `dialog`) qui liste, avec la
+   règle de libellé de la palette du bureau, les huit boutons d'action, les modes de `#display-mode`, « Mode suivant » et les
+   trois thèmes. La liste est dérivée de la page à chaque ouverture et la recherche ignore casse et accents. Choisir un thème pose
+   `data-theme` sur la racine (« Système » le retire) et le garde dans `localStorage` sous la clé `calc.web.theme.v1`, hors du
+   carnet, chaque accès protégé par un `try/catch`.
 4. **`calc.web.compat`** complète trois morceaux du JDK que TeaVM n'a pas ou traite autrement (`BigIntegerCompat`, `PatternCompat`,
    `CharacterCompat`). Une extension TeaVM réécrit les appels dans les classes `calc.*` au moment où TeaVM les lit : le bytecode du
    cœur reste celui de javac.

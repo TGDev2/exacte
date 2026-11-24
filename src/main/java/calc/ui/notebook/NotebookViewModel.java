@@ -63,6 +63,14 @@ public record NotebookViewModel(
         }
     }
 
+    /**
+     * Whether the three example notebooks are offered: no line is written, which is exactly when the watermark of the empty
+     * notebook is shown.
+     */
+    public boolean examplesVisible() {
+        return !watermark.isEmpty();
+    }
+
     public NotebookRow activeRow() {
         return rows.get(activeIndex);
     }

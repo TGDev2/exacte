@@ -82,6 +82,7 @@ public final class NotebookPresenter {
     private static final Pattern LINE_BREAK = Pattern.compile("\\r\\n|\\r|\\n");
     /** The start of the message of a paste refused as a whole. */
     static final String PASTE_REFUSED = "Collage refusé : ";
+    static final String EXAMPLE_REFUSED = "Exemple refusé : ";
     /** What the column of the results says of a line not calculated yet. */
     static final String PENDING_RESULT = "Calcul en cours…";
     /** Why a line left by an interruption has no result. */
@@ -366,6 +367,48 @@ public final class NotebookPresenter {
             select(first + texts.size() - 1);
             say(texts.size() == 1 ? "Ligne collée. Annuler retire le collage."
                     : texts.size() + " lignes collées. Annuler retire tout le collage.", StatusTone.INFO);
+        }
+        return view(NotebookFocus.ACTIVE_LINE);
+    }
+
+    /**
+     * Inserts the lines of an example, in one command that a single undo takes back. In an empty notebook they are the
+     * notebook (the blank line they would follow is the new line, which stays at the end); otherwise they go just below the
+     * active line, which keeps the text now in its field. The first inserted line becomes active. It is refused as a whole,
+     * the notebook left as it was, when a line is too long or the notebook would exceed {@link Notebook#MAX_LINES} lines.
+     */
+    public NotebookViewModel onInsertExample(List<String> lines, String pending) {
+        Objects.requireNonNull(lines, "lines");
+        syncDraft(pending);
+        if (lines.isEmpty()) {
+            return view(NotebookFocus.ACTIVE_LINE);
+        }
+        List<String> texts = new ArrayList<>();
+        if (activeId != null || !draft.isBlank()) {
+            texts.add(draft);
+        }
+        int first = (activeId == null ? document.notebook().size() : activeIndex()) + texts.size();
+        texts.addAll(lines);
+        for (int index = 0; index < texts.size(); index++) {
+            if (texts.get(index).length() > MAX_LINE_LENGTH) {
+                say(EXAMPLE_REFUSED + "la ligne " + (index + 1) + " dépasserait " + integer(MAX_LINE_LENGTH)
+                        + " caractères. Le carnet n'a pas changé.", StatusTone.ERROR);
+                return view(NotebookFocus.ACTIVE_LINE);
+            }
+        }
+        int size = document.notebook().size() - (activeId == null ? 0 : 1) + texts.size();
+        if (size > Notebook.MAX_LINES) {
+            say(EXAMPLE_REFUSED + "le carnet aurait " + integer(size) + " lignes, il ne peut pas dépasser "
+                    + integer(Notebook.MAX_LINES) + ". Le carnet n'a pas changé.", StatusTone.ERROR);
+            return view(NotebookFocus.ACTIVE_LINE);
+        }
+        NotebookCommand command = activeId == null
+                ? new NotebookCommand.AppendLines(texts)
+                : new NotebookCommand.ReplaceWithLines(activeId, texts);
+        if (apply(command)) {
+            select(first);
+            say(lines.size() == 1 ? "Ligne insérée. Annuler la retire."
+                    : lines.size() + " lignes insérées. Annuler les retire toutes.", StatusTone.INFO);
         }
         return view(NotebookFocus.ACTIVE_LINE);
     }

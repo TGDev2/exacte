@@ -23,16 +23,17 @@
 <option value="FRACTION">Fraction</option>
 <option value="SCIENTIFIC">Scientifique</option>
 </select>
+<button type="button" id="open-palette" class="commandes" aria-haspopup="dialog" aria-keyshortcuts="Control+K Meta+K">Commandes</button>
 </p>
 </header>
 <main>
 <div class="outils" role="toolbar" aria-label="Actions sur le carnet">
-<button type="button" data-action="undo">Annuler</button>
-<button type="button" data-action="redo">Rétablir</button>
-<button type="button" data-action="insert">Insérer</button>
-<button type="button" data-action="up">Monter</button>
-<button type="button" data-action="down">Descendre</button>
-<button type="button" data-action="delete">Supprimer</button>
+<button type="button" data-action="undo" data-shortcut="Ctrl+Z">Annuler</button>
+<button type="button" data-action="redo" data-shortcut="Ctrl+Y">Rétablir</button>
+<button type="button" data-action="insert" data-shortcut="Ctrl+Entrée">Insérer</button>
+<button type="button" data-action="up" data-shortcut="Ctrl+Maj+↑">Monter</button>
+<button type="button" data-action="down" data-shortcut="Ctrl+Maj+↓">Descendre</button>
+<button type="button" data-action="delete" data-shortcut="Ctrl+Maj+K">Supprimer</button>
 <button type="button" data-action="clear">Effacer le carnet</button>
 <button type="button" data-action="example">Carnet d'exemple</button>
 </div>
@@ -47,6 +48,11 @@
 <a href="rapport-conformite.html">Rapport de conformité</a>
 </p>
 </footer>
+</div>
+<div id="command-palette" role="dialog" aria-label="Palette de commandes" hidden>
+<input id="command-search" type="text" role="combobox" aria-label="Rechercher une commande" aria-expanded="true" aria-controls="command-list" aria-autocomplete="list" autocomplete="off" spellcheck="false" placeholder="Rechercher une commande">
+<ul id="command-list" role="listbox" aria-label="Commandes"></ul>
+<p id="command-empty" hidden></p>
 </div>
 <script src="calc.js"></script>
 <script src="app.js"></script>

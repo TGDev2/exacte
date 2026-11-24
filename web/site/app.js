@@ -31,6 +31,11 @@
   const linesElement = document.getElementById('lines');
   const modeSelect = document.getElementById('display-mode');
   const messageElement = document.getElementById('message');
+  const palette = document.getElementById('command-palette');
+  const searchField = document.getElementById('command-search');
+  const commandList = document.getElementById('command-list');
+  const emptyElement = document.getElementById('command-empty');
+  const paletteButton = document.getElementById('open-palette');
   const undoButton = document.querySelector('[data-action="undo"]');
   const redoButton = document.querySelector('[data-action="redo"]');
 
@@ -479,11 +484,202 @@
     button.addEventListener('click', ACTIONS[button.getAttribute('data-action')]);
   });
 
+  // ---- The theme -----------------------------------------------------------------------------------------------------
+
+  // The theme chosen in the palette, kept apart from the notebook: « clair » or « sombre ». Without a choice (the
+  // « Système » entry removes it) the root has no data-theme and tokens.css follows prefers-color-scheme.
+  const THEME_KEY = 'calc.web.theme.v1';
+  const THEMES = [{name: 'Clair', value: 'clair'}, {name: 'Sombre', value: 'sombre'}, {name: 'Système', value: null}];
+
+  function applyTheme(value) {
+    if (value === null) {
+      document.documentElement.removeAttribute('data-theme');
+    } else {
+      document.documentElement.setAttribute('data-theme', value);
+    }
+  }
+
+  // Every access to the storage is protected, the access to the property too: a refused storage only loses the memory of
+  // the choice, never the choice itself.
+  function storedTheme() {
+    try {
+      const value = window.localStorage.getItem(THEME_KEY);
+      return value === 'clair' || value === 'sombre' ? value : null;
+    } catch (failure) {
+      return null;
+    }
+  }
+
+  function chooseTheme(value) {
+    applyTheme(value);
+    try {
+      if (value === null) {
+        window.localStorage.removeItem(THEME_KEY);
+      } else {
+        window.localStorage.setItem(THEME_KEY, value);
+      }
+    } catch (failure) {
+      // The theme lasts until the page is closed.
+    }
+  }
+
+  // ---- The command palette -------------------------------------------------------------------------------------------
+
+  const NO_COMMAND_TEXT = 'Aucune commande';
+  const NEXT_MODE_LABEL = 'Mode suivant';
+  const NEXT_MODE_SHORTCUT = 'Ctrl+M';
+
+  // The commands, drawn from the page each time the palette opens: the buttons of the toolbar (their visible text is the
+  // label), the options of #display-mode (« Mode » and the text of the option), the next mode and the themes. Like the
+  // desktop: a command that cannot run now (Annuler with nothing to undo) is listed, greyed, and does nothing.
+  function paletteCommands() {
+    const commands = [];
+    document.querySelectorAll('[data-action]').forEach((button) => {
+      commands.push({
+        label: button.textContent.trim(),
+        shortcut: button.dataset.shortcut || '',
+        enabled: !button.disabled,
+        run: () => button.click(),
+      });
+    });
+    Array.from(modeSelect.options).forEach((option) => {
+      commands.push({
+        label: 'Mode ' + option.textContent.trim(),
+        shortcut: '',
+        enabled: true,
+        run: () => apply(calc.setMode(option.value), true),
+      });
+    });
+    commands.push({label: NEXT_MODE_LABEL, shortcut: NEXT_MODE_SHORTCUT, enabled: true, run: nextMode});
+    THEMES.forEach((theme) => {
+      commands.push({label: 'Thème : ' + theme.name, shortcut: '', enabled: true, run: () => chooseTheme(theme.value)});
+    });
+    return commands;
+  }
+
+  // Case and accents ignored: « decimal » finds « Mode Décimal ».
+  function searchable(text) {
+    return text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  }
+
+  let allCommands = [];
+  let shownCommands = [];
+  let selected = 0;
+
+  function select(index) {
+    selected = index;
+    const options = commandList.children;
+    Array.from(options).forEach((option, position) => {
+      option.setAttribute('aria-selected', position === index ? 'true' : 'false');
+    });
+    if (options[index] === undefined) {
+      searchField.removeAttribute('aria-activedescendant');
+      return;
+    }
+    searchField.setAttribute('aria-activedescendant', options[index].id);
+    options[index].scrollIntoView({block: 'nearest'});
+  }
+
+  function drawCommands() {
+    commandList.replaceChildren(...shownCommands.map((command, index) => {
+      const option = element('li', 'command', '');
+      option.id = 'command-option-' + index;
+      option.setAttribute('role', 'option');
+      option.setAttribute('aria-selected', 'false');
+      if (!command.enabled) {
+        option.setAttribute('aria-disabled', 'true');
+      }
+      option.append(element('span', 'command-label', command.label));
+      if (command.shortcut !== '') {
+        option.append(element('span', 'command-shortcut', command.shortcut));
+      }
+      return option;
+    }));
+    emptyElement.textContent = shownCommands.length === 0 ? NO_COMMAND_TEXT : '';
+    emptyElement.hidden = shownCommands.length > 0;
+    select(0);
+  }
+
+  function filterCommands() {
+    const wanted = searchable(searchField.value.trim());
+    shownCommands = allCommands.filter((command) => searchable(command.label).includes(wanted));
+    drawCommands();
+  }
+
+  function openPalette() {
+    if (palette.hidden) {
+      allCommands = paletteCommands();
+      searchField.value = '';
+      palette.hidden = false;
+      filterCommands();
+    }
+    searchField.focus();
+    searchField.select();
+  }
+
+  function hidePalette() {
+    palette.hidden = true;
+  }
+
+  // The palette goes first, then the command runs, then the focus goes back to the current line: a command never runs
+  // while the palette still owns the focus, and a late focus event cannot make another line the current one.
+  function closePalette(command) {
+    hidePalette();
+    if (command !== undefined) {
+      command.run();
+    }
+    focusLine(currentLine);
+  }
+
+  function runSelected() {
+    const command = shownCommands[selected];
+    if (command !== undefined && command.enabled) {
+      closePalette(command);
+    }
+  }
+
+  function onPaletteKey(event) {
+    const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      select(Math.max(0, Math.min(selected + (event.key === 'ArrowDown' ? 1 : -1), shownCommands.length - 1)));
+    } else if (event.key === 'Enter') {
+      runSelected();
+    } else if (event.key === 'Escape') {
+      closePalette();
+    } else if (!((event.ctrlKey || event.metaKey) && !event.shiftKey && key === 'k')) {
+      return;
+    }
+    event.preventDefault();
+  }
+
+  paletteButton.addEventListener('click', openPalette);
+  searchField.addEventListener('input', filterCommands);
+  // A tap or a click on an entry runs it; the field keeps the focus until then, or the palette would close first.
+  commandList.addEventListener('mousedown', (event) => event.preventDefault());
+  commandList.addEventListener('click', (event) => {
+    const option = event.target.closest('[role="option"]');
+    if (option !== null) {
+      select(Array.from(commandList.children).indexOf(option));
+      runSelected();
+    }
+  });
+  // The palette is not modal: Tab or a click elsewhere leaves it, without running anything.
+  palette.addEventListener('focusout', (event) => {
+    if (event.relatedTarget !== null && !palette.contains(event.relatedTarget)) {
+      hidePalette();
+    }
+  });
+  document.addEventListener('click', (event) => {
+    if (!palette.hidden && !palette.contains(event.target) && !paletteButton.contains(event.target)) {
+      hidePalette();
+    }
+  });
+
   // ---- The keyboard --------------------------------------------------------------------------------------------------
 
   // The shortcuts of the desktop (NotebookShortcuts). Cmd does what Ctrl does, Cmd+M included: the desktop keeps Ctrl+M
   // only because Cmd+M minimises a window on macOS, where a browser may take it before the page. A key is taken from the
-  // browser only when the page does something with it.
+  // browser only when the page does something with it: Ctrl+K and Cmd+K now open the palette, the others stay its own.
   function onMenuKey(event) {
     const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
     if (event.key === 'Enter') {
@@ -498,6 +694,8 @@
       redo(true);
     } else if (key === 'm' && !event.shiftKey) {
       nextMode();
+    } else if (key === 'k' && !event.shiftKey) {
+      openPalette();
     } else {
       return false;
     }
@@ -526,7 +724,12 @@
     if (event.isComposing || event.altKey) {
       return;
     }
-    const menu = event.ctrlKey || event.metaKey;
+    // Inside the palette the keys are its own, and the text field keeps Ctrl+Z, Ctrl+A and the others for itself.
+    if (palette.contains(event.target)) {
+      onPaletteKey(event);
+      return;
+    }
+    const menu =event.ctrlKey || event.metaKey;
     const input = event.target.matches('input.expression') ? event.target : null;
     let handled = false;
     if (menu) {
@@ -573,6 +776,7 @@
     apply(calc.setMode(modeSelect.value), true);
   });
 
+  applyTheme(storedTheme());
   start();
   render();
   focusLine(current.lines.length + 1);
