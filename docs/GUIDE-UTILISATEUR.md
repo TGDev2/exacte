@@ -16,6 +16,13 @@ répétée ici) ; elle est aussi résumée dans le menu **Aide > Syntaxe des exp
 - Annuler et rétablir portent sur les lignes **validées**. `Échap` abandonne définitivement la saisie en cours dans la ligne.
   Annuler la retire d'abord, et Rétablir la remet, sans la valider, tant que rien d'autre n'a changé : une nouvelle saisie, une
   commande validée ou annulée, une autre ligne ou un autre document la font oublier.
+- Coller (`Ctrl+V`, ou glisser-déposer) un texte de plusieurs lignes dans une ligne en fait autant de lignes, à cet endroit :
+  la première suit le texte placé avant le curseur, la dernière précède le texte qui le suit, et les autres lignes ne bougent
+  pas. Les fins de ligne de Windows, macOS et Linux sont reconnues ; un saut de ligne final n'ajoute pas de ligne vide. Les
+  lignes collées sont validées et calculées, et un seul `Ctrl+Z` retire tout le collage (`Ctrl+Y` le refait). Un collage qui
+  ferait dépasser 5000 lignes au carnet ou 16 384 caractères à une ligne est refusé en entier : le carnet ne change pas et la
+  barre d'état l'explique par un message qui commence par « Collage refusé ». Un texte sans saut de ligne s'insère dans le
+  champ, comme une frappe, sans rien valider.
 - Pendant la frappe, la zone du résultat montre un **aperçu** en gris, sans signe dans la marge : le résultat qu'aurait la
   ligne avec le texte tapé, calculé en arrière-plan avec les lignes du dessus (variables, `$n`, `ans`). Rien n'est validé ni
   enregistré, et les autres lignes ne changent pas : `Entrée` valide la ligne et son résultat remplace l'aperçu, `Échap` rend
@@ -197,5 +204,5 @@ Les documents que vous enregistrez avec **Enregistrer sous** sont ailleurs : à 
 | un fichier `.calc.json` est refusé | le message en barre d'état donne la raison (format, taille, version) ; le carnet courant n'a pas été touché |
 
 Limites à connaître : une ligne fait au plus 16 384 caractères dans un fichier (l'éditeur refuse davantage) et au plus 1000
-caractères à évaluer ; un carnet compte au plus 5000 lignes ; coller du texte sur plusieurs lignes dans un champ joint les
-lignes en une seule. La liste complète des limites est dans le [README](../README.md#limites-connues).
+caractères à évaluer ; un carnet compte au plus 5000 lignes ; coller du texte sur plusieurs lignes crée autant de
+lignes, et un collage qui dépasserait ces limites est refusé en entier. La liste complète des limites est dans le [README](../README.md#limites-connues).

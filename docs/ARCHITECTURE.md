@@ -52,7 +52,9 @@ Ce qui se passe quand l'utilisateur valide `prix * 3` :
    annuler). La vue ne contient aucune règle. À chaque frappe (`onDraftChanged`), rien n'est validé : `NotebookPreview`
    évalue sur son propre fil la seule ligne tapée, dans un carnet modifié qui n'est jamais appliqué, à partir des résultats du
    dessus déjà connus, et le présentateur ne montre ce résultat (`NotebookRow.preview`) que pour le texte exact qui l'a
-   produit. Il ne demande pas d'aperçu pendant un calcul du carnet.
+   produit. Il ne demande pas d'aperçu pendant un calcul du carnet. Un collage ou un dépôt de plusieurs lignes passe par le
+   `TransferHandler` de `LineField`, qui le remet entier à `NotebookPresenter.onPaste` : une seule commande
+   `NotebookCommand.ReplaceWithLines` (ou `AppendLines` sur la nouvelle ligne de la fin), donc un seul instantané à annuler.
 2. **Analyse** : `NotebookEditor` applique la commande au `Notebook`, sur le fil de l'interface. Le calcul part alors sur un
    fil de fond (`NotebookRecalculation`, [ADR 0014](adr/0014-calcul-hors-interface.md)), dont les résultats reviennent ligne à
    ligne sous un numéro de génération. `Lexer` puis `ExpressionParser` produisent un
