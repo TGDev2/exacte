@@ -13,6 +13,13 @@ répétée ici) ; elle est aussi résumée dans le menu **Aide > Syntaxe des exp
   `$n` : `$3` suit sa ligne ; vers une ligne supprimée, elle devient une erreur explicite.
 - `ans` est le dernier résultat au-dessus de la ligne ; `$3` est le résultat de la ligne 3.
 - Un carnet vide montre trois exemples en filigrane (`prix = 12,5`, `prix * 3`, `ans / 2`) ; ils ne sont pas enregistrés.
+  Sous ce filigrane, trois boutons proposent de partir d'un exemple : **Devis**, **Racine de 2 approchée** et
+  **Références $n**. Un clic (ou `Tab` puis `Espace`) insère les lignes de l'exemple, en une seule action : la première
+  ligne devient la ligne active, et un seul **Annuler** rend le carnet vide. Dès qu'une ligne est écrite, les boutons
+  disparaissent ; ils reviennent si le carnet redevient vide (après un **Annuler**, par exemple).
+- **Aide > Syntaxe des expressions** ouvre une fenêtre qui ne bloque pas le carnet : le résumé de la syntaxe, puis des
+  exemples ayant chacun un bouton **Insérer**. Il ajoute les lignes de l'exemple sous la ligne courante, en une seule
+  action que **Annuler** retire d'un coup, et la fenêtre reste ouverte pour en insérer d'autres.
 - Annuler et rétablir portent sur les lignes **validées**. `Échap` abandonne définitivement la saisie en cours dans la ligne.
   Annuler la retire d'abord, et Rétablir la remet, sans la valider, tant que rien d'autre n'a changé : une nouvelle saisie, une
   commande validée ou annulée, une autre ligne ou un autre document la font oublier.
