@@ -5,10 +5,12 @@ import calc.expression.ReferenceRewriter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalInt;
+import java.util.Set;
 
 /**
  * The document of a calculation notebook: an immutable, ordered sequence of {@link Line}s. Every command returns a new
@@ -126,11 +128,25 @@ public final class Notebook {
         return insertAt(lines.size(), text);
     }
 
+    /**
+     * The line {@code id} replaced by lines of {@code texts}, in this order, as typed in its place: the first keeps the
+     * identifier of the line, so that the references to it still designate it; the others are new, just below it.
+     */
+    public Notebook replaceWithLines(LineId id, List<String> texts) throws NotebookException {
+        int index = indexOf(id);
+        return typedInPlaceOf(index, index + 1, id, texts);
+    }
+
+    /** New lines of {@code texts} at the end, in this order. */
+    public Notebook appendLines(List<String> texts) throws NotebookException {
+        return typedInPlaceOf(lines.size(), lines.size(), null, texts);
+    }
+
     /** The line {@code id} removed; the references to it become {@code $?}. */
     public Notebook delete(LineId id) {
         List<Line> order = new ArrayList<>(lines);
         order.remove(indexOf(id));
-        return reordered(order, null, nextId);
+        return reordered(order, Set.of(), nextId);
     }
 
     /** The line {@code id} moved so that its index (from 0) becomes {@code toIndex}. */
@@ -144,7 +160,7 @@ public final class Notebook {
         }
         List<Line> order = new ArrayList<>(lines);
         order.add(toIndex, order.remove(from));
-        return reordered(order, null, nextId);
+        return reordered(order, Set.of(), nextId);
     }
 
     /** No line left. Identifiers are not reused afterwards. */
@@ -165,14 +181,31 @@ public final class Notebook {
         Line inserted = new Line(new LineId(nextId), text);
         List<Line> order = new ArrayList<>(lines);
         order.add(index, inserted);
-        return reordered(order, inserted.id(), nextId + 1);
+        return reordered(order, Set.of(inserted.id()), nextId + 1);
+    }
+
+    // Lines of texts typed in place of the lines from index from to index to (excluded); the first keeps the identifier kept
+    // when there is one, the others get new ones.
+    private Notebook typedInPlaceOf(int from, int to, LineId kept, List<String> texts) throws NotebookException {
+        requireLines(texts);
+        requireRoom(lines.size() - (to - from) + texts.size());
+        List<Line> order = new ArrayList<>(lines.subList(0, from));
+        Set<LineId> typed = new HashSet<>();
+        long next = nextId;
+        for (int index = 0; index < texts.size(); index++) {
+            LineId id = index == 0 && kept != null ? kept : new LineId(next++);
+            order.add(new Line(id, texts.get(index)));
+            typed.add(id);
+        }
+        order.addAll(lines.subList(to, lines.size()));
+        return reordered(order, typed, next);
     }
 
     /**
-     * The lines in their new {@code order} (survivors of this notebook, plus the line {@code fresh} just typed, which is
-     * already numbered for its new place), with every reference renumbered to designate the same line as before.
+     * The lines in their new {@code order} (survivors of this notebook, plus the lines {@code typed} just typed, which are
+     * already numbered for their new place), with every other reference renumbered to designate the same line as before.
      */
-    private Notebook reordered(List<Line> order, LineId fresh, long next) {
+    private Notebook reordered(List<Line> order, Set<LineId> typed, long next) {
         Map<LineId, Integer> newIndexes = indexes(order);
         int oldSize = lines.size();
         int shift = order.size() - oldSize;
@@ -185,7 +218,7 @@ public final class Notebook {
         };
         List<Line> rewritten = new ArrayList<>(order.size());
         for (Line line : order) {
-            rewritten.add(line.id().equals(fresh) ? line : rewrite(line, renumbering));
+            rewritten.add(typed.contains(line.id()) ? line : rewrite(line, renumbering));
         }
         return new Notebook(rewritten, next);
     }
@@ -221,6 +254,15 @@ public final class Notebook {
             }
         }
         return indexes;
+    }
+
+    private static void requireLines(List<String> texts) {
+        if (texts.isEmpty()) {
+            throw new IllegalArgumentException("at least one line is needed");
+        }
+        for (String text : texts) {
+            Objects.requireNonNull(text, "text");
+        }
     }
 
     private static void requireRoom(int size) throws NotebookException {

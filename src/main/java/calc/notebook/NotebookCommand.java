@@ -1,5 +1,6 @@
 package calc.notebook;
 
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -58,6 +59,34 @@ public sealed interface NotebookCommand {
         @Override
         public Notebook applyTo(Notebook notebook) throws NotebookException {
             return notebook.append(text);
+        }
+    }
+
+    /**
+     * Replaces a line by several lines, the first in its place and the others just below it: a paste of several lines,
+     * applied, undone and redone as one command.
+     */
+    record ReplaceWithLines(LineId line, List<String> texts) implements NotebookCommand {
+        public ReplaceWithLines {
+            Objects.requireNonNull(line, "line");
+            texts = List.copyOf(texts);
+        }
+
+        @Override
+        public Notebook applyTo(Notebook notebook) throws NotebookException {
+            return notebook.replaceWithLines(line, texts);
+        }
+    }
+
+    /** Adds several lines at the end, as one command. */
+    record AppendLines(List<String> texts) implements NotebookCommand {
+        public AppendLines {
+            texts = List.copyOf(texts);
+        }
+
+        @Override
+        public Notebook applyTo(Notebook notebook) throws NotebookException {
+            return notebook.appendLines(texts);
         }
     }
 
