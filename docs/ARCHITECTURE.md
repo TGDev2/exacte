@@ -44,6 +44,20 @@ flowchart TD
     Fmt --> Num
 ```
 
+## Jetons de design et leur génération
+
+Les couleurs par rôle et par thème, les polices, les tailles et les paires de contraste ont une seule source :
+`src/main/resources/calc/ui/design/tokens.properties` (ADR 0016). Le bureau la lit à l'exécution par
+`calc.ui.design.DesignTokens` (`Palette`, `NotebookPalette`, `LineDetailView`) ; `calc.ui.theme.ThemeManager` applique les
+thèmes FlatLaf `CalcLightLaf` et `CalcDarkLaf`. Trois fichiers en sont générés et versionnés :
+
+- `src/main/resources/calc/ui/theme/CalcLightLaf.properties` et `CalcDarkLaf.properties`, les thèmes FlatLaf ;
+- `web/site/tokens.css`, les variables `var(--…)` de la page web, chargée avant `style.css`.
+
+`gradlew generateDesignTokens` les réécrit (`DesignTokenGenerator`, dans les sources de test, jamais livré) après une
+modification des jetons ; `DesignTokensAcceptanceTest` échoue tant qu'un fichier diffère de ce que le générateur écrirait, et
+mesure chaque paire de contraste dans les deux thèmes.
+
 ## Flux d'une ligne
 
 Ce qui se passe quand l'utilisateur valide `prix * 3` :

@@ -198,6 +198,15 @@ choisissent une commande, `Entrée` l'exécute exactement comme son menu, ferme 
 commande indisponible dans les menus (Annuler sans rien à annuler) est grisée et `Entrée` ne fait rien. `Échap` ferme la
 palette sans rien exécuter : la saisie en cours dans la ligne est conservée et un calcul en cours continue.
 
+## Tout au clavier
+
+Tout se fait sans souris. Par exemple, pour le devis du README : tapez chaque ligne et validez-la par `Entrée`, remontez à
+la ligne `total` par `↑` (son détail s'affiche dessous : sources, « Utilisée par 1 ligne »), ouvrez la palette par `Ctrl+K`,
+tapez « sombre » et `Entrée` pour passer au thème sombre, puis `Tab` jusqu'au contrôle segmenté des modes et `Espace` sur
+**Fraction** ; `Tab` revient aux lignes, et `Ctrl+Z` annule la dernière modification. Chaque élément qui prend le focus
+(ligne, bouton de mode, bouton d'exemple, recherche de la palette) a un nom lu par les lecteurs d'écran : une ligne
+s'annonce « Ligne 5 », par exemple.
+
 ## Version
 
 Le numéro de version de l'application empaquetée se lit dans **Aide > À propos de Calc** ; une exécution depuis les sources

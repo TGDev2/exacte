@@ -198,6 +198,7 @@ Build Gradle, JUnit 5, tests par propriétés et de robustesse, tests d'interfac
 - [ ] Taper `√2 - √2` dans la fenêtre : le résultat se lit `|x| ≤ …` et ne contient pas `≈ 0`.
 - [ ] Taper `(sqrt(2) / 16) ^ 4096` : la ligne est en erreur avec le même message que `(1/16) ^ 4096`.
 - [ ] Thème et Cmd+K sous macOS : non vérifié (Affichage > Thème Clair et Sombre sur un vrai Mac, sans l'option Système).
+- [ ] Polices sous macOS : non vérifié (Inter pour l'interface, JetBrains Mono pour les lignes et les résultats, alignement sur la virgule).
 
 ## 9. Recommandations hiérarchisées
 

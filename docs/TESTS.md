@@ -532,7 +532,7 @@ un test a échoué ou a été ignoré. Les identifiants sont stables ; ajouter u
 | G19 | Les documents (nouveau, ouvrir, enregistrer, enregistrer sous, modifié, confirmations) ne perdent aucune modification | `DocumentServiceTest`, `NotebookFilesTest`, `NotebookFrameFilesTest` |
 | G20 | Les exports Markdown et CSV sont fidèles aux fichiers de référence et ne peuvent pas déclencher une formule de tableur ni injecter de balise | `NotebookExporterTest`, `NotebookExportProperties` |
 | G21 | Tout se fait au clavier, avec le modificateur de menu de chaque système, sans conflit de touche | `NotebookFrameTest`, `NotebookFrameFilesTest`, `NotebookShortcutConflictTest`, `ModeShortcutConflictTest`, `FlatLafFoundationAcceptanceTest` (thèmes clair et sombre de FlatLaf) |
-| G22 | Chaque ligne est accessible (nom, description, ordre de focus) et chaque couleur de texte atteint un contraste de 4,5:1 | `NotebookFrameTest`, `NotebookPaletteContrastTest`, `PaletteContrastTest`, `NotebookRowsAcceptanceTest` |
+| G22 | Chaque ligne est accessible (nom, description, ordre de focus) et chaque couleur de texte atteint un contraste de 4,5:1, dans le thème clair comme dans le thème sombre | `NotebookFrameTest`, `NotebookPaletteContrastTest`, `PaletteContrastTest`, `NotebookRowsAcceptanceTest`, `ThemeAndWindowAcceptanceTest` |
 | G23 | L'interface reste réactive : 500 lignes se recalculent et se peignent en moins de 100 ms | `NotebookPerformanceTest`, `NotebookResponsivenessTest`, `NotebookFrameResponsivenessTest` |
 | G24 | Les textes visibles sont accentués | `VisibleTextsTest` |
 | G25 | Les couches ne dépendent que vers le bas : le modèle n'importe ni Swing ni la persistance, les services aucune interface | `NotebookDependenciesTest`, `ServicesDependenciesTest` |
@@ -540,6 +540,11 @@ un test a échoué ou a été ignoré. Les identifiants sont stables ; ajouter u
 | G27 | Aucune sortie du moteur ne change sans qu'un test de référence le voie (70 cas rejoués) | `GoldenOutputsTest`, `DisplayRulesTest` |
 | G28 | Toute classe jqwik porte l'étiquette `property` ou `robustness` : aucune propriété ne sort silencieusement d'un sous-ensemble | `PropertyTagsTest` |
 | G29 | La version web donne exactement les mêmes résultats que l'application de bureau : même cœur compilé par TeaVM, comparé sous Node par la tâche webTest, qui bloque le déploiement de la page | `WebNotebookAcceptanceTest`, `BigIntegerCompatPropertyTest` |
+| G30 | Les couleurs, polices et tailles viennent d'une seule source de jetons, et chaque paire de contraste atteint 4,5:1 pour un texte et 3:1 pour un indicateur, dans les deux thèmes | `DesignTokensAcceptanceTest` |
+| G31 | Le détail de la ligne active dit d'où vient sa valeur (développement exact, sources, lignes qui l'utilisent, bornes garanties) | `LineDetailAcceptanceTest` |
+| G32 | L'aperçu pendant la frappe ne modifie jamais le carnet, et un collage de plusieurs lignes s'annule en une fois | `TypingPreviewAcceptanceTest`, `MultiLinePasteAcceptanceTest` |
+| G33 | La palette de commandes (Ctrl+K) exécute chaque commande des menus exactement comme son élément de menu | `CommandPaletteAcceptanceTest` |
+| G34 | Le parcours complet au clavier, sans souris, fonctionne sur « Devis cuisine », et chaque composant qui prend le focus a un nom accessible | `RedesignDeliveryAcceptanceTest` |
 
 ## La version web (G29)
 
@@ -649,6 +654,7 @@ Dans un test :
 - Le modèle de carnet accepte une ligne plus longue que ce que le fichier écrit (16 384 caractères) : l'éditeur (E12) la refuse avec un message (`NotebookPresenterTest`), mais le modèle lui-même ne la borne toujours pas.
 - Les mesures de réactivité de l'éditeur (E12) sont des mesures de temps sur la machine de développement : le budget de 100 ms est contrôlé sur la médiane de 15 essais après échauffement, et la médiane mesurée (14 à 41 ms) laisse une marge d'un facteur 2 à 7 ; une machine de CI très chargée pourrait quand même dépasser le budget multiplié par son facteur (voir « Budgets de temps »). Ces mesures dépendent aussi de la position de la souris : chaque masquage ou affichage d'un composant fait demander au système quelle fenêtre se trouve sous le curseur (environ 0,2 ms quand ce n'est pas la fenêtre de l'application). Depuis que le badge d'une ligne en cours de calcul reste en place (`ExactnessBadge.blankBadge`), une Entrée n'en masque plus aucun ; souris hors de la fenêtre, la médiane avec mise en page et peinture est d'environ 50 ms à 500 lignes et de 170 à 300 ms à 5000 lignes, au lieu d'environ 270 ms et 2300 ms.
 - L'éditeur n'est pas contrôlé sur un clavier macOS réel ni avec l'apparence Aqua : les touches sont vérifiées par leur liaison dans le champ (avec `Cmd` simulé) et par les apparences installées dans le JDK de la machine.
+- La refonte n'est pas vérifiée sous macOS : thèmes clair et sombre, Cmd+K et rendu des polices Inter et JetBrains Mono restent à contrôler sur un vrai Mac (`docs/RECETTE.md`, section 8).
 - Les générateurs choisissent leurs formes de valeurs : les cas non prévus (autres alphabets d'espaces, très gros nombres de lignes d'historique) ne sont pas couverts. `-Pjqwik.tries.default=20000` élargit la recherche sans rien changer au code.
 - Le modèle de session du présentateur reproduit la règle de la mémoire des champs : une erreur commune au modèle et au présentateur ne serait pas vue ; `CalculatorPresenterTest` la fixe aussi par des exemples.
 - L'oracle n'a qu'une précision de 200 chiffres : les propriétés qui l'utilisent gardent des opérandes assez courts pour que le résultat exact y tienne, et vérifient que c'est bien le cas.
