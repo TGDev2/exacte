@@ -157,9 +157,24 @@ Le modificateur de menu est `Ctrl` sous Windows et Linux, `Cmd` sous macOS. La l
 | `Ctrl+Maj+↑` / `Ctrl+Maj+↓` | monter / descendre la ligne |
 | `Ctrl+M` | mode d'affichage suivant (toujours `Ctrl`) |
 | `Ctrl+N`, `Ctrl+O`, `Ctrl+S`, `Ctrl+Maj+S` | Nouveau, Ouvrir, Enregistrer, Enregistrer sous |
+| `Ctrl+K` | ouvrir la palette de commandes |
 
 Sous macOS, ces touches sont vérifiées par leur liaison dans la fenêtre avec `Cmd` simulé ; elles n'ont pas été essayées sur
 un clavier Mac réel.
+
+## Palette de commandes
+
+`Ctrl+K` (`Cmd+K` sous macOS), ou **Aide > Palette de commandes…**, ouvre la palette dans la fenêtre : un champ « Rechercher
+une commande » et la liste de toutes les commandes des menus Fichier, Édition, Affichage et Aide, dans l'ordre des menus,
+chacune avec son raccourci à droite. Tapez une partie du nom : la recherche ne tient compte ni des majuscules ni des accents
+(« decimal » trouve « Mode Décimal », « enreg » trouve Enregistrer et Enregistrer sous…). Sans résultat, la palette affiche
+« Aucune commande ».
+
+Les commandes portent le texte de leur menu, sauf les modes d'affichage (« Mode Auto », « Mode Décimal », « Mode Fraction »,
+« Mode Scientifique ») et les thèmes (« Thème : Clair », « Thème : Sombre », « Thème : Système » sous Windows). `↑` et `↓`
+choisissent une commande, `Entrée` l'exécute exactement comme son menu, ferme la palette et rend le focus à la ligne. Une
+commande indisponible dans les menus (Annuler sans rien à annuler) est grisée et `Entrée` ne fait rien. `Échap` ferme la
+palette sans rien exécuter : la saisie en cours dans la ligne est conservée et un calcul en cours continue.
 
 ## Version
 

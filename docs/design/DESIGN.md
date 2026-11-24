@@ -197,7 +197,9 @@ Pendant un calcul, on lit « Calcul en cours : n / N lignes — Échap pour inte
 
 `commandPalette` est une couche posée sur la fenêtre, pas un dialogue modal : champ de recherche
 (`commandPaletteSearch`) et liste (`commandPaletteList`) sur `surface.raised`, `radius.large`, contour `border.subtle`.
-L'entrée choisie a le fond `accent` et le texte `selection.text`. Elle s'ouvre par Ctrl+K (Cmd+K sous macOS) et par Aide >
+Le libellé d'une entrée est en `text.primary` et son raccourci, aligné à droite, en `text.secondary` (paires
+`contrast.text.primary-raised` et `contrast.text.secondary-raised`) ; une entrée indisponible est grisée. L'entrée choisie a
+le fond `accent` et le texte `selection.text` (paire `contrast.text.palette-selected`). Elle s'ouvre par Ctrl+K (Cmd+K sous macOS) et par Aide >
 « Palette de commandes… ». Les libellés suivent une seule règle : « Mode Décimal », « Thème : Sombre », et le texte exact
 de l'élément de menu pour tout le reste.
 

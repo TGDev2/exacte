@@ -85,6 +85,7 @@ window takes it as a parameter, and tests build it with each value.
 | `Ctrl+Maj+K` / `Cmd+Maj+K` | delete the line |
 | `Ctrl+Maj+↑` / `Ctrl+Maj+↓` (always Ctrl) | move the line up / down |
 | `Ctrl+M` (always Ctrl) | next display mode (ADR 0006) |
+| `Ctrl+K` / `Cmd+K` | open the command palette (E10) |
 
 Why these keys are free:
 
@@ -99,6 +100,9 @@ Why these keys are free:
   line is `Ctrl+Maj+↑` / `↓` on every system, not `Alt+↑` / `↓`: the Aqua text field binds Alt+Up and Alt+Down (found by
   the macOS run of `NotebookShortcutConflictTest`), and on Linux some window managers use Alt+arrows for workspaces.
 - **`Ctrl+M` stays `Ctrl`** on macOS because `Cmd+M` minimises a window.
+- **`Ctrl+K` is now taken** by the command palette (E10). It was free: delete is `Ctrl+Maj+K`, and no text field of the
+  installed look and feels binds `Ctrl+K` or `Cmd+K` (`NotebookShortcutConflictTest`). The palette is a layer of the window,
+  not a dialog; its search field keeps `↑`, `↓`, `Entrée` and `Échap` for itself, so `Échap` there never reaches the line.
 - Not checked on a real macOS keyboard here; the Aqua look and feel is not part of the Java runtime of this machine.
 
 The menus (Édition, Affichage, Aide) show the same keys as accelerators. A menu action is disabled when it cannot run
