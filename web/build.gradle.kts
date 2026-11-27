@@ -37,7 +37,7 @@ val webTestSources = sourceSets.create("webTest") {
 dependencies {
     implementation(project(":"))
     // The extension that completes the class library of TeaVM runs inside the compiler, never in the browser.
-    compileOnly("org.teavm:teavm-core:0.16.0")
+    compileOnly("org.teavm:teavm-core:0.17.0")
 
     "webTestImplementation"(platform("org.junit:junit-bom:5.14.4"))
     "webTestImplementation"("org.junit.jupiter:junit-jupiter")
